@@ -413,7 +413,7 @@ async function belegAnlegen(n, b) {
       pruefe(f, 'Выберите машину из списка');
       fahrzeugRef = f.id; fahrzeugText = f.text;
     }
-    if (verwendung === 'objekt') {
+    if (verwendung === 'objekt' || (verwendung === 'fahrzeug' && b.objekt_nr)) {
       const o = (await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr || '')]))[0];
       pruefe(o, 'Выберите объект из списка');
       objektNr = o.nummer; objektText = o.bez || o.nummer;
@@ -563,13 +563,14 @@ async function rueckfrageAnlegen(n, b, benutzerListe) {
       const alt = (await q(`SELECT id, nr FROM ${S}buch_rueckfrage WHERE idem = $1`, [b.idem]))[0];
       if (alt) return { ok: true, wiederholt: true, id: alt.id, nr: alt.nr };
     }
+    let belegArt = ['kraftstoff', 'material', 'sonstiges'].includes(b.beleg_art) ? b.beleg_art : null;
     let titel = txt(b.titel, 120), betrag = b.betrag ? centAus(b.betrag) : null, datum = null, zahl = txt(b.zahlart_text, 60), objekt = txt(b.objekt_text, 120);
     let personRef = txt(b.person_ref, 60), personName = null;
     if (art === 'beleg') {
       const x = (await q(`SELECT * FROM ${S}buch_beleg WHERE id = $1`, [idOf(b.bezug_id)]))[0];
       pruefe(x, 'Чек не найден', 404);
       titel = titel || belegTitel(x); betrag = Number(x.betrag_cent); datum = x.belegdatum;
-      personRef = x.person_ref; personName = x.person_name; objekt = x.fahrzeug_text || x.objekt_text;
+      personRef = x.person_ref; personName = x.person_name; objekt = x.fahrzeug_text || x.objekt_text; belegArt = x.art;
     }
     if (personRef) { const p = await personLesen(q, personRef); if (p) personName = p.name; }
     personName = personName || txt(b.person_name, 120);
@@ -577,11 +578,11 @@ async function rueckfrageAnlegen(n, b, benutzerListe) {
     pruefe(titel, 'Нужна короткая тема запроса');
     const login = (await benutzerFuerPerson(personRef, benutzerListe) || {}).login || null;
     const nr = await nummer(q, 'R');
-    const r = (await q(`INSERT INTO ${S}buch_rueckfrage (nr, bezug_art, bezug_id, titel, betrag_cent, bezugsdatum, zahlart_text, objekt_text,
+    const r = (await q(`INSERT INTO ${S}buch_rueckfrage (nr, beleg_art, bezug_art, bezug_id, titel, betrag_cent, bezugsdatum, zahlart_text, objekt_text,
         person_ref, person_name, person_login, text, von, idem)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      VALUES ($1,$15,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [nr, art, b.bezug_id != null ? String(b.bezug_id) : null, titel, betrag, datum || (/^\d{4}-\d{2}-\d{2}$/.test(String(b.bezugsdatum || '')) ? b.bezugsdatum : null),
-        zahl, objekt, personRef, personName, login, text, n.login, b.idem || null]))[0];
+        zahl, objekt, personRef, personName, login, text, n.login, b.idem || null, belegArt]))[0];
     await log(q, n, 'rueckfrage_angelegt', 'rueckfrage:' + r.id, { nr, an: personName, benachrichtigt: false });
     return { ok: true, id: r.id, nr, benachrichtigung: 'Уведомления не отправлялись: канал не согласован' };
   });
@@ -756,11 +757,14 @@ async function verrechnen(n, id, b) {
 async function verrechnungStorno(n, id) {
   darf(istBuch(n), 'Нет прав');
   return tx(async q => {
-    const v = (await q(`SELECT v.*, p.status AS paket_status FROM ${S}buch_verrechnung v JOIN ${S}buch_zahlpaket p ON p.id = v.paket_id
-      WHERE v.id = $1 FOR UPDATE OF v`, [idOf(id)]))[0];
-    pruefe(v, 'Зачёт не найден', 404);
+    // Порядок блокировок как в paketAnGf/verrechnen: сначала комплект, потом зачёт.
+    // Иначе отмена зачёта могла бы пройти одновременно с передачей Андрею.
+    const kopf = (await q(`SELECT paket_id FROM ${S}buch_verrechnung WHERE id = $1`, [idOf(id)]))[0];
+    pruefe(kopf, 'Зачёт не найден', 404);
+    const p = await paketLaden(q, kopf.paket_id);
+    const v = (await q(`SELECT * FROM ${S}buch_verrechnung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     if (v.storniert_am) return { ok: true, wiederholt: true };
-    pruefe(v.paket_status === 'entwurf', 'Комплект уже передан Андрею', 409);
+    pruefe(p.status === 'entwurf', 'Комплект уже передан Андрею', 409);
     await q(`UPDATE ${S}buch_verrechnung SET storniert_am = now(), storniert_von = $2 WHERE id = $1`, [v.id, n.login]);
     await log(q, n, 'verrechnung_storno', 'paket:' + v.paket_id, { verrechnung: v.id });
     return { ok: true };
@@ -821,16 +825,44 @@ async function paketBezahlt(n, id) {
 }
 
 /* ---------------- банк: только связи с операциями FinMap ---------------- */
-async function bankLink(n, b) {
+/** Связь операции банка с документом. Операция ищется в источнике (FinMap,
+    только чтение), сумма сравнивается с документом. Совпало — «сверено».
+    Не совпало — связь только по явному решению бухгалтера с пояснением и
+    с пометкой «расхождение»; подтверждением банка она не считается.
+    finde(op) → { id, datum, betrag } | null — передаёт слой API. */
+async function bankLink(n, b, finde) {
   darf(istBuch(n), 'Связи с банком ведёт бухгалтерия');
-  const op = txt(b.finmap_op, 80); pruefe(op, 'Нет операции банка');
+  const opId = txt(b.finmap_op, 80); pruefe(opId, 'Нет операции банка');
   pruefe(['abhebung', 'paket', 'beleg', 'erstattung', 'rueckfrage'].includes(b.ziel_art), 'Неизвестная цель связи');
+  const quelle = await finde(opId);
+  pruefe(quelle && quelle.ok, (quelle && quelle.grund) || 'Банк недоступен — связь не ставится', 503);
+  const op = quelle.op;
+  pruefe(op, 'Операция не найдена в банке', 404);
   return tx(async q => {
-    const r = await q(`INSERT INTO ${S}buch_bank_link (finmap_op, ziel_art, ziel_id, von) VALUES ($1,$2,$3,$4)
-      ON CONFLICT DO NOTHING RETURNING id`, [op, b.ziel_art, String(b.ziel_id), n.login]);
+    const zid = idOf(b.ziel_id);
+    const ziel = {
+      abhebung: `SELECT betrag_cent AS b FROM ${S}buch_bewegung WHERE id = $1 AND art = 'abhebung'`,
+      paket: `SELECT brutto_cent - COALESCE((SELECT SUM(betrag_cent) FROM ${S}buch_verrechnung v WHERE v.paket_id = p.id AND v.storniert_am IS NULL), 0) AS b
+              FROM ${S}buch_zahlpaket p WHERE id = $1`,
+      beleg: `SELECT betrag_cent AS b FROM ${S}buch_beleg WHERE id = $1`,
+      erstattung: `SELECT betrag_cent AS b FROM ${S}buch_erstattung WHERE id = $1`,
+      rueckfrage: `SELECT betrag_cent AS b FROM ${S}buch_rueckfrage WHERE id = $1`,
+    }[b.ziel_art];
+    const z = (await q(ziel, [zid]))[0];
+    pruefe(z && z.b != null, 'Документ для связи не найден', 404);
+    const zielBetrag = Number(z.b), opBetrag = Number(op.betrag);
+    const gleich = zielBetrag === opBetrag;
+    if (!gleich) {
+      pruefe(b.trotz_abweichung === true && txt(b.notiz),
+        `Сумма в банке ${euro(opBetrag)} не совпадает с документом ${euro(zielBetrag)}. Связь при расхождении — только с пояснением.`, 409);
+    }
+    const r = await q(`INSERT INTO ${S}buch_bank_link (finmap_op, ziel_art, ziel_id, status, op_betrag_cent, ziel_betrag_cent, op_datum, op_quelle, notiz, von)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING RETURNING id`,
+      [opId, b.ziel_art, String(zid), gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag,
+        /^\d{4}-\d{2}-\d{2}$/.test(String(op.datum || '')) ? op.datum : null, quelle.quelle, txt(b.notiz), n.login]);
     if (!r.length) return { ok: true, wiederholt: true };
-    await log(q, n, 'bank_link', b.ziel_art + ':' + b.ziel_id, { op });
-    return { ok: true, id: r[0].id };
+    await log(q, n, 'bank_link', b.ziel_art + ':' + zid, { op: opId, status: gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag });
+    return { ok: true, id: r[0].id, status: gleich ? 'abgeglichen' : 'abweichung' };
   });
 }
 
@@ -899,7 +931,7 @@ async function lage(n, benutzerListe, jetzt) {
     const eintr = await q(`SELECT * FROM ${S}buch_rueckfrage_eintrag ORDER BY id`);
     const rueckfragen = rfRoh.filter(r => sichtbar(n, r, jetzt)).map(r => {
       const st = wt.stufe(r.frist_basis, jetzt, r.verlust);
-      return { id: Number(r.id), nr: r.nr, bezug_art: r.bezug_art, bezug_id: r.bezug_id, titel: r.titel, betrag: r.betrag_cent && Number(r.betrag_cent),
+      return { id: Number(r.id), nr: r.nr, beleg_art: r.beleg_art, bezug_art: r.bezug_art, bezug_id: r.bezug_id, titel: r.titel, betrag: r.betrag_cent && Number(r.betrag_cent),
         datum: iso(r.bezugsdatum), zahlart_text: r.zahlart_text, objekt: r.objekt_text, person: r.person_name, person_ref: r.person_ref,
         text: r.text, verlust: r.verlust, status: r.status, stufe: r.status === 'offen' || r.verlust ? st.stufe : null, frist: st.frist,
         angelegt: r.angelegt, schluss_notiz: r.schluss_notiz,
@@ -937,7 +969,8 @@ async function lage(n, benutzerListe, jetzt) {
           objekt: p.objekt_text, datei: p.datei_sha, mail_item_id: p.mail_item_id, oleg_status: p.oleg_status, oleg_text: p.oleg_text,
           oleg_datei: p.oleg_datei_sha, oleg_von: p.oleg_von, geprueft_am: p.geprueft_am, status: p.status, iban: istGf(n) || istBuch(n) ? p.iban : null,
           iban_quelle: p.iban_quelle, bezahlt_gemeldet_am: p.bezahlt_gemeldet_am,
-          bank_op: (links.find(l => l.ziel_art === 'paket' && l.ziel_id === String(p.id)) || {}).finmap_op || null,
+          bank_op: (links.find(l => l.ziel_art === 'paket' && l.ziel_id === String(p.id) && l.status === 'abgeglichen') || {}).finmap_op || null,
+          bank_abweichung: links.some(l => l.ziel_art === 'paket' && l.ziel_id === String(p.id) && l.status === 'abweichung'),
           verrechnungen: v.map(x => ({ id: Number(x.id), quittung_id: Number(x.quittung_id), nr: x.nr, empfaenger: x.empfaenger_name,
             betrag: Number(x.betrag_cent), quittung_betrag: Number(x.q_betrag), foto: !!x.foto_sha, nu_bestaetigt: !!x.nu_bestaetigt_am,
             original: !!x.original_am })) };

@@ -4,16 +4,21 @@
 'use strict';
 const fs = require('fs');
 
-let Pool = null;
+let Pool = null, pgTypes = null;
 for (const p of ['pg', '/opt/mailops/node_modules/pg']) {
-  try {
-    const pg = require(p);
-    Pool = pg.Pool;
-    // bigint (идентификаторы, центы) — числом; суммы фирмы далеко ниже 2^53 центов.
-    pg.types.setTypeParser(20, v => { const x = Number(v); if (!Number.isSafeInteger(x)) throw new Error('bigint вне диапазона'); return x; });
-    break;
-  } catch (e) { /* ищем дальше */ }
+  try { const pg = require(p); Pool = pg.Pool; pgTypes = pg.types; break; } catch (e) { /* ищем дальше */ }
 }
+// bigint (идентификаторы, центы) — числом, но ТОЛЬКО в пуле кассы: глобальный
+// парсер pg не трогаем, остальные модули Бухгалтера получают строки как раньше.
+const BIGINT = 20;
+const kassenTypen = {
+  getTypeParser(oid, format) {
+    if (oid === BIGINT && format !== 'binary') {
+      return v => { const x = Number(v); if (!Number.isSafeInteger(x)) throw new Error('bigint вне диапазона'); return x; };
+    }
+    return pgTypes.getTypeParser(oid, format);
+  },
+};
 
 function umgebung() {
   const o = {};
@@ -33,7 +38,7 @@ function holePool() {
   if (pool) return pool;
   const url = umgebung().DATABASE_URL;
   if (!Pool || !url) throw new Fehler(503, 'База недоступна');
-  pool = new Pool({ connectionString: url, max: 4, idleTimeoutMillis: 20000 });
+  pool = new Pool({ connectionString: url, max: 4, idleTimeoutMillis: 20000, types: kassenTypen });
   pool.on('error', e => console.error('касса: соединение с базой:', e.message));
   return pool;
 }

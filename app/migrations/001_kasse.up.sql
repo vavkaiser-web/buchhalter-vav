@@ -198,6 +198,7 @@ CREATE TABLE mailops_prod.buch_rueckfrage (
   bezug_art     text NOT NULL CHECK (bezug_art IN ('beleg','bank','quittung','paket','frei')),
   bezug_id      text,
   titel         text NOT NULL,
+  beleg_art     text CHECK (beleg_art IS NULL OR beleg_art IN ('kraftstoff','material','sonstiges')),
   betrag_cent   bigint CHECK (betrag_cent IS NULL OR betrag_cent > 0),
   bezugsdatum   date,
   zahlart_text  text,
@@ -286,6 +287,15 @@ CREATE TABLE mailops_prod.buch_bank_link (
   finmap_op  text NOT NULL,
   ziel_art   text NOT NULL CHECK (ziel_art IN ('abhebung','paket','beleg','erstattung','rueckfrage')),
   ziel_id    text NOT NULL,
+  -- Сверка: операция найдена в FinMap, сумма сравнена с документом.
+  -- 'abgeglichen' — суммы совпали; 'abweichung' — связь поставлена
+  -- сознательно при расхождении и подтверждением банка не считается.
+  status     text NOT NULL CHECK (status IN ('abgeglichen','abweichung')),
+  op_betrag_cent   bigint NOT NULL,
+  ziel_betrag_cent bigint NOT NULL,
+  op_datum   date,
+  op_quelle  text NOT NULL,
+  notiz      text,
   angelegt   timestamptz NOT NULL DEFAULT now(),
   von        text NOT NULL,
   geloest_am timestamptz,

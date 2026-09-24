@@ -73,7 +73,11 @@ const POST = {
   'paket/:id/gesehen': (n, b, id) => d.paketGesehen(n, id),
   'paket/:id/bezahlt': (n, b, id) => d.paketBezahlt(n, id),
   'verrechnung/:id/storno': (n, b, id) => d.verrechnungStorno(n, id),
-  'bank/link': (n, b) => d.bankLink(n, b),
+  'bank/link': (n, b) => d.bankLink(n, b, async opId => {
+    const r = await bankOps('');
+    if (!r.ok) return { ok: false, grund: r.grund };
+    return { ok: true, quelle: r.quelle, op: r.liste.find(o => String(o.id) === opId) || null };
+  }),
 };
 
 function finde(rest) {
