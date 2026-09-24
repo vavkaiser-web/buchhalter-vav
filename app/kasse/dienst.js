@@ -255,7 +255,7 @@ async function ausgeben(q, n, qt) {
     await q(`UPDATE ${S}buch_erstattung SET status = 'ausgezahlt', weg = 'bar', quittung_id = $2 WHERE id = $1`, [qt.erstattung_id, qt.id]);
   }
   await log(q, n, 'ausgabe', 'quittung:' + qt.id, { nr: qt.nr, betrag: Number(qt.betrag_cent), konto });
-  return { ok: true, nr: qt.nr, bewegung: m.id };
+  return { ok: true, nr: qt.nr, id: qt.id, bewegung: m.id };
 }
 
 async function quittungAusgeben(n, id) {
@@ -279,7 +279,7 @@ async function dringendAusgeben(n, b) {
   return tx(async q => {
     if (b.idem) {
       const alt = (await q(`SELECT id, nr FROM ${S}buch_quittung WHERE idem = $1`, [b.idem]))[0];
-      if (alt) return { ok: true, wiederholt: true, nr: alt.nr };
+      if (alt) return { ok: true, wiederholt: true, nr: alt.nr, id: alt.id };
     }
     const z = await quittungZeile(q, n, null, b, true, null);
     const qt = (await q(`SELECT * FROM ${S}buch_quittung WHERE id = $1`, [z.id]))[0];
@@ -380,6 +380,9 @@ const ZAHLARTEN = ['privat', 'vorschuss', 'firmenkarte', 'kasse'];
 async function belegAnlegen(n, b) {
   darf(istMa(n) || istDisp(n) || buero(n), 'Нет прав загружать чеки');
   pruefe(b.idem && String(b.idem).length >= 8, 'Нет ключа повторной отправки');
+  // Чек из очереди телефона несёт логин автора: если на телефоне уже вошёл
+  // другой человек, чек не записывается на него.
+  pruefe(!b.fuer_login || b.fuer_login === n.login, 'Чек из очереди другого сотрудника — войдите под своим логином', 409);
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля с точностью до цента');
   pruefe(ARTEN.includes(b.art), 'Выберите, что куплено');
   pruefe(ZAHLARTEN.includes(b.zahlart), 'Укажите, чем оплачено');
@@ -825,7 +828,7 @@ async function paketBezahlt(n, id) {
 }
 
 /* ---------------- банк: только связи с операциями FinMap ---------------- */
-/** Связь операции банка с документом. Операция ищется в источнике (FinMap,
+/** Связь операции банка с документом (это не полная банковская сверка). Операция ищется в источнике (FinMap,
     только чтение), сумма сравнивается с документом. Совпало — «сверено».
     Не совпало — связь только по явному решению бухгалтера с пояснением и
     с пометкой «расхождение»; подтверждением банка она не считается.
@@ -838,6 +841,10 @@ async function bankLink(n, b, finde) {
   pruefe(quelle && quelle.ok, (quelle && quelle.grund) || 'Банк недоступен — связь не ставится', 503);
   const op = quelle.op;
   pruefe(op, 'Операция не найдена в банке', 404);
+  // Все цели связи — исходящие деньги (снятие, оплата, возмещение, покупка).
+  // Входящий платёж или перевод между счетами сюда не подходят.
+  pruefe(String(op.typ || '').toLowerCase() === 'expense',
+    'Операция банка не является расходом — связать её со снятием или оплатой нельзя', 409);
   return tx(async q => {
     const zid = idOf(b.ziel_id);
     const ziel = {
@@ -881,7 +888,7 @@ async function lage(n, benutzerListe, jetzt) {
     if (buero(n)) await halterAlle(q, benutzerListe);
     else if (istDisp(n)) await halterFuer(q, n);
     const ich = { login: n.login, name: n.name || n.login, rolle: n.rolle, kurz: n.kurz || initialen(n.name || n.login),
-      person: n.person || null, rollenname: n.rollenname || null };
+      person: n.person || null, rollenname: n.rollenname || null, vorname: String(n.name || n.login).split(/\s+/)[0] };
 
     const konten = await q(`SELECT * FROM ${S}buch_konto ORDER BY art, id`);
     const kontenMit = [];
@@ -984,7 +991,16 @@ async function lage(n, benutzerListe, jetzt) {
     const fahrzeuge = await q(`SELECT id::text AS id, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
       FROM vavapp_prod.vehicles WHERE active ORDER BY plate LIMIT 200`);
 
-    return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo,
+    // Имена для подписей («Андрей снял», «Передано Олегу»). Только отображаемые поля.
+    const namen = {};
+    for (const x of benutzerListe || []) {
+      const vor = String(x.name || x.login).split(/\s+/)[0];
+      namen[x.login] = { name: x.name || x.login, vorname: vor, dativ: x.dativ || vor, rolle: x.rolle };
+    }
+    const bankLinks = buero(n) ? (await q(`SELECT finmap_op, ziel_art, ziel_id, status, op_betrag_cent, ziel_betrag_cent
+      FROM ${S}buch_bank_link WHERE geloest_am IS NULL`)).map(l => ({ op: l.finmap_op, ziel_art: l.ziel_art, ziel_id: l.ziel_id,
+      status: l.status, op_betrag: Number(l.op_betrag_cent), ziel_betrag: Number(l.ziel_betrag_cent) })) : [];
+    return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
       konten: kontenMit, bewegungen, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
       personen, objekte, fahrzeuge,
@@ -996,6 +1012,27 @@ function iso(d) { if (!d) return null; if (typeof d === 'string') return d.slice
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), t = String(d.getDate()).padStart(2, '0'); return `${y}-${m}-${t}`; }
 function initialen(s) { const w = String(s).trim().split(/\s+/); return ((w[0] || '')[0] + ((w[1] || '')[0] || (w[0] || '')[1] || '')).toUpperCase(); }
 
+/** Данные для печатного бланка квитанций: одна квитанция или все квитанции
+    заявки. Права — как на просмотр: бухгалтерия и Андрей — все; Олег — выданные
+    им и подготовленные по утверждённому списку; сотрудник — только свои. */
+async function quittungenDruck(n, was) {
+  return lesen(async q => {
+    const rows = await q(`SELECT qt.*, p.nr AS plan_nr, p.status AS plan_status, p.entschieden_von, p.entschieden_am
+      FROM ${S}buch_quittung qt LEFT JOIN ${S}buch_geldplan p ON p.id = qt.plan_id
+      WHERE ${was.plan ? 'qt.plan_id = $1' : 'qt.id = $1'} ORDER BY qt.id`, [idOf(was.plan || was.id)]);
+    pruefe(rows.length, 'Квитанция не найдена', 404);
+    const sicht = x => buero(n)
+      || (istDisp(n) && (x.ausgegeben_von === n.login || (x.status === 'vorbereitet' && x.plan_status === 'genehmigt')))
+      || (istMa(n) && x.empfaenger_ref === n.person && x.status !== 'storniert');
+    const erlaubt = rows.filter(sicht);
+    darf(erlaubt.length, 'Эта квитанция вам недоступна');
+    await log(q, n, 'quittung_gedruckt', was.plan ? 'plan:' + was.plan : 'quittung:' + was.id, { anzahl: erlaubt.length });
+    return erlaubt.map(x => ({ nr: x.nr, plan_nr: x.plan_nr, plan_status: x.plan_status, genehmigt_von: x.entschieden_von, genehmigt_am: x.entschieden_am,
+      empfaenger: x.empfaenger_name, nu_name: x.nu_name, zweck: x.zweck, betrag: Number(x.betrag_cent), notiz: x.notiz,
+      status: x.status, dringend: x.dringend, angelegt: x.angelegt, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von }));
+  });
+}
+
 /** Журнал событий по записи — для истории в карточке. */
 async function verlauf(n, ziel) {
   darf(buero(n), 'История доступна бухгалтерии и Андрею');
@@ -1004,7 +1041,7 @@ async function verlauf(n, ziel) {
 }
 
 module.exports = {
-  ROLLEN_KASSE, lage, verlauf,
+  ROLLEN_KASSE, lage, verlauf, quittungenDruck,
   abhebung, uebergabe, rueckgabe, bestaetigen,
   planAnlegen, planEinreichen, planEntscheiden,
   quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno,

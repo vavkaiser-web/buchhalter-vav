@@ -97,4 +97,4 @@ async function starten(opt) {
 function jpeg() { return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(64), Buffer.from([0xff, 0xd9])]); }
 const idem = () => crypto.randomUUID();
 
-module.exports = { starten, sql, P, jpeg, idem, datenbankNeu };
+module.exports = { starten, sql, P, jpeg, idem, datenbankNeu, PIN };

@@ -62,7 +62,8 @@ f.addEventListener('submit',async ev=>{
       body:JSON.stringify({login:document.getElementById('login').value,
                            pin:document.getElementById('pin').value})});
     const j=await r.json().catch(()=>({}));
-    if(r.ok){ location.href='/'; return; }
+    // После входа — только на известный адрес /arbeit, иначе как раньше на /.
+    if(r.ok){ location.href=new URLSearchParams(location.search).get('next')==='/arbeit'?'/arbeit':'/'; return; }
     e.textContent = j.fehler || 'Не получилось войти';
   }catch(err){ e.textContent='Сервер не отвечает'; }
   b.disabled=false; b.textContent='Войти';

@@ -248,7 +248,9 @@ http.createServer(async (req, res) => {
     }
 
     if (p === '/api/logout') {
-      res.writeHead(302, { Location: '/login', 'Set-Cookie': 'vavsess=; Path=/; HttpOnly; Max-Age=0' });
+      // Только известная цель возврата — без открытого перенаправления.
+      const ziel = u.searchParams.get('next') === '/arbeit' ? '/login?next=/arbeit' : '/login';
+      res.writeHead(302, { Location: ziel, 'Set-Cookie': 'vavsess=; Path=/; HttpOnly; Max-Age=0' });
       return res.end();
     }
 
@@ -457,7 +459,7 @@ http.createServer(async (req, res) => {
     }
 
     if (p === '/arbeit') {
-      if (!wer(req)) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      if (!wer(req)) { res.writeHead(302, { Location: '/login?next=/arbeit' }); return res.end(); }
       return dateiAntwort(res, path.join(OEFF, 'arbeit.html'));
     }
 

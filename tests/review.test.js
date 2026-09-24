@@ -12,6 +12,7 @@ const BANK = path.join(os.tmpdir(), 'buch-demo-bank-' + process.pid + '.json');
 fs.writeFileSync(BANK, JSON.stringify([
   { id: 'op-abh', datum: '2026-09-15', typ: 'expense', betrag: 200000, konto: 'Демо', partner: 'Снятие', kommentar: '' },
   { id: 'op-pay', datum: '2026-09-25', typ: 'expense', betrag: 20000, konto: 'Демо', partner: 'Подрядчик А', kommentar: '' },
+  { id: 'op-ein', datum: '2026-09-25', typ: 'income', betrag: 20000, konto: 'Демо', partner: 'Заказчик', kommentar: '' },
 ]));
 let s;
 test.before(async () => { s = await starten({ env: { BUCH_DEMO_BANK: BANK } }); });
@@ -63,6 +64,8 @@ test('Связь с банком: только реальная операция
   assert.equal(falsch.status, 409, 'сумма 2.000 ≠ 1.000');
   const bewusst = await s.post('buch', 'bank/link', { finmap_op: 'op-abh', ziel_art: 'abhebung', ziel_id: abh, trotz_abweichung: true, notiz: 'Сняли вместе с другим' });
   assert.equal(bewusst.body.status, 'abweichung');
+  const ein = await s.post('buch', 'bank/link', { finmap_op: 'op-ein', ziel_art: 'paket', ziel_id: x.paket });
+  assert.equal(ein.status, 409, 'входящий платёж той же суммы не становится оплатой'); assert.match(ein.body.fehler, /не является расходом/);
   const ok = await s.post('buch', 'bank/link', { finmap_op: 'op-pay', ziel_art: 'paket', ziel_id: x.paket });
   assert.equal(ok.status, 200, JSON.stringify(ok.body)); assert.equal(ok.body.status, 'abgeglichen');
   const p = (await s.lage('buch')).pakete.find(y => y.id === x.paket);

@@ -103,11 +103,21 @@ async function handle(req, res, u, n, ctx) {
   if (!d.ROLLEN_KASSE.includes(n.rolle)) { antwort(res, 403, { fehler: 'У этой роли нет доступа к кассе' }); return true; }
   const rest = p.slice('/api/k/'.length);
   try {
-    if (req.method === 'GET' && rest === 'lage') { antwort(res, 200, await d.lage(n, ctx.benutzer)); return true; }
+    if (req.method === 'GET' && rest === 'ich') { antwort(res, 200, { login: n.login, rolle: n.rolle }); return true; }
+    if (req.method === 'GET' && rest === 'lage') { // BUCH_JETZT — только локальная демо-база (сравнение с эталоном на фиксированную дату).
+      antwort(res, 200, await d.lage(n, ctx.benutzer, process.env.BUCH_JETZT ? Date.parse(process.env.BUCH_JETZT) : undefined)); return true; }
     if (req.method === 'GET' && rest.startsWith('bank')) {
       if (!['gf', 'buchhaltung'].includes(n.rolle)) throw new Fehler(403, 'Банк видят бухгалтерия и Андрей');
       const monat = /^\d{4}-\d{2}$/.test(u.searchParams.get('monat') || '') ? u.searchParams.get('monat') : '';
       antwort(res, 200, await bankOps(monat)); return true;
+    }
+    const druck = rest.match(/^(quittung|plan)\/(\d{1,12})\/druck$/);
+    if (req.method === 'GET' && druck) {
+      const liste = await d.quittungenDruck(n, druck[1] === 'plan' ? { plan: druck[2] } : { id: druck[2] });
+      const buf = Buffer.from(require('./druck.js').html(liste));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': buf.length, 'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" });
+      res.end(buf); return true;
     }
     if (req.method === 'GET' && rest.startsWith('verlauf/')) {
       antwort(res, 200, { liste: await d.verlauf(n, decodeURIComponent(rest.slice(8))) }); return true;
