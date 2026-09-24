@@ -91,7 +91,9 @@ CREATE TABLE mailops_prod.buch_bewegung (
   bestaetigt_am timestamptz,
   bestaetigt_von text,
   idem          text UNIQUE,
-  CHECK (von_konto IS DISTINCT FROM an_konto),
+  -- снятие в банке: у него нет счёта-источника и счёта-получателя (оба NULL);
+  -- для остальных движений источник и получатель не могут совпадать
+  CHECK (art = 'abhebung' OR von_konto IS DISTINCT FROM an_konto),
   CHECK (art <> 'abhebung' OR (von_konto IS NULL AND an_konto IS NULL))
 );
 CREATE INDEX buch_bewegung_von ON mailops_prod.buch_bewegung (von_konto);
