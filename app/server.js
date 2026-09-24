@@ -15,12 +15,13 @@ const akteModul = require('./akte.js');
 const recht = require('./recht.js');
 const hinweis = require('./hinweis.js');
 const drive = require('./drive.js');
+const kasse = require('./kasse/api.js');
 
 const PORT   = Number(process.env.PORT || 3026);
 const WURZEL = __dirname;
 const OEFF   = path.join(WURZEL, 'public');
-const DATEN  = path.join(WURZEL, 'daten');
-const DATA   = path.join(WURZEL, 'data');
+const DATEN  = process.env.BUCH_DATEN || path.join(WURZEL, 'daten');
+const DATA   = process.env.BUCH_DATA || path.join(WURZEL, 'data');   // локальные копии задают свою папку
 const NUTZER = path.join(DATA, 'benutzer.json');
 const ALT_PIN = path.join(DATA, 'pin.json');
 const STATE  = path.join(DATA, 'state.json');
@@ -44,12 +45,25 @@ const ROLLEN = {
     tabs: ['cockpit','steuern','liqui','debit','mahn','unbez','post','nummern','belege','objekte','partner','geld','regeln','razn','recht'],
     docs: null,
   },
+  // Касса и чеки (экран /arbeit). Классические разделы этим ролям закрыты.
+  disponent: {
+    name: 'ответственный за наличные',
+    tabs: [],
+    docs: [],
+  },
+  mitarbeiter: {
+    name: 'сотрудник',
+    tabs: [],
+    docs: [],
+  },
   buero: {
     name: 'офис',
     tabs: ['post','nummern','belege','objekte','partner','regeln','razn','recht'],
     docs: ['belege','objekte','partner','nummern','zuordnung','regeln','post'],
   },
 };
+
+const NUR_KASSE = ['disponent', 'mitarbeiter'];
 
 /* ---------- пользователи ---------- */
 function nutzerLesen() {
@@ -188,6 +202,17 @@ http.createServer(async (req, res) => {
   const ip = String(req.headers['x-real-ip'] || req.socket.remoteAddress || '?');
 
   try {
+    // Касса: свои маршруты и проверки прав (kasse/api.js).
+    if (p.startsWith('/api/k/')) {
+      const n = wer(req);
+      return void await kasse.handle(req, res, u, n ? { ...n, rollenname: n.rechte.name } : null, { benutzer: nutzerLesen() });
+    }
+    // Новым ролям классические API не открываются никогда.
+    if (p.startsWith('/api/') && p !== '/api/login' && p !== '/api/logout') {
+      const n = wer(req);
+      if (n && NUR_KASSE.includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'этой роли доступна только касса' });
+    }
+
     if (p === '/api/login' && req.method === 'POST') {
       const brauser = String(req.headers['user-agent'] || '');
       const liste = nutzerLesen();
@@ -218,7 +243,7 @@ http.createServer(async (req, res) => {
       versuche.delete(schluessel);
       zugangNotiz(ip, eingabe, 'вошёл: ' + n.login, brauser);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8',
-        'Set-Cookie': `vavsess=${tokenBauen(n.login)}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${TAGE * 86400}` });
+        'Set-Cookie': `vavsess=${tokenBauen(n.login)}; Path=/; HttpOnly; SameSite=Lax${process.env.BUCH_LOKAL_HTTP === '1' ? '' : '; Secure'}; Max-Age=${TAGE * 86400}` });
       return res.end('{"ok":true}');
     }
 
@@ -431,8 +456,15 @@ http.createServer(async (req, res) => {
       return res.end(buf);
     }
 
-    if (p === '/' || p === '/index.html') {
+    if (p === '/arbeit') {
       if (!wer(req)) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      return dateiAntwort(res, path.join(OEFF, 'arbeit.html'));
+    }
+
+    if (p === '/' || p === '/index.html') {
+      const n = wer(req);
+      if (!n) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      if (NUR_KASSE.includes(n.rolle)) { res.writeHead(302, { Location: '/arbeit' }); return res.end(); }
       return dateiAntwort(res, path.join(OEFF, 'index.html'));
     }
 

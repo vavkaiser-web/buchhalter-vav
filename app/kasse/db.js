@@ -6,7 +6,13 @@ const fs = require('fs');
 
 let Pool = null;
 for (const p of ['pg', '/opt/mailops/node_modules/pg']) {
-  try { Pool = require(p).Pool; break; } catch (e) { /* ищем дальше */ }
+  try {
+    const pg = require(p);
+    Pool = pg.Pool;
+    // bigint (идентификаторы, центы) — числом; суммы фирмы далеко ниже 2^53 центов.
+    pg.types.setTypeParser(20, v => { const x = Number(v); if (!Number.isSafeInteger(x)) throw new Error('bigint вне диапазона'); return x; });
+    break;
+  } catch (e) { /* ищем дальше */ }
 }
 
 function umgebung() {

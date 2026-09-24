@@ -167,6 +167,9 @@ CREATE TABLE mailops_prod.buch_beleg (
   CHECK (zahlart NOT IN ('vorschuss','kasse') OR konto_id IS NOT NULL)
 );
 CREATE INDEX buch_beleg_person ON mailops_prod.buch_beleg (person_ref);
+-- Один снимок — один чек (кроме аннулированных), даже при параллельной отправке.
+CREATE UNIQUE INDEX buch_beleg_datei_einmal ON mailops_prod.buch_beleg (datei_sha)
+  WHERE datei_sha IS NOT NULL AND status <> 'storniert';
 
 -- Возмещение личных расходов. Подтверждённый чек ≠ выплаченное возмещение.
 CREATE TABLE mailops_prod.buch_erstattung (

@@ -55,6 +55,10 @@ async function kontoSicher(q, id, art, name, bei, login, personRef, n) {
            VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING`,
     [id, art, name, bei, login, personRef, n.login]);
 }
+/** Счета «деньги у ответственного» для всех входов с ролью disponent. */
+async function halterAlle(q, benutzer) {
+  for (const b of (benutzer || []).filter(x => x.rolle === 'disponent')) await halterFuer(q, b);
+}
 async function halterFuer(q, n) {
   const kurz = n.kurzname || String(n.name || n.login).split(/\s+/)[0];
   await kontoSicher(q, halterKonto(n.login), 'halter', kurz, n.bei || ('У ' + kurz), n.login, n.person || null, n);
@@ -94,10 +98,11 @@ async function abhebung(n, b) {
 }
 
 /** Передача наличных. Отдающий отмечает, получатель подтверждает отдельно. */
-async function uebergabe(n, b) {
+async function uebergabe(n, b, benutzer) {
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
   const an = String(b.an_konto || '');
   return tx(async q => {
+    await halterAlle(q, benutzer);
     const ziel = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [an]))[0];
     pruefe(ziel && ziel.art !== 'vorschuss', 'Получатель должен быть основной кассой или ответственным за наличные');
     let vonKonto = null, quelle = null;
@@ -384,9 +389,13 @@ async function belegAnlegen(n, b) {
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.belegdatum || '')) ? b.belegdatum : wt.berlinTag(Date.now());
 
   return tx(async q => {
+    // Повторное нажатие и параллельная отправка: сначала блокировка по ключу
+    // отправки, затем по файлу — второй запрос ждёт и видит первый.
+    await q('SELECT pg_advisory_xact_lock(hashtext($1))', ['buch_beleg_idem:' + b.idem]);
     const alt = (await q(`SELECT id, nr FROM ${S}buch_beleg WHERE idem = $1`, [b.idem]))[0];
     if (alt) return { ok: true, wiederholt: true, id: alt.id, nr: alt.nr };
     await dateiPruefen(q, b.datei_sha);
+    await q('SELECT pg_advisory_xact_lock(hashtext($1))', ['buch_beleg_sha:' + b.datei_sha]);
     const dopp = (await q(`SELECT nr FROM ${S}buch_beleg WHERE datei_sha = $1 AND status <> 'storniert'`, [b.datei_sha]))[0];
     pruefe(!dopp, `Этот снимок уже загружен как ${dopp && dopp.nr}`, 409);
 
@@ -422,6 +431,17 @@ async function belegAnlegen(n, b) {
       }
     }
     if (b.zahlart === 'kasse') { darf(istBuch(n), 'Оплату из основной кассы отмечает бухгалтерия'); konto = 'hauptkasse'; }
+    if (konto) {
+      // Наличные в кассе и у ответственного не уходят в минус: блокировка
+      // счёта и проверка остатка в той же транзакции. Аванс сотрудника
+      // только блокируется: неучтённый аванс не должен мешать сдать чек,
+      // расхождение видит бухгалтер.
+      await sperreKonto(q, konto);
+      if (!konto.startsWith('vorschuss:')) {
+        const s = await saldo(q, konto);
+        pruefe(betrag <= s.saldo, `Сумма превышает расчётный остаток (${euro(s.saldo)})`, 409);
+      }
+    }
 
     const nr = await nummer(q, 'B');
     const r = (await q(`INSERT INTO ${S}buch_beleg (nr, art, kurztext, person_ref, person_name, eingereicht_von, betrag_cent, belegdatum,
@@ -446,7 +466,9 @@ async function belegPruefen(n, id, b) {
   return tx(async q => {
     const x = (await q(`SELECT * FROM ${S}buch_beleg WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     pruefe(x, 'Чек не найден', 404);
-    darf(x.eingereicht_von !== n.login, 'Собственный чек проверяет другой человек');
+    // Решает владелец расхода, а не автор записи: бухгалтер проверяет чек,
+    // который сам внёс за рабочего, но не свой собственный расход.
+    darf(!eigenerAufwand(n, x), 'Собственный расход проверяет другой человек');
     const ok = !(b && b.ergebnis === 'abgelehnt');
     const neu = ok ? 'geprueft' : 'abgelehnt';
     if (x.status === neu) return { ok: true, wiederholt: true };
@@ -454,7 +476,9 @@ async function belegPruefen(n, id, b) {
     if (!ok) pruefe(txt(b.notiz), 'Укажите причину отклонения');
     await q(`UPDATE ${S}buch_beleg SET status = $2, geprueft_am = now(), geprueft_von = $3, pruef_notiz = $4 WHERE id = $1`,
       [x.id, neu, n.login, txt(b && b.notiz)]);
-    if (!ok) await q(`UPDATE ${S}buch_bewegung SET status = 'storniert' WHERE beleg_id = $1 AND art = 'verbrauch'`, [x.id]);
+    // Отклонение чека не возвращает деньги: наличные потрачены физически.
+    // Расход со счёта остаётся, сумма становится вопросом к ответственному
+    // (виден в карточке как «отклонён, деньги потрачены»); касса не растёт.
     if (ok && x.zahlart === 'privat') {
       await q(`INSERT INTO ${S}buch_erstattung (beleg_id, betrag_cent, empfaenger_ref, empfaenger_name, von)
         VALUES ($1,$2,$3,$4,$5) ON CONFLICT (beleg_id) DO NOTHING`, [x.id, x.betrag_cent, x.person_ref, x.person_name, n.login]);
@@ -462,6 +486,11 @@ async function belegPruefen(n, id, b) {
     await log(q, n, 'beleg_' + neu, 'beleg:' + x.id, { notiz: txt(b && b.notiz) });
     return { ok: true, status: neu };
   });
+}
+
+function eigenerAufwand(n, x) {
+  if (x.person_ref) return !!n.person && x.person_ref === n.person;
+  return x.eingereicht_von === n.login && x.person_name === (n.name || n.login);
 }
 
 /* ---------------- возмещения ---------------- */
@@ -817,9 +846,10 @@ async function lage(n, benutzerListe, jetzt) {
   darf(ROLLEN_KASSE.includes(n.rolle), 'У этой роли нет доступа к кассе');
   return lesen(async q => {
     const demo = ((await q(`SELECT wert FROM vav_kern.einstellung WHERE schluessel = 'buch_demo'`).catch(() => []))[0] || {}).wert === 'ja';
+    if (buero(n)) await halterAlle(q, benutzerListe);
+    else if (istDisp(n)) await halterFuer(q, n);
     const ich = { login: n.login, name: n.name || n.login, rolle: n.rolle, kurz: n.kurz || initialen(n.name || n.login),
       person: n.person || null, rollenname: n.rollenname || null };
-    if (istDisp(n)) await q('SELECT 1');   // счёт Олега создаётся при первом действии
 
     const konten = await q(`SELECT * FROM ${S}buch_konto ORDER BY art, id`);
     const kontenMit = [];
@@ -855,7 +885,8 @@ async function lage(n, benutzerListe, jetzt) {
       betrag: Number(b.betrag_cent), datum: iso(b.belegdatum), verwendung: b.verwendung, objekt: b.objekt_text, fahrzeug: b.fahrzeug_text,
       zahlart: b.zahlart, zahlart_text: ZAHL_TEXT[b.zahlart], konto_id: b.konto_id, datei: b.datei_sha, dokument: b.dokument_name,
       status: b.status, geprueft_von: b.geprueft_von, geprueft_am: b.geprueft_am, pruef_notiz: b.pruef_notiz, angelegt: b.angelegt,
-      eigen: b.eingereicht_von === n.login, dublette: b.dublette,
+      eigen: eigenerAufwand(n, b), dublette: b.dublette,
+      geld_ohne_beleg: b.status === 'abgelehnt' && !!b.konto_id,
       erstattung: b.e_id ? { id: Number(b.e_id), status: b.e_status, weg: b.e_weg } : null }));
 
     const erst = await q(`SELECT e.*, b.nr AS beleg_nr, b.belegdatum, b.art FROM ${S}buch_erstattung e JOIN ${S}buch_beleg b ON b.id = e.beleg_id
