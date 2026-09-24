@@ -77,14 +77,11 @@ test('Отмена зачёта и передача Андрею не прохо
       s.post('buch', `verrechnung/${x.verrechnung}/storno`),
       s.post('buch', `paket/${x.paket}/an-gf`),
     ]);
-    const zeile = sql(`SELECT p.status || '|' || COALESCE(to_char(v.storniert_am, 'x'), '') || '|' || COALESCE(to_char(p.an_gf_am, 'x'), '')
-      FROM mailops_prod.buch_zahlpaket p JOIN mailops_prod.buch_verrechnung v ON v.paket_id = p.id WHERE p.id = ${x.paket}`);
-    const [status, storno] = zeile.split('|');
-    if (status === 'an_gf' && storno) {
-      // Отмена прошла раньше — значит передача видела уже отменённый зачёт.
-      const vorher = sql(`SELECT (v.storniert_am < p.an_gf_am)::text FROM mailops_prod.buch_zahlpaket p JOIN mailops_prod.buch_verrechnung v ON v.paket_id = p.id WHERE p.id = ${x.paket}`);
-      assert.equal(vorher, 'true', `итерация ${i}: отмена зачёта после передачи Андрею`);
-    }
+    // Порядок фиксаций по журналу событий: отмена зачёта не может быть
+    // записана после передачи комплекта Андрею.
+    const ids = sql(`SELECT COALESCE(max(id) FILTER (WHERE art = 'verrechnung_storno'), 0) || '|' || COALESCE(max(id) FILTER (WHERE art = 'paket_an_gf'), 0)
+      FROM mailops_prod.buch_ereignis WHERE ziel = 'paket:${x.paket}'`).split('|').map(Number);
+    if (ids[0] && ids[1]) assert.ok(ids[0] < ids[1], `итерация ${i}: отмена зачёта записана после передачи Андрею`);
     assert.ok([st.status, gf.status].includes(200), JSON.stringify([st.body, gf.body]));
     if (st.status === 409) assert.match(st.body.fehler, /передан/);
   }
