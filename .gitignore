@@ -1,0 +1,9 @@
+dev/pgdata/
+dev/pg.log
+dev/*.sock*
+dev/.s.PGSQL*
+node_modules/
+app/data/
+app/daten/
+app/node_modules/
+visual/out/

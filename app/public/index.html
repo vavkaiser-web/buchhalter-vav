@@ -1,0 +1,2463 @@
+<!doctype html><html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Buchhalter VAV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ---------------------------------------------------------------
+   Buchhalter VAV — светлая тема по умолчанию.
+   Бумага тёплая, чернила синие как на строительном чертеже,
+   красный/жёлтый/зелёный оставлены только под смысл: критично,
+   проверить, в порядке. Синий поэтому нигде не значит «состояние».
+   ---------------------------------------------------------------- */
+:root{
+  --ground:#EBE7DF; --surface:#FCFAF6; --surface-2:#F4F0E8; --surface-3:#E8E2D6;
+  --ink:#1A1613; --ink-2:#4B4238; --muted:#877C6F;
+  --line:#DBD3C5; --line-soft:#EBE5D9;
+  --accent:#14455E; --accent-2:#1D6285; --accent-soft:#DDE9F0; --accent-ink:#FFFDF9;
+  --ok:#2E6B4C; --ok-bg:#DFEDE4; --warn:#8A5F0C; --warn-bg:#F7EBD3; --crit:#A02F26; --crit-bg:#F8E1DD;
+  --f-display:"Archivo","Arial Narrow",Arial,sans-serif;
+  --f-body:"Hanken Grotesk","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --radius:12px; --radius-sm:8px;
+  --shadow:0 1px 2px rgba(46,34,18,.05), 0 10px 26px -16px rgba(46,34,18,.22);
+  --shadow-1:0 1px 2px rgba(46,34,18,.05);
+  --shadow-2:0 2px 5px rgba(46,34,18,.07), 0 14px 30px -16px rgba(46,34,18,.28);
+  --accent-glow:0 1px 2px rgba(20,69,94,.28), 0 8px 18px -10px rgba(20,69,94,.55);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#141210; --surface:#1E1A15; --surface-2:#26221A; --surface-3:#2F2A21;
+  --ink:#EFE9DE; --ink-2:#C2B8A8; --muted:#8E8474;
+  --line:#3A342A; --line-soft:#2B261E;
+  --accent:#7FB9D8; --accent-2:#9BCCE6; --accent-soft:#1A2E39; --accent-ink:#0F2029;
+  --ok:#6FBE93; --ok-bg:#1C3025; --warn:#D9A653; --warn-bg:#332810; --crit:#E4877B; --crit-bg:#38201C;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -16px rgba(0,0,0,.8);
+  --shadow-1:0 1px 2px rgba(0,0,0,.45);
+  --shadow-2:0 2px 6px rgba(0,0,0,.5), 0 16px 34px -16px rgba(0,0,0,.9);
+  --accent-glow:0 1px 2px rgba(0,0,0,.5), 0 8px 20px -10px rgba(127,185,216,.35);
+}}
+:root[data-theme="dark"]{
+  --ground:#141210; --surface:#1E1A15; --surface-2:#26221A; --surface-3:#2F2A21;
+  --ink:#EFE9DE; --ink-2:#C2B8A8; --muted:#8E8474;
+  --line:#3A342A; --line-soft:#2B261E;
+  --accent:#7FB9D8; --accent-2:#9BCCE6; --accent-soft:#1A2E39; --accent-ink:#0F2029;
+  --ok:#6FBE93; --ok-bg:#1C3025; --warn:#D9A653; --warn-bg:#332810; --crit:#E4877B; --crit-bg:#38201C;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -16px rgba(0,0,0,.8);
+  --shadow-1:0 1px 2px rgba(0,0,0,.45);
+  --shadow-2:0 2px 6px rgba(0,0,0,.5), 0 16px 34px -16px rgba(0,0,0,.9);
+  --accent-glow:0 1px 2px rgba(0,0,0,.5), 0 8px 20px -10px rgba(127,185,216,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--f-body);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv05","ss01"}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+button,input,select{font-family:inherit;font-size:inherit}
+:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px;border-radius:4px}
+
+/* ---------- шапка ---------- */
+.hdr{position:sticky;top:0;z-index:40;background:var(--surface);
+  border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(46,34,18,.03)}
+.top{padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mark{display:flex;align-items:center;gap:9px;font-family:var(--f-display);
+  font-variation-settings:"wdth" 88;font-weight:800;font-size:13px;letter-spacing:.07em}
+.mark .sq{width:19px;height:19px;border-radius:5px;flex:0 0 19px;position:relative;
+  background:linear-gradient(155deg,var(--accent-2),var(--accent));box-shadow:var(--accent-glow)}
+.mark .sq::after{content:"";position:absolute;left:4px;top:4px;width:11px;height:11px;
+  border-left:2px solid var(--accent-ink);border-bottom:2px solid var(--accent-ink);
+  border-bottom-left-radius:2px}
+.mark .sq::before{content:"";position:absolute;left:6.5px;top:5px;width:2px;height:8px;
+  background:var(--accent-ink);transform:rotate(-38deg);transform-origin:bottom center;border-radius:1px}
+.chip{font-family:var(--f-mono);font-size:10.5px;padding:4px 11px;border:1px solid var(--line);
+  border-radius:999px;color:var(--muted);white-space:nowrap;background:var(--surface-2)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.chip.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
+.chip.crit{border-color:var(--crit);color:var(--crit);background:var(--crit-bg)}
+.card{border:1px solid var(--line-soft);border-radius:10px;padding:12px 14px;margin-top:10px;
+  background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.card:first-of-type{margin-top:6px}
+.card select,.card input{font-family:inherit;font-size:13px;padding:6px 9px;border:1px solid var(--line);
+  border-radius:7px;background:var(--surface-2);color:var(--ink)}
+.card select:focus,.card input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.card a{color:var(--accent-2)}
+.top .right{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ---------- кнопки ---------- */
+.btn{font-size:13px;font-weight:500;padding:7px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--line);color:var(--ink-2);cursor:pointer;white-space:nowrap;
+  background:linear-gradient(180deg,var(--surface),var(--surface-2));
+  box-shadow:var(--shadow-1);
+  transition:transform .13s ease,box-shadow .13s ease,border-color .13s ease,color .13s ease}
+.btn:hover:not(:disabled){color:var(--ink);border-color:var(--accent-2);
+  box-shadow:var(--shadow-2);transform:translateY(-1px)}
+.btn:active:not(:disabled){transform:translateY(0);box-shadow:var(--shadow-1)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:linear-gradient(180deg,var(--accent-2),var(--accent));
+  border-color:var(--accent);color:var(--accent-ink);font-weight:600;box-shadow:var(--accent-glow)}
+.btn.primary:hover:not(:disabled){color:var(--accent-ink);border-color:var(--accent);filter:brightness(1.09)}
+.btn.sm{padding:5px 11px;font-size:12px;border-radius:7px}
+
+/* ---------- вкладки ---------- */
+nav.rail{padding:0 14px 9px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}
+nav.rail button{background:none;border:1px solid transparent;border-radius:var(--radius-sm);
+  padding:7px 12px;color:var(--muted);cursor:pointer;font-size:13.5px;font-weight:500;
+  white-space:nowrap;display:flex;gap:7px;align-items:center;
+  transition:background .13s ease,color .13s ease,box-shadow .13s ease}
+nav.rail button:hover{background:var(--surface-2);color:var(--ink)}
+nav.rail button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);
+  color:var(--accent-ink);font-weight:600;box-shadow:var(--accent-glow)}
+.c{font-family:var(--f-mono);font-size:10px;background:var(--surface-3);color:var(--muted);
+  padding:1.5px 7px;border-radius:999px;font-variant-numeric:tabular-nums}
+nav.rail button[aria-selected="true"] .c{background:rgba(255,255,255,.22);color:var(--accent-ink)}
+
+.wrap{max-width:1340px;margin:0 auto;padding:20px 20px 80px}
+.view{display:none}.view.on{display:block}
+
+/* ---------- показатели ---------- */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:18px}
+@media(max-width:860px){.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:460px){.kpis{grid-template-columns:1fr}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:13px 16px;box-shadow:var(--shadow-1)}
+.kpi .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.kpi .v{font-family:var(--f-display);font-variation-settings:"wdth" 90;font-weight:700;
+  font-size:26px;letter-spacing:-.018em;margin-top:4px;line-height:1.08;font-variant-numeric:tabular-nums}
+.kpi .m{font-size:11.5px;color:var(--muted);margin-top:3px}
+.kpi.klick{cursor:pointer;position:relative;padding-right:34px;
+  transition:transform .13s ease,box-shadow .13s ease,border-color .13s ease}
+.kpi.klick::after{content:"→";position:absolute;right:13px;top:12px;font-size:15px;
+  color:var(--muted);transition:transform .13s ease,color .13s ease}
+.kpi.klick:hover{transform:translateY(-2px);box-shadow:var(--shadow-2);border-color:var(--accent-2)}
+.kpi.klick:hover::after{color:var(--accent-2);transform:translateX(3px)}
+.kpi.klick:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.kpi.klick:active{transform:translateY(0)}
+.kpi.c{box-shadow:inset 3px 0 0 var(--crit),var(--shadow-1)}.kpi.c .v{color:var(--crit)}
+.kpi.w{box-shadow:inset 3px 0 0 var(--warn),var(--shadow-1)}.kpi.w .v{color:var(--warn)}
+.kpi.o{box-shadow:inset 3px 0 0 var(--ok),var(--shadow-1)}.kpi.o .v{color:var(--ok)}
+
+/* ---------- панели ---------- */
+.cols{display:grid;grid-template-columns:270px 1fr;gap:16px;align-items:start}
+@media(max-width:880px){.cols{grid-template-columns:1fr}.vergleich{grid-template-columns:1fr!important}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;margin-bottom:16px;box-shadow:var(--shadow-1)}
+.panel h3{padding:11px 16px;margin:0;font-size:10.5px;font-family:var(--f-mono);letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line-soft);
+  background:var(--surface-2);display:flex;gap:9px;align-items:center}
+.panel h3 .rt{margin-left:auto;text-transform:none;letter-spacing:0;font-size:11px}
+.pb{padding:16px}
+
+/* ---------- фильтры слева ---------- */
+.filters{padding:8px}
+.filters button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;
+  background:none;border:0;text-align:left;font-size:13px;color:var(--ink-2);padding:7px 11px;
+  border-radius:7px;cursor:pointer;line-height:1.3;transition:background .12s ease,color .12s ease}
+.filters button:hover{background:var(--surface-2);color:var(--ink)}
+.filters button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600;
+  box-shadow:var(--accent-glow)}
+.filters button[aria-pressed="true"] .c{background:rgba(255,255,255,.22);color:var(--accent-ink)}
+.fg{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);padding:12px 11px 5px}
+
+/* ---------- строки списка ---------- */
+.row{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line-soft);
+  align-items:flex-start;width:100%;text-align:left;background:none;border-left:0;border-right:0;
+  border-top:0;color:inherit;cursor:pointer;transition:background .12s ease}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--surface-2)}
+.row[aria-current="true"]{background:var(--accent-soft)}
+.stripe{width:3px;align-self:stretch;border-radius:999px;background:var(--line);flex:0 0 3px}
+.stripe.sperre{background:var(--crit)}.stripe.pruefen{background:var(--warn)}
+.stripe.frei,.stripe.ok{background:var(--ok)}
+.grow{flex:1;min-width:0}
+.t{font-size:13.5px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.s{font-size:11px;color:var(--muted);font-family:var(--f-mono);margin-top:3px;overflow-wrap:anywhere}
+.amt{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums;font-weight:500;
+  white-space:nowrap;text-align:right}
+.amt .nb{font-family:var(--f-mono);font-size:10px;color:var(--muted);display:block;margin-top:3px;font-weight:400}
+.done{opacity:.42}
+
+/* ---------- карточка документа ---------- */
+.dhead{padding:16px 20px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.did{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.dhead h2{font-size:20px;font-weight:700;font-variation-settings:"wdth" 92;letter-spacing:-.016em;
+  margin-top:5px;line-height:1.22;overflow-wrap:anywhere}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;background:var(--line-soft)}
+.meta>div{background:var(--surface);padding:11px 16px}
+.meta .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.meta .v{font-size:13.5px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.bef{display:flex;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line-soft);align-items:flex-start}
+.bef:last-child{border-bottom:0}
+.ico{flex:0 0 19px;height:19px;border-radius:5px;margin-top:1px;display:grid;place-items:center;
+  font-size:10px;font-weight:700;font-family:var(--f-mono);color:#fff}
+.ico.sperre{background:var(--crit)}.ico.pruefen{background:var(--warn)}.ico.hinweis{background:var(--muted)}
+.bt{font-size:13px;font-weight:600;line-height:1.35}
+.bx{font-size:13px;color:var(--ink-2);margin-top:3px;line-height:1.55;overflow-wrap:anywhere}
+.bq{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);margin-top:5px}
+.acts{padding:13px 20px;border-top:1px solid var(--line);background:var(--surface-2);
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.field{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:11px 20px;
+  border-bottom:1px solid var(--line-soft)}
+.field label{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);min-width:122px}
+input,select{background:var(--surface);border:1px solid var(--line);color:var(--ink);
+  border-radius:7px;padding:7px 11px;font-size:13px;min-width:0;flex:1;
+  transition:border-color .12s ease,box-shadow .12s ease}
+input:hover,select:hover{border-color:var(--muted)}
+input:focus,select:focus{border-color:var(--accent-2);box-shadow:0 0 0 3px var(--accent-soft);outline:none}
+input::placeholder{color:var(--muted);opacity:.75}
+.note{font-size:12px;color:var(--muted);padding:12px 20px;border-top:1px solid var(--line-soft);
+  background:var(--surface-2);line-height:1.6}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.75}
+
+/* ---------- таблицы ---------- */
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:13px}
+th{text-align:left;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;padding:10px 14px;border-bottom:1px solid var(--line);
+  background:var(--surface-2);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{transition:background .12s ease}
+tbody tr:hover{background:var(--surface-2)}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:10px;padding:2.5px 9px;border-radius:999px;
+  white-space:nowrap;font-weight:500;border:1px solid transparent}
+.p-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.p-warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.p-crit{background:var(--crit-bg);color:var(--crit);border-color:var(--crit)}
+.p-neut{background:var(--surface-3);color:var(--ink-2);border-color:var(--line)}
+.p-acc{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.bar{height:8px;background:var(--surface-3);border-radius:999px;overflow:hidden;min-width:70px}
+.bar i{display:block;height:100%;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent-2),var(--accent))}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:var(--ink);
+  color:var(--ground);padding:11px 20px;border-radius:999px;font-size:13px;font-weight:500;z-index:90;
+  box-shadow:var(--shadow-2);max-width:88vw}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.fenster[hidden]{display:none!important}
+.fenster{position:fixed;inset:0;z-index:20;background:rgba(10,12,14,.55);
+  display:flex;align-items:flex-start;justify-content:center;padding:36px 16px;overflow-y:auto}
+.fkasten{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  width:100%;max-width:660px;padding:22px 24px 24px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+.fkasten h2{margin:0 0 4px}
+.fkasten .lead{margin:0 0 16px}
+.fzeile{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.fkasten input[type=text],.fkasten textarea{width:100%;font:inherit;font-size:14px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--ink)}
+.fkasten textarea{min-height:120px;resize:vertical;line-height:1.5}
+.fkasten input:focus,.fkasten textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.fart button{font:inherit;font-size:13px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);
+  background:transparent;color:var(--ink-2);cursor:pointer}
+.fart button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);
+  color:var(--accent);font-weight:600}
+.ablage{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;
+  color:var(--muted);font-size:13px;cursor:pointer;margin-bottom:10px}
+.ablage.drauf{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.ablage img{max-width:100%;max-height:230px;border-radius:7px;display:block;margin:0 auto}
+.umstand{font-size:12px;color:var(--muted);background:var(--surface-2);border-radius:9px;
+  padding:10px 12px;margin-bottom:12px;line-height:1.5}
+.meine{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.meine .zeile{padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.meine .zeile:last-child{border-bottom:none}
+.meine b{font-size:14px}
+.meine .ant{font-size:13px;color:var(--ink-2);margin-top:5px;padding-left:10px;
+  border-left:2px solid var(--accent)}
+.mikrofon.hoert{border-color:var(--warn);color:var(--warn);animation:hpuls 1.1s infinite}
+@keyframes hpuls{0%,100%{opacity:1}50%{opacity:.5}}
+</style>
+
+<script>
+/* ============================================================
+   Мост между приложением и сервером VAV.
+   Приложение написано под окружение Claude (window.claude.use).
+   Здесь тот же интерфейс, но данные идут в собственную базу
+   на сервере в Нюрнберге. Код самого приложения не менялся.
+   ============================================================ */
+(function(){
+  const J = async (url, opt) => {
+    const r = await fetch(url, Object.assign({credentials:'same-origin'}, opt||{}));
+    if(r.status===401){ location.href='/login'; throw new Error('нет сессии'); }
+    if(!r.ok) throw new Error('сервер ответил '+r.status);
+    return r.json();
+  };
+  let DATEN=null, STATE=null;
+  const lauscher={};                       // collection -> [callback]
+  const dokLauscher={};                    // 'coll/id'  -> [callback]
+
+  const snapDoc = (coll,id) => {
+    const c=(STATE&&STATE[coll])||{}; const d=c[id];
+    return {exists:!!d, data:()=>d||{}, id};
+  };
+  const snapColl = coll => {
+    const c=(STATE&&STATE[coll])||{};
+    return {docs:Object.keys(c).map(id=>({id, data:()=>c[id]}))};
+  };
+  const melde = coll => {
+    (lauscher[coll]||[]).forEach(cb=>{ try{cb(snapColl(coll));}catch(e){console.warn(e);} });
+    Object.keys(dokLauscher).forEach(k=>{
+      if(k.split('/')[0]!==coll) return;
+      const [c,i]=k.split('/');
+      (dokLauscher[k]||[]).forEach(cb=>{ try{cb(snapDoc(c,i));}catch(e){console.warn(e);} });
+    });
+  };
+  const schreib = async (coll,id,wert) => {
+    STATE[coll] = STATE[coll]||{};
+    if(wert===null) delete STATE[coll][id]; else STATE[coll][id]=wert;
+    melde(coll);
+    await J('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({collection:coll,id:id,wert:wert})});
+  };
+
+  const db = {
+    doc(pfad){
+      const [coll,id]=pfad.split('/');
+      return {
+        async get(){
+          if(coll==='daten') return {exists:!!DATEN[id], data:()=>DATEN[id]||{}};
+          return snapDoc(coll,id);
+        },
+        set:(w)=>schreib(coll,id,w),
+        delete:()=>schreib(coll,id,null),
+        onSnapshot(cb){
+          const k=coll+'/'+id; (dokLauscher[k]=dokLauscher[k]||[]).push(cb);
+          setTimeout(()=>cb(coll==='daten'?{exists:!!DATEN[id],data:()=>DATEN[id]||{}}:snapDoc(coll,id)),0);
+          return ()=>{};
+        }
+      };
+    },
+    collection(coll){
+      return { onSnapshot(cb){
+        (lauscher[coll]=lauscher[coll]||[]).push(cb);
+        setTimeout(()=>cb(snapColl(coll)),0);
+        return ()=>{};
+      } };
+    }
+  };
+
+  const laden = (async()=>{
+    const r = await J('/api/daten');
+    DATEN=r.daten; STATE=r.state||{};
+    window.__vav = { benutzer: r.benutzer||null, live: r.live||null, start: r.start||'' };
+    try{
+      const b=r.benutzer, w=document.getElementById('wer');
+      if(b&&w){ w.textContent = b.name+' · '+b.rollenname; w.className='chip on'; }
+      const q=document.getElementById('quelle');
+      if(q) { const ok=r.live&&r.live.ok;
+        q.textContent = ok ? 'данные живые' : 'данные из снимка';
+        q.className = 'chip '+(ok?'on':'warn');
+        if(!ok&&r.live&&r.live.grund) q.title = r.live.grund; }
+      const st=document.getElementById('start');
+      if(st&&r.start){ const d=r.start.split('-');
+        st.textContent='учёт с '+d[2]+'.'+d[1]+'.'+d[0]; st.className='chip on'; st.hidden=false;
+        st.title='Кредиторка, разнос и нумерация считаются с этой даты. Правовые сроки и долги показаны целиком.'; }
+    }catch(e){}
+  })();
+
+  window.claude = {
+    use: async name => {
+      if(name==='db'){ await laden; return db; }
+      if(name==='downloads') return { save:({filename,data})=>{
+        const b=new Blob([data],{type:'text/csv;charset=utf-8'});
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(b); a.download=filename||'export.csv';
+        document.body.appendChild(a); a.click();
+        setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1500);
+      }};
+      return null;                      // Drive-проверка на сервере пока не подключена
+    }
+  };
+})();
+</script>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#14455E" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Buchhalter">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<script>if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));</script>
+</head>
+<body>
+<header class="hdr">
+<div class="top">
+  <span class="mark"><span class="sq"></span>BUCHHALTER VAV</span>
+  <span class="chip on">VAV Kaiser GmbH</span>
+  <div class="right">
+    <span class="chip" id="wer"></span>
+    <span class="chip" id="quelle">источник…</span>
+    <span class="chip" id="start" hidden></span>
+    <span class="chip" id="stand">загрузка…</span>
+    <span class="chip" id="dbstate" hidden>база…</span>
+    <button class="btn sm" id="refresh" hidden>Проверить Drive</button>
+    <button class="btn sm" id="export">Выгрузить CSV</button>
+    <button class="btn sm" id="melden">Написать нам</button>
+    <a class="btn sm" href="/api/logout">Выйти</a>
+  </div>
+</div>
+<nav class="rail" role="tablist" id="nav"></nav>
+</header>
+<div class="wrap" id="app"><div class="empty">Загрузка данных…</div></div>
+<div class="fenster" id="hfenster" hidden><div class="fkasten" id="hkasten"></div></div>
+
+<script>
+const EUR = n => (n||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const H = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const HEUTE = new Date('2026-09-05');
+const days = d => d ? Math.round((HEUTE - new Date(d))/864e5) : null;
+let DB=null, MCP=null, DL=null;
+let S = {belege:[], objekte:[], partner:[], regeln:[], zahlungen:[], ust:{}, geld:{}, gd:{}, liq:{}, deb:{}, nr:{}, zo:{}, mg:{}, ub:{}, mw:{}, einn:{}, erw:{}, meta:{}, ent:{}, pdaten:{}, zuord:{}};
+let view='cockpit', filt='alle', sel=null, selP=null;
+
+function toast(m){ const t=document.createElement('div'); t.className='toast'; t.textContent=m;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),3200); }
+
+const has=(e,r)=>e.befunde&&e.befunde.some(f=>f.regel===r);
+const objOf=e=>S.zuord[e.mail_id]?.objekt ?? e.objekt;
+const entOf=e=>S.ent[e.mail_id]?.status || '';
+
+/* ---------- загрузка ---------- */
+// window.claude появляется не мгновенно: ждём его, но не бесконечно.
+function warteAufClaude(msMax=15000){
+  return new Promise(res=>{
+    if(typeof window.claude?.use === 'function') return res(window.claude);
+    const t0=Date.now();
+    const iv=setInterval(()=>{
+      if(typeof window.claude?.use === 'function'){ clearInterval(iv); res(window.claude); }
+      else if(Date.now()-t0>msMax){ clearInterval(iv); res(null); }
+    },150);
+  });
+}
+const use = async name => { try{ const c=await warteAufClaude(); return c ? await c.use(name) : null; }
+                            catch(e){ console.warn('use',name,e); return null; } };
+
+async function boot(){
+  render();                                  // страница никогда не остаётся пустой
+  document.getElementById('dbstate').textContent = 'подключаюсь…';
+  DB = await use('db');
+  document.getElementById('dbstate').textContent = DB ? 'база подключена' : 'база недоступна';
+  document.getElementById('dbstate').className = 'chip ' + (DB?'on':'crit');
+  if(!DB){ bereit=true; render(); return; }
+  const body = s => (s && s.exists) ? (s.data()||{}) : {};
+  try{
+    const [bs,os,ps,rs,us,gs,zs,ls,ds,ns,zo,mg,ub,mw,po] = await Promise.all([
+      DB.doc('daten/belege').get(), DB.doc('daten/objekte').get(),
+      DB.doc('daten/partner').get(), DB.doc('daten/regeln').get(),
+      DB.doc('daten/ust').get(),    DB.doc('daten/geld').get(),
+      DB.doc('daten/zahlungen').get(), DB.doc('daten/liquiditaet').get(), DB.doc('daten/debitoren').get(), DB.doc('daten/nummern').get(), DB.doc('daten/zuordnung').get(), DB.doc('daten/marge').get(), DB.doc('daten/unbezahlt').get(), DB.doc('daten/mahnwesen').get(), DB.doc('daten/post').get()]);
+    const b=body(bs), o=body(os), p=body(ps), r=body(rs);
+    S.belege=b.items||[]; S.objekte=o.items||[]; S.partner=p.items||[]; S.regeln=r.items||[];
+    S.ust=body(us); S.geld=body(gs); S.zahlungen=body(zs).items||[]; S.liq=body(ls); S.deb=body(ds); S.nr=body(ns); S.zo=body(zo); S.mg=body(mg); S.ub=body(ub); S.mw=body(mw); S.po=body(po);
+    try{ DB.doc('grunddaten/basis').onSnapshot(d=>{ S.gd=(d&&d.exists)?(d.data()||{}):{}; render(); },
+                                                e=>console.warn('grunddaten',e)); }
+    catch(e){ const g=await DB.doc('grunddaten/basis').get().catch(()=>null); S.gd=(g&&g.exists)?(g.data()||{}):{}; }
+    S.meta={stand:b.stand, quelle:b.quelle, regelversion:r.version};
+    document.getElementById('stand').textContent = 'Снимок ' + (b.stand||'—');
+    const listen=(coll,key)=>DB.collection(coll).onSnapshot(snap=>{
+      S[key]={}; (snap?.docs||[]).forEach(d=>{ S[key][d.id]={id:d.id,...(d.data()||{})}; }); render();
+    }, err=>console.warn(coll,err));
+    listen('entscheidungen','ent'); listen('partner_daten','pdaten'); listen('zuordnung','zuord');
+    listen('einnahmen','einn'); listen('erwartung','erw');
+  }catch(err){ console.error(err); toast('Не удалось прочитать базу: '+(err?.code||err?.message||'ошибка')); }
+  bereit = true;
+  render();
+  use('mcp').then(m=>MCP=m);
+  use('downloads').then(d=>{ DL=d; document.getElementById('export').disabled=!d; });
+}
+
+/* ---------- разделы ---------- */
+const TABS = [
+  ['cockpit','Пульт'],
+  ['steuern','Налоги', ()=>S.ust?.risiko?.length||null],
+  ['modell','Модель'],
+  ['liqui','Ликвидность'],
+  ['debit','Дебиторка', ()=>S.deb?.summe?.unbezahlt_n||null],
+  ['mahn','Mahnwesen', ()=>{const m=S.mw?.items||[]; return m.filter(x=>(x.stufe||0)>=2).length||null;}],
+  ['unbez','Неоплаченные', ()=>{const q=S.ub?.quellen||[]; return q.reduce((a,x)=>a+x.n,0)||null;}],
+  ['post','Почта', ()=>{const d=S.po?.defekte||[]; return d.length||null;}],
+  ['razn','Разнос', ()=>RZ.zahlen?(RZ.zahlen.offen_stk||null):null],
+  ['recht','Право', ()=>PR.zahlen?((PR.zahlen.ueberfaellig+PR.zahlen.diese_woche)||null):null],
+  ['nummern','Нумерация'],
+  ['belege','Кредиторка', ()=>S.belege.filter(e=>!entOf(e)).length],
+  ['objekte','Объекты', ()=>S.belege.filter(e=>!objOf(e)||objOf(e)==='не распределён').length],
+  ['partner','Контрагенты', ()=>S.partner.filter(p=>p.subunternehmer&&!(S.pdaten[p.id]?.fb_48b_bis)).length],
+  ['geld','Деньги', ()=>S.belege.filter(e=>e.status==='неоплачено').length],
+  ['regeln','Правила'],
+];
+
+let bereit=false;
+function render(){
+  const app = document.getElementById('app');
+  try{
+    const _erl = (window.__vav&&window.__vav.benutzer&&window.__vav.benutzer.tabs)||null;
+    const _sicht = _erl ? TABS.filter(([k])=>_erl.includes(k)) : TABS;
+    if(_erl && !_erl.includes(view) && _sicht.length) view = _sicht[0][0];
+    document.getElementById('nav').innerHTML = _sicht.map(([k,t,cnt])=>{
+      let n=null; try{ n = cnt?cnt():null; }catch(e){}
+      return `<button role="tab" data-v="${k}" aria-selected="${view===k}">${t}${n?`<span class="c">${n}</span>`:''}</button>`;
+    }).join('');
+    if(!bereit){ app.innerHTML = `<div class="panel"><div class="empty">Подключаюсь к базе приложения…</div></div>`; return; }
+    const _ohneBelege = ['razn','recht','regeln','objekte'];
+    if((!DB || !S.belege.length) && _ohneBelege.indexOf(view)<0){ app.innerHTML = `<div class="panel"><div class="empty">
+      ${DB?'Документов пока нет.':'База этому просмотру не выдана — попробуйте открыть страницу заново.'}<br>
+      ${DB?'<span style="font-size:12.5px;color:var(--muted)">Учёт начинается '+((window.__vav&&window.__vav.start)||'')+'. Первый документ появится здесь, как только придёт письмо.</span>':''}
+      </div></div>`; return; }
+    app.innerHTML = ({cockpit:vCockpit, steuern:vSteuern, modell:vModell, liqui:vLiqui, debit:vDebit, mahn:vMahn, unbez:vUnbez, post:vPost, nummern:vNummern, belege:vBelege,
+                      objekte:vObjektregister, partner:vPartner, geld:vGeld, regeln:vRegeln, razn:vRazn, recht:vRecht})[view]();
+    kpiKlickbar();
+    if(view==='razn') rzZurueck();
+  }catch(err){
+    console.error('render', err);
+    app.innerHTML = `<div class="panel"><div class="empty">Раздел не отрисовался.<br>
+      <span style="font-family:var(--f-mono);font-size:12px">${H(err&&err.message||err)}</span></div></div>`;
+  }
+}
+
+
+/* ---------- денежный блок на пульте ---------- */
+function geldBlock(){
+  const rows=wochenModell(); if(!rows.length) return '';
+  const hat=rows[0].hatSaldo, neg=rows.filter(r=>r.saldo<0);
+  const D=S.deb||{}, uf=D.unfakturiert||{};
+  const dp=debitorenPlan().filter(d=>d.an);
+  const tab=dp.reduce((s,x)=>s+x.rest_tabelle,0), bru=dp.reduce((s,x)=>s+x.rest_gerechnet,0);
+  const konto=Number((S.gd||{}).kontostand||0);
+  const tage=neg.length? Math.round((new Date(neg[0].von)-new Date('2026-09-05'))/864e5) : null;
+  const hebel=[
+    ['Выставить отработанные часы', uf.summe||0,
+     `${(uf.stunden||0).toLocaleString('de-DE')} часов записано, счёт не выставлен. Деньги ваши по праву.`, 'debit'],
+    ['Разобрать расхождение в дебиторке', Math.max(0,bru-tab),
+     `По колонке остатка ждём ${EUR(tab)}, по «брутто минус оплачено» ${EUR(bru)}. Один разговор с тем, кто ведёт таблицу.`, 'debit'],
+    ['Проставить реальные сроки оплат', 0,
+     'Сейчас вся дебиторка свалена в первую неделю, потому что просрочена. Поставьте свои даты — прогноз выпрямится.', 'debit'],
+  ];
+  if(!hat) return `<div class="panel"><h3>Деньги</h3><div class="empty">
+    Введите остаток на счету в разделе «Модель» — и здесь появится дата кассового разрыва.</div></div>`;
+  return `<div class="panel" style="border-color:${neg.length?'var(--crit)':'var(--ok)'}">
+    <h3>Деньги<span class="rt chip ${neg.length?'crit':'on'}">${neg.length?'требует действий':'в порядке'}</span></h3>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:14px">
+        <div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)">На счету</div>
+          <div style="font-family:var(--f-display);font-weight:700;font-size:26px;margin-top:2px">${EUR(konto)}</div></div>
+        ${neg.length?`<div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)">Разрыв</div>
+          <div style="font-family:var(--f-display);font-weight:700;font-size:26px;margin-top:2px;color:var(--crit)">через ${tage} дн.</div>
+          <div style="font-size:12px;color:var(--muted)">${H(neg[0].von)} · не хватит ${EUR(Math.abs(neg[0].saldo))}</div></div>`:''}
+        <div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)">Уходит в неделю</div>
+          <div style="font-family:var(--f-display);font-weight:700;font-size:26px;margin-top:2px">${EUR((S.liq||{}).pro_woche||0)}</div></div>
+        <div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)">Ждём от заказчиков</div>
+          <div style="font-family:var(--f-display);font-weight:700;font-size:26px;margin-top:2px">${EUR(tab)}</div>
+          <div style="font-size:12px;color:var(--muted)">${dp.length} счетов, все просрочены</div></div>
+      </div>
+      ${neg.length?`<p style="margin:0 0 4px;font-size:13.5px;color:var(--ink-2);line-height:1.6">
+        После первой недели в прогнозе <b>ни одного поступления за двенадцать недель</b> — не потому что их не будет,
+        а потому что в системе нет ни одного счёта с ожидаемой оплатой позже сентября. Это и есть настоящая проблема;
+        разрыв — её следствие.</p>`:''}
+    </div>
+    <h3 style="border-top:1px solid var(--line-soft)">Что двигает дату вправо</h3>
+    ${hebel.map(([t,sum,txt,tab_])=>`<div class="row" style="cursor:pointer" data-goto="${tab_}">
+      <span class="stripe ${sum>50000?'sperre':'pruefen'}"></span>
+      <span class="grow"><span class="t">${t}</span><span class="s" style="font-family:var(--f-body);font-size:12.5px;color:var(--ink-2);letter-spacing:0">${txt}</span></span>
+      <span class="amt">${sum?'+'+EUR(sum):''}</span></div>`).join('')}
+  </div>`;
+}
+
+/* ---------- пульт ---------- */
+function vCockpit(){
+  const b=S.belege, n=b.length||1;
+  const sperre=b.filter(e=>e.entscheidung==='sperre'), pruef=b.filter(e=>e.entscheidung==='pruefen');
+  const offen=b.filter(e=>e.status==='неоплачено');
+  const diff=b.filter(e=>has(e,'R-BEL-03')), ohne=b.filter(e=>!objOf(e)||objOf(e)==='не распределён');
+  const pen=b.reduce((s,e)=>s+(e.mahngebuehr||0),0);
+  const erledigt=b.filter(e=>entOf(e)).length;
+  const spaet=offen.filter(e=>e.faellig&&days(e.faellig)>0);
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `
+  ${geldBlock()}
+  <div class="kpis">
+    ${kpi('c','Заблокировано',sperre.length,'дубликаты и стопы')}
+    ${kpi('w','Требует решения',pruef.length-erledigt<0?0:pruef.length,'из '+b.length+' документов')}
+    ${kpi('o','Разобрано вами',erledigt,erledigt?Math.round(erledigt/n*100)+' %':'пока ничего')}
+    ${kpi('c','Расхождение суммы',diff.length,EUR(diff.reduce((s,e)=>s+e.betrag,0)))}
+    ${kpi('w','Без объекта',ohne.length,'не попадёт в себестоимость')}
+    ${kpi('c','Просрочено',spaet.length,EUR(spaet.reduce((s,e)=>s+e.betrag,0)))}
+    ${kpi('c','Пени накоплено',EUR(pen),'Mahnkosten')}
+    ${kpi('','Неоплачено',offen.length,EUR(offen.reduce((s,e)=>s+e.betrag,0)))}
+  </div>
+  <div class="cols">
+    <div style="grid-column:1/-1">
+      <div class="panel"><h3>Требует решения сегодня<span class="rt chip">по строгости</span></h3>
+        ${b.filter(e=>!entOf(e)).sort((x,y)=>
+            ({sperre:0,pruefen:1,hinweis:2,frei:3}[x.entscheidung]-{sperre:0,pruefen:1,hinweis:2,frei:3}[y.entscheidung])
+            || (y.betrag-x.betrag)).slice(0,8).map(e=>rowBeleg(e)).join('') || '<div class="empty">Всё разобрано.</div>'}
+      </div>
+      <div class="panel"><h3>Что нашли правила</h3><div class="tbl"><table>
+        <thead><tr><th>Правило</th><th>Находка</th><th class="n">Документов</th><th class="n">Сумма</th></tr></thead><tbody>
+        ${regelStat().map(r=>`<tr><td><b>${r.id}</b></td><td>${H(r.titel)}</td>
+          <td class="n">${r.n}</td><td class="n">${EUR(r.sum)}</td></tr>`).join('')}
+        </tbody></table></div></div>
+    </div>
+  </div>`;
+}
+function regelStat(){
+  const m={}; S.belege.forEach(e=>(e.befunde||[]).forEach(f=>{
+    (m[f.regel] ||= {id:f.regel,titel:f.titel,n:0,sum:0}); m[f.regel].n++; m[f.regel].sum+=e.betrag||0; }));
+  return Object.values(m).sort((a,b)=>b.n-a.n);
+}
+
+/* ---------- кредиторка ---------- */
+const FILTERS=[
+  ['g','Строгость'],['alle','Все',()=>true],
+  ['sperre','Заблокировано',e=>e.entscheidung==='sperre'],
+  ['pruefen','На проверку',e=>e.entscheidung==='pruefen'],
+  ['offen','Не разобрано',e=>!entOf(e)],
+  ['g','Находки'],
+  ['dub','Дубликаты',e=>has(e,'R-BEL-02')],
+  ['diff','Расхождение суммы',e=>has(e,'R-BEL-03')],
+  ['obj','Без объекта',e=>!objOf(e)||objOf(e)==='не распределён'],
+  ['firma','Фирма не ясна',e=>has(e,'R-BEL-08')],
+  ['pen','С пенями',e=>has(e,'R-ZAH-05')],
+  ['spaet','Просрочено',e=>has(e,'R-ZAH-06')],
+];
+const fnOf=k=>(FILTERS.find(f=>f[0]===k)||[])[2]||(()=>true);
+function rowBeleg(e){
+  const nb=(e.befunde||[]).length, st=entOf(e);
+  return `<button class="row ${st?'done':''}" data-beleg="${e.mail_id}" aria-current="${sel===e.mail_id}">
+    <span class="stripe ${e.entscheidung}"></span>
+    <span class="grow"><span class="t">${e.partner?H(e.partner):'<span style="color:var(--crit)">контрагент не заполнен</span>'}</span>
+    <span class="s">${e.kreditor?H(e.kreditor)+' · ':''}${H(e.typ||'—')} · ${H(e.nummer||'без номера')} · ${e.objekt_nr?H(e.objekt_nr):'<span style="color:var(--warn)">без объекта</span>'}</span></span>
+    <span class="amt">${EUR(e.betrag)}<span class="nb">${st?'✓ '+st:nb+' находок'}</span></span></button>`;
+}
+function vBelege(){
+  const rows=S.belege.filter(fnOf(filt));
+  return `<div class="cols"><div>
+    <div class="panel"><h3>Очередь</h3><div class="filters">
+      ${FILTERS.map(f=>f[0]==='g'?`<div class="fg">${f[1]}</div>`
+        :`<button data-f="${f[0]}" aria-pressed="${filt===f[0]}">${f[1]}<span class="c">${S.belege.filter(f[2]).length}</span></button>`).join('')}
+    </div></div></div>
+    <div>
+      <div class="panel"><h3>Документы<span class="rt chip">${rows.length}</span></h3>
+        ${rows.map(rowBeleg).join('')||'<div class="empty">В этой выборке пусто.</div>'}</div>
+      ${detBeleg()}
+    </div></div>`;
+}
+function detBeleg(){
+  const e=S.belege.find(x=>x.mail_id===sel);
+  if(!e) return `<div class="panel"><div class="empty">Выберите документ выше.</div></div>`;
+  const z=S.zuord[e.mail_id], en=S.ent[e.mail_id];
+  const opts=S.objekte.map(o=>{const v=o.kunde+' — '+o.adresse;
+    return `<option value="${H(v)}" ${objOf(e)===v?'selected':''}>${H(v)}</option>`;}).join('');
+  return `<div class="panel">
+    <div class="dhead"><div class="did">ID ${e.mail_id} · ${H(e.typ||'тип не определён')} · ${
+      {sperre:'заблокирован',pruefen:'требует решения',frei:'проходит молча',hinweis:'отметка'}[e.entscheidung]}</div>
+      <h2>${e.partner?H(e.partner):'Контрагент не заполнен'}</h2></div>
+    <div class="meta">
+      <div><div class="k">Сумма</div><div class="v">${EUR(e.betrag)}</div></div>
+      <div><div class="k">Номер</div><div class="v">${H(e.nummer||'—')}</div></div>
+      <div><div class="k">Дата счёта</div><div class="v">${H(e.datum||'—')}</div></div>
+      <div><div class="k">Срок</div><div class="v">${H(e.faellig||'—')}${e.faellig&&days(e.faellig)>0&&e.status==='неоплачено'?` <span class="pill p-crit">+${days(e.faellig)} дн</span>`:''}</div></div>
+      <div><div class="k">Статус</div><div class="v">${H(e.status||'—')}</div></div>
+      <div><div class="k">Фирма</div><div class="v">${H(e.firma||'—')}</div></div>
+      <div><div class="k">Пени</div><div class="v">${e.mahngebuehr?EUR(e.mahngebuehr):'—'}</div></div>
+      <div><div class="k">Kreditor</div><div class="v" style="font-family:var(--f-mono)">${H(e.kreditor||'—')}</div></div>
+      <div><div class="k">Kostenstelle</div><div class="v" style="font-family:var(--f-mono);color:${e.objekt_nr?'var(--accent)':'var(--warn)'}">${H(e.objekt_nr||objOf(e)||'не распределён')}</div></div>
+      ${e.betreff?`<div style="grid-column:1/-1"><div class="k">Тема письма</div><div class="v" style="font-weight:400">${H(e.betreff)}</div></div>`:''}
+      ${e.drive?`<div style="grid-column:1/-1"><div class="k">Документ</div><div class="v" style="font-weight:400"><a href="https://drive.google.com/file/d/${H(e.drive)}/view" target="_blank" rel="noopener" style="color:var(--accent)">Открыть оригинал в Drive</a></div></div>`:''}
+    </div>
+    ${e.objekt_vorschlag&&!objOf(e)?`<div class="note" style="border-top:1px solid var(--line-soft)">
+      Телеграм-этап предлагал объект <b>${H(e.objekt_vorschlag)}</b>${e.objekt_grund?' — основание: '+H(e.objekt_grund):''}.
+      Это предложение, а не привязка: оно не учитывается ни в себестоимости, ни в марже,
+      пока вы не выберете объект ниже и не нажмёте «Привязать».</div>`:''}
+    ${(e.befunde||[]).map(f=>`<div class="bef"><span class="ico ${f.schwere}">${f.schwere==='sperre'?'X':f.schwere==='pruefen'?'!':'.'}</span>
+      <span><span class="bt">${H(f.titel)}</span><span class="bx">${H(f.text)}</span><span class="bq">${f.regel} · ${H(f.quelle)}</span></span></div>`).join('')
+      ||'<div class="bef"><span class="ico hinweis">.</span><span><span class="bx">Ни одно правило не сработало.</span></span></div>'}
+    <div class="field"><label>Объект</label>
+      <select id="zuo"><option value="">— не распределён —</option>${opts}</select>
+      <button class="btn sm" data-act="zuo">Привязать</button></div>
+    <div class="field"><label>Комментарий</label>
+      <input id="kom" value="${H(en?.kommentar||'')}" placeholder="что решили и почему">
+      <button class="btn sm" data-act="kom">Сохранить</button></div>
+    <div class="acts">
+      <button class="btn primary" data-act="ok">Разобрано</button>
+      <button class="btn" data-act="rueck">Запросить у поставщика</button>
+      <button class="btn" data-act="sperr">Заблокировать платёж</button>
+      <button class="btn" data-act="clear">Снять отметку</button>
+      ${en?`<span style="margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--muted)">${H(en.status)} · ${H((en.wann||'').slice(0,16).replace('T',' '))}</span>`:''}
+    </div>
+    <p class="note">Решения сохраняются в базе приложения и видны на всех ваших устройствах. Исходная таблица в Google Sheets не меняется.</p>
+  </div>`;
+}
+
+/* ---------- объекты ---------- */
+
+function margeBlock(){
+  const M=S.mg||{}, g=M.gesamt||{}, it=(M.items||[]).slice().sort((a,b)=>a.marge-b.marge);
+  if(!it.length) return '';
+  const mx=Math.max(...it.map(x=>Math.abs(x.marge)),1);
+  const bal=v=>{const w=Math.abs(v)/mx*50; return `<div style="position:relative;height:10px">
+    <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)"></div>
+    <div style="position:absolute;top:1px;height:8px;border-radius:2px;background:${v<0?'var(--crit)':'var(--ok)'};
+      ${v<0?`right:50%;width:${w}%`:`left:50%;width:${w}%`}"></div></div>`;};
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `<div class="kpis">
+    ${kpi('','Выставлено по объектам',EUR(g.brutto),'брутто')}
+    ${kpi('c','Затраты по объектам',EUR(g.kosten),'из реестра расходов')}
+    ${kpi(g.marge<0?'c':'o','Маржа',EUR(g.marge),g.marge<0?'расходы больше выручки':'положительная')}
+    ${kpi('c','Объектов в минусе',M.minus_n,EUR(M.minus_summe))}
+  </div>
+  <div class="panel" style="border-color:var(--crit)"><h3>Маржа по объектам<span class="rt chip crit">по счетам, не по часам</span></h3>
+    <div class="tbl"><table><thead><tr><th>Объект</th><th class="n">Выставлено</th><th class="n">Получено</th>
+      <th class="n">Затраты</th><th style="width:130px">Маржа</th><th class="n">Итог</th></tr></thead><tbody>
+    ${it.map(x=>`<tr${x.marge<-20000?' style="background:var(--crit-bg)"':''}>
+      <td><b>${H(x.projekt)}</b>${x.kunde?`<div style="color:var(--muted);font-size:11.5px">${H(x.kunde)}</div>`:''}
+        ${x.ohne_rechnung?'<span class="pill p-crit">счёт не выставлен</span>':''}</td>
+      <td class="n">${x.brutto?EUR(x.brutto):'—'}</td>
+      <td class="n" style="color:var(--muted)">${x.bezahlt?EUR(x.bezahlt):'—'}</td>
+      <td class="n">${x.kosten?EUR(x.kosten):'—'}</td>
+      <td>${bal(x.marge)}</td>
+      <td class="n" style="font-weight:600;color:${x.marge<0?'var(--crit)':'var(--ok)'}">${EUR(x.marge)}${
+        x.marge_pct!==null&&x.marge_pct!==undefined?`<span class="nb">${x.marge_pct} %</span>`:''}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Маржа = выставлено брутто минус затраты по объекту. Это не прибыль по бухгалтерии, а простое сопоставление
+      счетов: сколько запросили у заказчика против того, сколько потратили. Накладные расходы фирмы сюда не разнесены,
+      поэтому настоящий результат ещё ниже.</p>
+    <p class="note" style="border-top:0;padding-top:0"><b>Свежесть:</b> счета в этой таблице обрываются на ${H(M.stand_rechnungen)},
+      затраты — на ${H(M.stand_kosten)}. Источник: ${H(M.quelle)}.</p></div>
+
+  <div class="panel"><h3>Объекты, где работали и не выставили ни одного счёта<span class="rt chip">${M.ohne_rechnung_n}</span></h3>
+    ${it.filter(x=>x.ohne_rechnung).sort((a,b)=>b.kosten-a.kosten).map(x=>`<div class="row" style="cursor:default">
+      <span class="stripe sperre"></span><span class="grow"><span class="t">${H(x.projekt)}</span>
+      <span class="s">затрачено, счёт заказчику не выставлен</span></span>
+      <span class="amt" style="color:var(--crit)">${EUR(x.kosten)}</span></div>`).join('')}
+    <p class="note">Итого ${EUR(M.ohne_rechnung_summe)} потрачено на объектах, по которым не выставлено ни одного счёта.
+      Часть из них может быть в работе, но каждый такой объект нужно проверить поимённо: либо счёт забыли, либо это чистый убыток.</p></div>`;
+}
+
+function vObjekte(){
+  const byObj={}; S.belege.forEach(e=>{ const k=objOf(e)||'не распределён'; (byObj[k] ||= []).push(e); });
+  const ohne=byObj['не распределён']||[];
+  const rows=Object.entries(byObj).filter(([k])=>k!=='не распределён')
+    .map(([k,v])=>({k,n:v.length,sum:v.reduce((s,e)=>s+e.betrag,0)})).sort((a,b)=>b.sum-a.sum);
+  const max=Math.max(1,...rows.map(r=>r.sum));
+  return `${margeBlock()}
+  <div class="kpis">
+    <div class="kpi"><div class="k">Объектов в справочнике</div><div class="v">${S.objekte.length}</div><div class="m">своей нумерации нет</div></div>
+    <div class="kpi w"><div class="k">Документов без объекта</div><div class="v">${ohne.length}</div><div class="m">${EUR(ohne.reduce((s,e)=>s+e.betrag,0))}</div></div>
+    <div class="kpi c"><div class="k">Объект записан дважды</div><div class="v">${S.objekte.filter(o=>o.dubl).length}</div><div class="m">из-за разного написания адреса</div></div>
+    <div class="kpi o"><div class="k">Привязано вами</div><div class="v">${Object.keys(S.zuord).length}</div><div class="m">в этой сессии и раньше</div></div>
+  </div>
+  <div class="panel"><h3>Затраты по объектам</h3><div class="pb">
+    ${rows.length?rows.map(r=>`<div style="display:grid;grid-template-columns:1fr 90px 130px;gap:10px;align-items:center;padding:6px 0;font-size:13px">
+      <span>${H(r.k)}</span><div class="bar"><i style="width:${r.sum/max*100}%"></i></div>
+      <span class="amt">${EUR(r.sum)} <span class="nb">${r.n} док.</span></span></div>`).join('')
+      :'<div class="empty">Пока ни один документ не привязан к объекту.</div>'}
+    </div></div>
+  <div class="panel"><h3>Объекты<span class="rt chip">из Google Sheets</span></h3><div class="tbl"><table>
+    <thead><tr><th>Машина</th><th>Заказчик</th><th>Адрес</th><th>Состояние</th></tr></thead><tbody>
+    ${S.objekte.map(o=>`<tr><td style="font-family:var(--f-mono);font-size:12.5px">${H(o.kennzeichen||'—')}</td>
+      <td>${H(o.kunde)}</td><td>${H(o.adresse)}</td>
+      <td>${(o.probleme&&o.probleme.length)?o.probleme.map(p=>`<span class="pill ${p.indexOf('дважды')>=0?'p-crit':'p-warn'}" style="margin:1px 2px 1px 0">${H(p)}</span>`).join(''):'<span class="pill p-ok">в порядке</span>'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note"><b>N-VK-####</b> — это автомобильные номера (N = Nürnberg), а не номера объектов.
+      Одна машина может стоять на нескольких объектах, и это нормально.
+      Собственной нумерации у объектов нет: они опознаются только парой «заказчик плюс адрес».
+      В финансовых таблицах Drive объекты нумеруются иначе — №1-11, №7-06, №7-11 — и с этим справочником не связаны.</p></div>
+
+  <div class="panel"><h3>Что мешает привязке сейчас<span class="rt chip">${(S.zo?.summe?.ohne_objekt)||0} документов</span></h3>
+    <div class="tbl"><table><thead><tr><th class="n">Док.</th><th>Что стоит в документе</th><th>Что с этим не так</th><th>Что делать</th></tr></thead><tbody>
+    ${(S.zo?.items||[]).map(r=>`<tr><td class="n"><b>${r.anzahl}</b></td>
+      <td>${H(r.label)}</td>
+      <td><span class="pill ${r.art==='привязка неверна'?'p-crit':r.art==='объекта нет в справочнике'?'p-warn':'p-neut'}">${H(r.art)}</span></td>
+      <td style="color:var(--ink-2)">${H(r.vorschlag)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Самое важное здесь — строка про Gihl. Семи документам проставлен объект «Gihl GmbH — 90475 Nürnberg»,
+      но объект Gihl находится в <b>54293 Trier-Ehrang</b>. Индекс 90475 — это Нюрнберг, то есть привязка подобрана по почтовому индексу наугад.
+      Это хуже, чем отсутствие привязки: расходы попали бы на чужой объект и исказили его себестоимость.</p>
+    <p class="note" style="border-top:0;padding-top:0">С этого прогона запрет закреплён в каталоге как правило
+      <b>R-OBJ-04 «Objektzuordnung nur aus Postleitzahl»</b>: привязка, у которой единственное основание — индекс, отклоняется,
+      документ уходит в очередь на разбор. Плюс <b>R-OBJ-05</b> на несовпадение города и <b>R-OBJ-06</b> на объект, которого нет в справочнике.
+      Их видно в разделе «Правила».</p></div>
+
+  <div class="panel"><h3>Почему документы не привязываются<span class="rt chip">корень проблемы</span></h3><div class="pb">
+    <p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-2);line-height:1.6">
+    У объекта нет идентификатора. Пока опознание идёт по адресу, любая разница в написании создаёт второй объект:</p>
+    ${(S.objekte||[]).filter(o=>o.dubl).map(o=>`<div class="row" style="cursor:default"><span class="stripe sperre"></span>
+      <span class="grow"><span class="t">${H(o.kunde)}</span><span class="s">${H(o.adresse)} · машина ${H(o.kennzeichen||'—')}</span></span></div>`).join('')}
+    <p class="note" style="padding:12px 0 0">«Eichenstr 86» и «Eichenstrasse 86» — один и тот же адрес, но для системы это два разных объекта.
+      То же с Wirtschaftsweg 27. Отсюда и берётся то, что 26 документов из 32 не удаётся привязать:
+      привязывать не к чему. Это чинится один раз — введением номера объекта, а не правилами разбора адресов.</p>
+  </div></div>
+  <div class="panel"><h3>Документы без объекта<span class="rt chip">${ohne.length}</span></h3>
+    ${ohne.slice(0,40).map(rowBeleg).join('')||'<div class="empty">Все документы привязаны.</div>'}</div>`;
+}
+
+/* ---------- контрагенты ---------- */
+function vPartner(){
+  const sub=S.partner.filter(p=>p.subunternehmer);
+  const rows=[...sub,...S.partner.filter(p=>!p.subunternehmer)];
+  return `<div class="kpis">
+    <div class="kpi"><div class="k">Контрагентов</div><div class="v">${S.partner.length}</div><div class="m">из документов</div></div>
+    <div class="kpi c"><div class="k">Похожи на субподряд</div><div class="v">${sub.length}</div><div class="m">нужны § 48b и USt 1 TG</div></div>
+    <div class="kpi c"><div class="k">Без IBAN в базе</div><div class="v">${S.partner.filter(p=>!(S.pdaten[p.id]?.iban)).length}</div><div class="m">правило R-BEL-07 не работает</div></div>
+    <div class="kpi o"><div class="k">Заполнено вами</div><div class="v">${Object.keys(S.pdaten).length}</div><div class="m">карточек</div></div>
+  </div>
+  <div class="cols"><div>
+    <div class="panel"><h3>Контрагенты</h3>
+      ${rows.map(p=>{const d=S.pdaten[p.id]||{}; const ok=p.subunternehmer?(d.fb_48b_bis&&d.iban):d.iban;
+        return `<button class="row" data-partner="${p.id}" aria-current="${selP===p.id}">
+        <span class="stripe ${ok?'ok':p.subunternehmer?'sperre':'pruefen'}"></span>
+        <span class="grow"><span class="t">${H(p.name)}</span>
+        <span class="s">${p.belege} док. · ${p.subunternehmer?'субподряд':'поставщик'}${d.iban?' · IBAN есть':''}</span></span>
+        <span class="amt">${EUR(p.offen)}<span class="nb">не оплачено</span></span></button>`;}).join('')}
+    </div></div>
+    <div>${detPartner()}</div></div>`;
+}
+function detPartner(){
+  const p=S.partner.find(x=>x.id===selP);
+  if(!p) return `<div class="panel"><div class="empty">Выберите контрагента слева.<br>Здесь заполняются IBAN, § 48b и USt 1 TG — без них правила R-BEL-07 и R-48B-01 работать не могут.</div></div>`;
+  const d=S.pdaten[p.id]||{};
+  const f=(id,lab,val,ph='')=>`<div class="field"><label>${lab}</label><input id="${id}" value="${H(val||'')}" placeholder="${ph}"></div>`;
+  return `<div class="panel">
+    <div class="dhead"><div class="did">${p.id} · ${p.subunternehmer?'субподрядчик':'поставщик'}</div><h2>${H(p.name)}</h2></div>
+    <div class="meta">
+      <div><div class="k">Документов</div><div class="v">${p.belege}</div></div>
+      <div><div class="k">Всего</div><div class="v">${EUR(p.summe)}</div></div>
+      <div><div class="k">Не оплачено</div><div class="v">${EUR(p.offen)}</div></div>
+      <div><div class="k">Фирмы</div><div class="v">${H(p.firmen.join(', ')||'—')}</div></div>
+    </div>
+    ${f('p_iban','IBAN',d.iban,'DE.. — сверяется с каждым счётом')}
+    ${f('p_ust','USt-IdNr',d.ust_idnr,'DE123456789')}
+    ${p.subunternehmer?f('p_48b','§ 48b до',d.fb_48b_bis,'ГГГГ-ММ-ДД'):''}
+    ${p.subunternehmer?f('p_48bn','Sicherheitsnummer',d.fb_48b_nummer,''):''}
+    ${p.subunternehmer?f('p_tg','USt 1 TG до',d.ust1tg_bis,'ГГГГ-ММ-ДД'):''}
+    ${p.subunternehmer?f('p_ml','Mindestlohn до',d.mindestlohn_bis,'ГГГГ-ММ-ДД'):''}
+    <div class="acts"><button class="btn primary" data-act="psave">Сохранить карточку</button>
+      ${d.wann?`<span style="margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--muted)">обновлено ${H((d.wann||'').slice(0,16).replace('T',' '))}</span>`:''}</div>
+    <p class="note">${p.subunternehmer?'Пока § 48b не заполнен, правило R-48B-01 не может проверить справку на день оплаты — а именно оно защищает от удержания 15 % из вашего кармана.':'IBAN нужен правилу R-BEL-07: оно блокирует платёж, если реквизиты в счёте отличаются от сохранённых.'}</p>
+  </div>`;
+}
+
+/* ---------- деньги ---------- */
+function vGeld(){
+  const offen=S.belege.filter(e=>e.status==='неоплачено');
+  const spaet=offen.filter(e=>e.faellig&&days(e.faellig)>0).sort((a,b)=>days(b.faellig)-days(a.faellig));
+  const bald=offen.filter(e=>e.faellig&&days(e.faellig)<=0).sort((a,b)=>new Date(a.faellig)-new Date(b.faellig));
+  const ohne=offen.filter(e=>!e.faellig);
+  const pen=S.belege.filter(e=>e.mahngebuehr>0).sort((a,b)=>b.mahngebuehr-a.mahngebuehr);
+  const tb=(list,extra)=>`<div class="tbl"><table><thead><tr><th>Контрагент</th><th>Номер</th><th>Срок</th>
+    <th class="n">Сумма</th>${extra?`<th class="n">${extra}</th>`:''}</tr></thead><tbody>
+    ${list.map(e=>`<tr><td>${H(e.partner||'—')}</td><td>${H(e.nummer||'—')}</td>
+      <td>${H(e.faellig||'—')}${e.faellig&&days(e.faellig)>0?` <span class="pill p-crit">+${days(e.faellig)}</span>`:''}</td>
+      <td class="n">${EUR(e.betrag)}</td>${extra?`<td class="n">${e.mahngebuehr?EUR(e.mahngebuehr):'—'}</td>`:''}</tr>`).join('')}
+    </tbody></table></div>`;
+  return `<div class="kpis">
+    <div class="kpi c"><div class="k">Просрочено</div><div class="v">${spaet.length}</div><div class="m">${EUR(spaet.reduce((s,e)=>s+e.betrag,0))}</div></div>
+    <div class="kpi w"><div class="k">Ближайшие сроки</div><div class="v">${bald.length}</div><div class="m">${EUR(bald.reduce((s,e)=>s+e.betrag,0))}</div></div>
+    <div class="kpi"><div class="k">Без срока</div><div class="v">${ohne.length}</div><div class="m">${EUR(ohne.reduce((s,e)=>s+e.betrag,0))}</div></div>
+    <div class="kpi c"><div class="k">Пени</div><div class="v">${EUR(pen.reduce((s,e)=>s+e.mahngebuehr,0))}</div><div class="m">по ${pen.length} документам</div></div>
+  </div>
+  <div class="panel"><h3>Просрочено — растут пени</h3>${spaet.length?tb(spaet,'Пени'):'<div class="empty">Просрочек нет.</div>'}</div>
+  <div class="panel"><h3>Сроки впереди</h3>${bald.length?tb(bald):'<div class="empty">Пусто.</div>'}</div>
+  <div class="panel"><h3>Без срока оплаты<span class="rt chip">срок не распознан</span></h3>${ohne.length?tb(ohne):'<div class="empty">Пусто.</div>'}</div>`;
+}
+
+/* ---------- правила ---------- */
+function vRegeln(){
+  const g={}; S.regeln.forEach(r=>(g[r.gruppe] ||= []).push(r));
+  const cnt=k=>S.regeln.filter(r=>r.schweregrad===k).length;
+  return `<div class="kpis">
+    <div class="kpi"><div class="k">Правил в каталоге</div><div class="v">${S.regeln.length}</div><div class="m">версия ${H(S.meta.regelversion||'—')}</div></div>
+    <div class="kpi c"><div class="k">Блокирующих</div><div class="v">${cnt('sperre')}</div><div class="m">через Steuerberater</div></div>
+    <div class="kpi w"><div class="k">На проверку</div><div class="v">${cnt('pruefen')}</div><div class="m">человеку в очередь</div></div>
+    <div class="kpi"><div class="k">Отметок</div><div class="v">${cnt('hinweis')}</div><div class="m">проходит дальше</div></div>
+  </div>
+  ${Object.entries(g).map(([grp,rs])=>`<div class="panel"><h3>${H(grp)}<span class="rt chip">${rs.length}</span></h3><div class="tbl"><table>
+    <thead><tr><th>ID</th><th>Правило</th><th>Строгость</th><th>Основание</th><th>Владелец</th><th>Статус</th></tr></thead><tbody>
+    ${rs.map(r=>`<tr><td><b>${r.id}</b></td><td>${H(r.titel)}<div style="color:var(--muted);font-size:12px;margin-top:3px">${H(r.notiz_ru||'')}</div></td>
+      <td><span class="pill ${r.schweregrad==='sperre'?'p-crit':r.schweregrad==='pruefen'?'p-warn':'p-neut'}">${r.schweregrad}</span></td>
+      <td style="font-family:var(--f-mono);font-size:11.5px">${H((r.quelle?.gesetz||'')+' '+(r.quelle?.fundstelle||''))}</td>
+      <td>${H(r.eigentuemer)}</td><td>${H(r.status)}</td></tr>`).join('')}
+    </tbody></table></div></div>`).join('')}`;
+}
+
+
+/* ---------- налоги ---------- */
+const KAL = [
+  ['10-го каждого месяца','Umsatzsteuer-Voranmeldung','UStVA за прошлый месяц','§ 18 UStG'],
+  ['10-го каждого месяца','Lohnsteuer-Anmeldung','налог с зарплаты за прошлый месяц','§ 41a EStG'],
+  ['10-го каждого месяца','Anmeldung Bauabzugsteuer','если удерживали 15 % с субподрядчика','§ 48a EStG'],
+  ['15.02 · 15.05 · 15.08 · 15.11','Gewerbesteuer-Vorauszahlung','квартальный аванс','§ 19 GewStG'],
+  ['10.03 · 10.06 · 10.09 · 10.12','Körperschaftsteuer-Vorauszahlung','квартальный аванс','§ 31 KStG'],
+  ['до 31.07 следующего года','Jahreserklärungen','через Steuerberater — срок продлевается','§ 149 AO'],
+];
+function vSteuern(){
+  const u=S.ust||{}, g=S.geld||{}, ne=g.nach_echt||{};
+  const vst=u.vst_gesamt||0, ris=u.vst_risiko||0, dub=u.dubletten_vst||0;
+  const steuern=(ne['Налоги и сборы']||0)+(ne['Соцвзносы']||0)+(ne['Городские сборы']||0);
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `<div class="kpis">
+    ${kpi('','Vorsteuer в снимке',EUR(vst),'по 24 документам с НДС')}
+    ${kpi('c','Под угрозой',EUR(ris),vst?Math.round(ris/vst*100)+' % — документы негодны':'—')}
+    ${kpi('c','Риск двойного вычета',EUR(dub),'дубликаты в кредиторке')}
+    ${kpi('w','Уплачено за период',EUR(steuern),'налоги, сборы, соцвзносы')}
+  </div>
+  <div class="panel"><h3>Vorsteuer, которую сейчас нельзя взять<span class="rt chip">${(u.risiko||[]).length} документов</span></h3>
+    <div class="tbl"><table><thead><tr><th>ID</th><th>Контрагент</th><th class="n">Брутто</th><th class="n">Vorsteuer</th><th>Что мешает</th></tr></thead><tbody>
+    ${(u.risiko||[]).sort((a,b)=>b.vst-a.vst).map(r=>`<tr><td><b>${H(r.id)}</b></td>
+      <td>${H(r.partner||'без контрагента')}</td><td class="n">${EUR(r.brutto)}</td>
+      <td class="n" style="color:var(--crit);font-weight:600">${EUR(r.vst)}</td>
+      <td>${r.gruende.map(x=>`<span class="pill p-crit" style="margin:1px 2px 1px 0">${H(x)}</span>`).join('')}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Это не потеря навсегда: почти всё чинится запросом правильного счёта у поставщика. Но пока документ негоден, налоговая вычет не признает — а срок на исправление не бесконечен.</p></div>
+  <div class="panel"><h3>Где НДС вообще нет</h3><div class="pb">
+    ${Object.entries(u.gruppen||{}).map(([k,v])=>{
+      const lab={mit_ust:'Счета с НДС 19 % — Vorsteuer возможна',ohne_ust:'Налоги, взносы, страховки, штрафы — НДС нет',unklar:'Inkasso — доли не разделены'}[k]||k;
+      return `<div style="display:grid;grid-template-columns:1fr 90px 110px;gap:10px;padding:6px 0;font-size:13px;align-items:center">
+        <span>${lab}</span><span class="amt">${v.n} док.</span><span class="amt">${EUR(v.vst)}</span></div>`;}).join('')}
+    <p class="note" style="border:0;padding:10px 0 0">Приложение не считает НДС там, где его быть не может: Finanzamt, больничные кассы, страховки и штрафы попадают в отдельную группу. Наивный расчёт «19 % от всего» завысил бы Vorsteuer примерно на 2 000 € за три недели.</p>
+  </div></div>
+  <div class="panel"><h3>Налоговый календарь<span class="rt chip">повторяется каждый год</span></h3><div class="tbl"><table>
+    <thead><tr><th>Срок</th><th>Что подаётся</th><th>Пояснение</th><th>Основание</th></tr></thead><tbody>
+    ${KAL.map(k=>`<tr><td style="font-family:var(--f-mono);font-size:12px;white-space:nowrap"><b>${k[0]}</b></td>
+      <td>${k[1]}</td><td style="color:var(--ink-2)">${k[2]}</td>
+      <td style="font-family:var(--f-mono);font-size:11.5px;color:var(--muted)">${k[3]}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Суммы появятся здесь, когда в разделе «Модель» будут заполнены авансовые платежи, а исходящие счета попадут в приложение. Подписывает и подаёт Steuerberater — приложение только следит за сроками и готовит цифры.</p></div>`;
+}
+
+/* ---------- модель ---------- */
+function vModell(){
+  const g=S.geld||{}, gd=S.gd||{}, tage=g.tage||24;
+  const mon=v=>v/tage*30;
+  const ne=Object.entries(g.nach_echt||{}).sort((a,b)=>b[1]-a[1]);
+  const nt=Object.entries(g.nach_tabelle||{}).sort((a,b)=>b[1]-a[1]);
+  const ges=g.gesamt||0;
+  const einmal=(g.falsch_miete||[]).filter(x=>x.betrag>50000).reduce((s,x)=>s+x.betrag,0);
+  const laufend=ges-einmal;
+  const umsatz=Number(gd.umsatz_monat||0), konto=Number(gd.kontostand||0);
+  const fix=['Аренда и жильё','Страховки и услуги','Лизинг','Городские сборы','Материалы и снабжение']
+    .reduce((s,k)=>s+mon(g.nach_echt?.[k]||0),0);
+  const variabel=['Субподряд','Зарплата штата','Топливо','Соцвзносы']
+    .reduce((s,k)=>s+mon(g.nach_echt?.[k]||0),0);
+  const max=Math.max(1,...ne.map(x=>x[1]));
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `<div class="kpis">
+    ${kpi('','Ушло за '+tage+' дней',EUR(ges),S.zahlungen.length+' платежей из банка')}
+    ${kpi('w','Без разового платежа',EUR(laufend),'вычтен налог '+EUR(einmal))}
+    ${kpi('c','Постоянные в месяц',EUR(fix),'аренда, лизинг, страховки, снабжение')}
+    ${kpi('w','Переменные в месяц',EUR(variabel),'субподряд, зарплата, топливо, взносы')}
+  </div>
+
+  <div class="panel"><h3>Категории в таблице недостоверны<span class="rt chip">главная находка</span></h3><div class="pb">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px" class="vergleich">
+      <div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Как записано</div>
+        ${nt.slice(0,6).map(([k,v])=>`<div style="display:grid;grid-template-columns:1fr 72px 104px;gap:12px;align-items:center;padding:4px 0;font-size:12.5px">
+          <span>${H(k.slice(0,26))}</span><div class="bar"><i style="width:${v/max*100}%"></i></div><span class="amt">${EUR(v)}</span></div>`).join('')}</div>
+      <div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Как на самом деле</div>
+        ${ne.slice(0,6).map(([k,v])=>`<div style="display:grid;grid-template-columns:1fr 72px 104px;gap:12px;align-items:center;padding:4px 0;font-size:12.5px">
+          <span>${H(k.slice(0,26))}</span><div class="bar"><i style="width:${v/max*100}%;background:var(--ok)"></i></div><span class="amt">${EUR(v)}</span></div>`).join('')}</div>
+    </div>
+    <p class="note" style="padding:12px 0 0">В категорию «Аренда» записано ${EUR(g.nach_tabelle?.['Аренда']||0)}, из которых
+      <b style="color:var(--crit)">${EUR((g.falsch_miete||[]).reduce((s,x)=>s+x.betrag,0))} арендой не являются</b> — это налоги, соцвзносы и выплаты людям.
+      Любой отчёт по расходам, построенный на этих категориях, врёт. Это чинится один раз — правилами разнесения, а не руками.</p>
+    <div class="tbl" style="margin-top:10px"><table><thead><tr><th>Дата</th><th>Получатель</th><th class="n">Сумма</th><th>Записано</th><th>Должно быть</th></tr></thead><tbody>
+    ${(g.falsch_miete||[]).sort((a,b)=>b.betrag-a.betrag).map(x=>`<tr><td>${H(x.datum)}</td><td>${H(x.partner)}</td>
+      <td class="n">${EUR(x.betrag)}</td><td><span class="pill p-crit">Аренда</span></td><td><span class="pill p-ok">${H(x.echt)}</span></td></tr>`).join('')}
+    </tbody></table></div>
+  </div></div>
+
+  <div class="panel"><h3>Расходы в месяц по статьям</h3><div class="pb">
+    ${ne.map(([k,v])=>`<div style="display:grid;grid-template-columns:1fr 1fr 120px;gap:10px;align-items:center;padding:5px 0;font-size:13px">
+      <span>${H(k)}</span><div class="bar"><i style="width:${v/max*100}%"></i></div>
+      <span class="amt">${EUR(mon(v))}<span class="nb">в месяц</span></span></div>`).join('')}
+    <p class="note" style="padding:12px 0 0">Пересчёт с ${tage} дней наблюдения на 30. Разовый платёж в Finanzamt на ${EUR(einmal)} искажает картину — в реальности он квартальный или годовой, а не ежемесячный.</p>
+  </div></div>
+
+  <div class="panel"><h3>Ваши цифры<span class="rt chip">нужны для модели</span></h3>
+    <div class="field"><label>Оборот в месяц</label><input id="g_umsatz" value="${H(gd.umsatz_monat||'')}" placeholder="например 417000"></div>
+    <div class="field"><label>Остаток на счету</label><input id="g_konto" value="${H(gd.kontostand||'')}" placeholder="сегодня"></div>
+    <div class="field"><label>GewSt аванс/квартал</label><input id="g_gewst" value="${H(gd.gewst_vz||'')}" placeholder="из уведомления Finanzamt"></div>
+    <div class="field"><label>KSt аванс/квартал</label><input id="g_kst" value="${H(gd.kst_vz||'')}" placeholder="из уведомления Finanzamt"></div>
+    <div class="acts"><button class="btn primary" data-act="gsave">Сохранить</button>
+      ${gd.wann?`<span style="margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--muted)">обновлено ${H((gd.wann||'').slice(0,16).replace('T',' '))}</span>`:''}</div>
+    ${umsatz?`<div class="meta">
+      <div><div class="k">Расходы в месяц</div><div class="v">${EUR(mon(laufend))}</div></div>
+      <div><div class="k">Разница</div><div class="v" style="color:${umsatz-mon(laufend)>0?'var(--ok)':'var(--crit)'}">${EUR(umsatz-mon(laufend))}</div></div>
+      <div><div class="k">Доля расходов</div><div class="v">${Math.round(mon(laufend)/umsatz*100)} %</div></div>
+      <div><div class="k">Точка безубыточности</div><div class="v">${EUR(fix/Math.max(0.01,1-variabel/umsatz))}</div></div>
+    </div>
+    <p class="note">Точка безубыточности — сколько надо выставлять в месяц, чтобы покрыть постоянные расходы при текущей доле переменных. Считается по наблюдаемым платежам, а не по бухгалтерским проводкам: это касса, а не прибыль.</p>`
+    :`<p class="note">Заполните оборот — и приложение посчитает разницу, долю расходов и точку безубыточности. Без вашей цифры модель угадывать не будет.</p>`}
+  </div>`;
+}
+
+
+
+/* ---------- дебиторка -> ликвидность ---------- */
+const ERWARTBAR = ['ожидаем','недоплата'];      // статусы, которые попадают в прогноз сами
+function zahlungsziel(){ return Number((S.gd||{}).zahlungsziel||45); }
+function basisTabelle(){ return ((S.gd||{}).basis||'tabelle')==='tabelle'; }
+function plusTage(iso,n){ const d=new Date(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+
+function debitorenPlan(){
+  const L=S.liq||{}, start=L.start||'2026-09-07';
+  const ersteWoche=(L.wochen||[])[0];
+  return (S.deb?.items||[]).map(x=>{
+    const o=S.erw[x.nummer]||{};
+    const betrag = basisTabelle()? x.rest_tabelle : x.rest_gerechnet;
+    const autoOk = ERWARTBAR.some(w=>(x.status||'').indexOf(w)>=0);
+    const an = o.aus===true ? false : (o.aus===false ? true : autoOk);
+    let datum = o.datum || plusTage(x.datum, zahlungsziel());
+    if(datum < start) datum = ersteWoche? ersteWoche.von : start;   // просроченное — в первую неделю
+    return {...x, betrag, datum, an, manuell:!!o.datum, autoOk};
+  }).filter(x=>x.betrag>0);
+}
+
+/* ---------- ликвидность ---------- */
+function wochenModell(){
+  const L=S.liq||{}, w=L.wochen||[];
+  const einn={}, ausDeb={};
+  Object.values(S.einn||{}).forEach(e=>{
+    const t=e.datum; if(!t) return;
+    const i=w.findIndex(x=>t>=x.von && t<=x.bis); if(i>=0) einn[i]=(einn[i]||0)+Number(e.betrag||0);
+  });
+  debitorenPlan().filter(d=>d.an).forEach(d=>{
+    const i=w.findIndex(x=>d.datum>=x.von && d.datum<=x.bis);
+    if(i>=0){ einn[i]=(einn[i]||0)+d.betrag; ausDeb[i]=(ausDeb[i]||0)+d.betrag; }
+  });
+  let saldo=Number((S.gd||{}).kontostand||0);
+  const hatSaldo=!!Number((S.gd||{}).kontostand);
+  return w.map((x,i)=>{
+    const raus=(x.rechnungen||0)+(x.regulaer||0), rein=einn[i]||0;
+    saldo = saldo + rein - raus;
+    return {...x, rein, ausDeb:ausDeb[i]||0, raus, saldo:Math.round(saldo), hatSaldo};
+  });
+}
+function chartSaldo(rows){
+  const W=880,Hh=210,PL=64,PR=16,PT=14,PB=30;
+  const vals=rows.map(r=>r.saldo), min=Math.min(0,...vals), max=Math.max(0,...vals);
+  const span=(max-min)||1;
+  const x=i=>PL+(W-PL-PR)*(i/Math.max(1,rows.length-1));
+  const y=v=>PT+(Hh-PT-PB)*(1-(v-min)/span);
+  const pts=rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.saldo).toFixed(1)}`).join(' ');
+  const flaeche=`${PL},${y(0)} ${pts} ${x(rows.length-1)},${y(0)}`;
+  const ticks=[max,min+span/2,min].map(v=>({v,y:y(v)}));
+  const neg=rows.filter(r=>r.saldo<0);
+  return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" role="img"
+    aria-label="Остаток на счету по неделям">
+    ${ticks.map(t=>`<line x1="${PL}" x2="${W-PR}" y1="${t.y.toFixed(1)}" y2="${t.y.toFixed(1)}"
+        stroke="var(--line-soft)" stroke-width="1"/>
+      <text x="${PL-8}" y="${(t.y+4).toFixed(1)}" text-anchor="end" font-size="10"
+        font-family="var(--f-mono)" fill="var(--muted)">${Math.round(t.v/1000)}k</text>`).join('')}
+    <line x1="${PL}" x2="${W-PR}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"
+      stroke="var(--crit)" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <polygon points="${flaeche}" fill="var(--accent)" opacity="0.12"/>
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"/>
+    ${rows.map((r,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(r.saldo).toFixed(1)}" r="${r.saldo<0?5:3.5}"
+      fill="${r.saldo<0?'var(--crit)':'var(--accent)'}" stroke="var(--surface)" stroke-width="2"><title>Неделя ${r.nr} · ${r.von}
+Поступления ${EUR(r.rein)}
+Оттоки ${EUR(r.raus)}
+Остаток ${EUR(r.saldo)}</title></circle>`).join('')}
+    ${rows.map((r,i)=> i%2===0 ? `<text x="${x(i).toFixed(1)}" y="${Hh-10}" text-anchor="middle"
+      font-size="10" font-family="var(--f-mono)" fill="var(--muted)">${r.von.slice(8)}.${r.von.slice(5,7)}</text>`:'').join('')}
+  </svg>
+  ${neg.length?`<p style="margin:8px 0 0;font-size:13px;color:var(--crit)">
+    Остаток уходит в минус на <b>неделе ${neg[0].nr}</b> — ${H(neg[0].von)}. До этой даты нужно либо получить оплату, либо сдвинуть платежи.</p>`
+    :`<p style="margin:8px 0 0;font-size:13px;color:var(--ok)">За 13 недель остаток не уходит в минус.</p>`}`;
+}
+function vLiqui(){
+  const L=S.liq||{}, rows=wochenModell();
+  const nEinn=Object.keys(S.einn||{}).length + debitorenPlan().filter(d=>d.an).length;
+  const hat=rows.length && rows[0].hatSaldo && nEinn>0;
+  const rausGes=rows.reduce((s,r)=>s+r.raus,0), reinGes=rows.reduce((s,r)=>s+r.rein,0);
+  const debGes=rows.reduce((s,r)=>s+(r.ausDeb||0),0);
+  const dp=debitorenPlan(), dpAn=dp.filter(d=>d.an);
+  const neg=rows.filter(r=>r.saldo<0);
+  const kw=Object.entries(L.kat_woche||{}).sort((a,b)=>b[1]-a[1]);
+  const maxk=Math.max(1,...kw.map(x=>x[1]));
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `<div class="kpis">
+    ${kpi('','Отток в неделю',EUR(L.pro_woche||0),'регулярные платежи')}
+    ${kpi('w','Отток за 13 недель',EUR(rausGes),'вместе со счетами')}
+    ${kpi(reinGes?'o':'c','Ожидаемые поступления',reinGes?EUR(reinGes):'нет',
+        debGes?EUR(debGes)+' из дебиторки':'дебиторка не включена')}
+    ${hat?kpi(neg.length?'c':'o','Кассовый разрыв',neg.length?'неделя '+neg[0].nr:'нет','по 13 неделям')
+        :kpi('c','Остаток на счету','—','нужен для прогноза')}
+  </div>
+
+  <div class="panel"><h3>Остаток на счету по неделям<span class="rt chip">${hat?'прогноз':'нужны ваши цифры'}</span></h3>
+    <div class="pb">
+      ${hat?chartSaldo(rows):`<div class="empty">
+        ${rows[0]&&rows[0].hatSaldo?'Остаток на счету введён.':'<b>Шаг 1.</b> Введите остаток на счету в разделе «Модель».'}<br>
+        ${nEinn?'':'<b>Шаг 2.</b> Добавьте ожидаемые поступления ниже — хотя бы одно.'}<br><br>
+        Прогноз без поступлений показал бы только падение до нуля — такая картинка вводит в заблуждение,
+        поэтому приложение её не рисует.</div>`}
+    </div></div>
+
+  <div class="panel"><h3>Недели<span class="rt chip">${rows.length}</span></h3><div class="tbl"><table>
+    <thead><tr><th>Неделя</th><th>Период</th><th class="n">Счета</th><th class="n">Регулярные</th>
+      <th class="n">Из дебиторки</th><th class="n">Поступления</th>${hat?'<th class="n">Остаток</th>':''}</tr></thead><tbody>
+    ${rows.map(r=>`<tr${r.saldo<0&&hat?' style="background:var(--crit-bg)"':''}>
+      <td><b>${r.nr}</b></td><td style="font-family:var(--f-mono);font-size:12px">${r.von.slice(5)} — ${r.bis.slice(5)}</td>
+      <td class="n">${r.rechnungen?EUR(r.rechnungen):'—'}${r.rechnungen_n?` <span class="nb">${r.rechnungen_n} шт</span>`:''}</td>
+      <td class="n" style="color:var(--muted)">${EUR(r.regulaer)}</td>
+      <td class="n" style="color:${r.ausDeb?'var(--accent)':'var(--muted)'}">${r.ausDeb?EUR(r.ausDeb):'—'}</td>
+      <td class="n" style="color:${r.rein?'var(--ok)':'var(--muted)'}">${r.rein?EUR(r.rein):'—'}</td>
+      ${hat?`<td class="n" style="font-weight:600;color:${r.saldo<0?'var(--crit)':'var(--ink)'}">${EUR(r.saldo)}</td>`:''}</tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Колонка «Счета» — точные суммы из кредиторки с известным сроком; всё просроченное сведено в первую неделю.
+      «Регулярные» — усреднённый недельный темп по ${L.tage_basis||23} дням банковских платежей, это оценка, а не факт.
+      Разовый платёж ${EUR((L.einmalig||[]).reduce((s,x)=>s+x.betrag,0))} в Finanzamt из темпа исключён, иначе прогноз завышался бы вдвое.</p></div>
+
+  <div class="panel"><h3>Как считается ожидание от заказчиков<span class="rt chip">${dpAn.length} из ${dp.length} счетов</span></h3>
+    <div class="field"><label>Срок оплаты, дней</label><input id="l_ziel" value="${H((S.gd||{}).zahlungsziel||45)}" placeholder="45">
+      <button class="btn sm" data-act="lsave">Применить</button></div>
+    <div class="field"><label>Сумма счёта</label>
+      <select id="l_basis">
+        <option value="tabelle" ${basisTabelle()?'selected':''}>Остаток из таблицы — осторожно</option>
+        <option value="brutto" ${basisTabelle()?'':'selected'}>Брутто минус оплачено — оптимистично</option>
+      </select><button class="btn sm" data-act="lsave">Применить</button></div>
+    <p class="note">Из-за расхождения в таблице одна и та же дебиторка даёт две очень разные цифры:
+      по колонке остатка ${EUR(dp.reduce((s,x)=>s+x.rest_tabelle,0))}, по «брутто минус оплачено» ${EUR(dp.reduce((s,x)=>s+x.rest_gerechnet,0))}.
+      Для планирования денег приложение по умолчанию берёт меньшую — переоценить приход опаснее, чем недооценить.
+      В прогноз попадают только счета со статусом «ожидаем» и «недоплата»; старые долги и спорные включаются вручную в разделе «Дебиторка».</p>
+  </div>
+
+  <div class="panel"><h3>Ожидаемые поступления<span class="rt chip">вводите сами</span></h3>
+    <div class="field"><label>Дата</label><input id="e_datum" placeholder="2026-09-20"></div>
+    <div class="field"><label>Заказчик</label><input id="e_kunde" placeholder="Gihl GmbH · AR 4"></div>
+    <div class="field"><label>Сумма</label><input id="e_betrag" placeholder="78400"></div>
+    <div class="acts"><button class="btn primary" data-act="eadd">Добавить поступление</button></div>
+    ${Object.values(S.einn||{}).sort((a,b)=>(a.datum||'').localeCompare(b.datum||'')).map(e=>`
+      <div class="row" style="cursor:default"><span class="stripe ok"></span>
+        <span class="grow"><span class="t">${H(e.kunde||'—')}</span><span class="s">${H(e.datum||'')}</span></span>
+        <span class="amt">${EUR(e.betrag)}</span>
+        <button class="btn sm" data-act="edel" data-id="${H(e.id)}">убрать</button></div>`).join('')
+      || '<div class="empty">Пока ничего не добавлено. Внесите ожидаемые Abschlagsrechnungen и оплаты заказчиков — прогноз оживёт.</div>'}
+  </div>
+
+  <div class="panel"><h3>Из чего складывается недельный отток</h3><div class="pb">
+    ${kw.map(([k,v])=>`<div style="display:grid;grid-template-columns:1fr 1fr 116px;gap:12px;align-items:center;padding:5px 0;font-size:13px">
+      <span>${H(k)}</span><div class="bar"><i style="width:${v/maxk*100}%"></i></div>
+      <span class="amt">${EUR(v)}<span class="nb">в неделю</span></span></div>`).join('')}
+  </div></div>`;
+}
+
+
+/* ---------- дебиторка ---------- */
+function vDebit(){
+  const D=S.deb||{}, su=D.summe||{}, tot=D.tot||{}, uf=D.unfakturiert||{};
+  const it=(D.items||[]).slice().sort((a,b)=>b.rest_gerechnet-a.rest_gerechnet);
+  const diffGes=it.reduce((s,x)=>s+x.differenz,0);
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `<div class="kpis">
+    ${kpi('','Выставлено всего',EUR(su.brutto),su.rechnungen+' счетов, брутто')}
+    ${kpi('c','Не оплачено ни евро',su.unbezahlt_n,EUR(su.unbezahlt_brutto))}
+    ${kpi('w','Таблица показывает долг',EUR(su.rest_tabelle),'а брутто минус оплата больше')}
+    ${kpi('c','Мёртвая дебиторка',EUR(tot.rest),'адвокаты, старые долги')}
+  </div>
+
+  <div class="panel"><h3>Главное расхождение<span class="rt chip">проверить в первую очередь</span></h3><div class="pb">
+    <p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-2);line-height:1.6">
+    В таблице колонка «Остаток к оплате» <b>не равна</b> «Брутто минус Оплачено» — и это не единичный случай, а система.
+    Пример: счёт <b>RE0128</b> заказчику ARGE The Q Nürnberg выставлен на <b>326 733,14 €</b>, оплачено <b>0 €</b>,
+    а в графе остатка стоит <b>−25 000 €</b>.</p>
+    <p style="margin:0 0 12px;font-size:13.5px;color:var(--ink-2);line-height:1.6">
+    По двадцати крупнейшим счетам разница составляет <b style="color:var(--crit)">${EUR(diffGes)}</b>.
+    Либо часть оплат не занесена, либо суммы счетов завышены, либо колонка остатка означает что-то другое.
+    Пока это не выяснено, <b>размер дебиторки фирмы неизвестен</b> — он где-то между 400 тысячами и миллионом.</p>
+    <div class="tbl"><table><thead><tr><th>Счёт</th><th>Заказчик</th><th class="n">Брутто</th><th class="n">Оплачено</th>
+      <th class="n">Брутто − оплата</th><th class="n">В таблице</th><th class="n">Разница</th></tr></thead><tbody>
+      ${it.map(x=>`<tr><td><b>${H(x.nummer)}</b><div style="color:var(--muted);font-size:11.5px;font-family:var(--f-mono)">${H(x.datum)}</div></td>
+        <td>${H(x.kunde)}<div style="color:var(--muted);font-size:11.5px">${H(x.projekt)}</div></td>
+        <td class="n">${EUR(x.brutto)}</td><td class="n">${x.bezahlt?EUR(x.bezahlt):'—'}</td>
+        <td class="n" style="font-weight:600">${EUR(x.rest_gerechnet)}</td>
+        <td class="n" style="color:var(--muted)">${EUR(x.rest_tabelle)}</td>
+        <td class="n" style="color:${x.differenz>1000?'var(--crit)':'var(--muted)'};font-weight:${x.differenz>1000?'600':'400'}">${x.differenz>0.5?EUR(x.differenz):'—'}</td></tr>`).join('')}
+    </tbody></table></div></div></div>
+
+  <div class="panel"><h3>Что из этого ждём в прогнозе<span class="rt chip">влияет на ликвидность</span></h3>
+    <div class="tbl"><table><thead><tr><th>Счёт</th><th>Заказчик</th><th class="n">В прогнозе</th><th>Ждём</th><th>Статус</th><th></th></tr></thead><tbody>
+    ${debitorenPlan().map(d=>`<tr${d.an?'':' style="opacity:.5"'}>
+      <td><b>${H(d.nummer)}</b></td><td>${H(d.kunde)}</td>
+      <td class="n" style="font-weight:600">${EUR(d.betrag)}</td>
+      <td style="font-family:var(--f-mono);font-size:12px">${d.an?H(d.datum):'—'}${d.manuell?' <span class="pill p-acc">вручную</span>':''}</td>
+      <td><span class="pill ${d.autoOk?'p-ok':'p-warn'}">${H(d.status)}</span></td>
+      <td><button class="btn sm" data-act="${d.an?'erwaus':'erwan'}" data-nr="${H(d.nummer)}">${d.an?'убрать':'ждать'}</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Включённые счета автоматически встают в прогноз ликвидности на дату «дата счёта плюс срок оплаты».
+      Просроченные переносятся в ближайшую неделю. Срок и способ расчёта суммы настраиваются в разделе «Ликвидность».</p></div>
+
+  <div class="panel"><h3>Мёртвая дебиторка<span class="rt chip">отдельный лист в таблице</span></h3><div class="tbl"><table>
+    <thead><tr><th>Заказчик</th><th>Счёт</th><th class="n">Брутто</th><th class="n">Оплачено</th><th class="n">Долг</th><th>Пометка</th></tr></thead><tbody>
+    ${(D.tote||[]).map(x=>`<tr><td><b>${H(x.kunde)}</b></td><td>${H(x.nummer)}<div style="color:var(--muted);font-size:11.5px">${H(x.datum)}</div></td>
+      <td class="n">${EUR(x.brutto)}</td><td class="n">${x.bezahlt?EUR(x.bezahlt):'—'}</td>
+      <td class="n" style="color:var(--crit);font-weight:600">${EUR(x.rest_gerechnet)}</td>
+      <td><span class="pill p-crit">${H(x.status)}</span></td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Весь лист мёртвой дебиторки: выставлено ${EUR(tot.brutto)}, получено ${EUR(tot.bezahlt)}, не получено ${EUR(tot.rest)}.
+      Строка «Nadine Belmayer» на ${EUR(87461.68)} — без номера счёта и без даты. Взыскать долг по документу, которого нет, невозможно.</p></div>
+
+  <div class="panel"><h3>Работа сделана, счёт не выставлен</h3><div class="pb">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+      <div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)">Невыставленных часов</div>
+        <div style="font-family:var(--f-display);font-weight:700;font-size:24px;margin-top:3px">${(uf.stunden||0).toLocaleString('de-DE')}</div></div>
+      <div><div class="k" style="font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)">На сумму</div>
+        <div style="font-family:var(--f-display);font-weight:700;font-size:24px;margin-top:3px;color:var(--crit)">${EUR(uf.summe)}</div></div>
+    </div>
+    <p class="note" style="padding:12px 0 0">Часы отработаны и записаны, счёт заказчику не выставлен. Это не долг заказчика — это деньги,
+      которые фирма ещё даже не попросила. Плюс 18 объектов, где есть расходы на 145 590 € и ни одного выставленного счёта.</p>
+  </div></div>
+
+  <div class="panel"><h3>Свежесть данных<span class="rt chip">важно</span></h3><div class="pb">
+    <p style="margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.65">
+    Последний счёт в реестре — <b>${H(D.letzter_beleg)}</b>, а отчётная дата в самой таблице — <b>${H(D.stand_tabelle)}</b>.
+    Три месяца в реестр ничего не добавлялось. Всё, что выставлено с конца мая, в этих цифрах отсутствует,
+    поэтому реальная дебиторка больше показанной.</p>
+    <p class="note" style="padding:12px 0 0">Источник: ${H(D.quelle)}. Прочитано ${H(D.gelesen)}.</p>
+  </div></div>`;
+}
+
+
+
+
+/* ---------- Mahnwesen ---------- */
+const STUFEN=[
+ [0,'Срок ещё не вышел','—','ничего не делаем'],
+ [1,'Zahlungserinnerung','+3 дня','дружелюбное напоминание, без процентов и угроз'],
+ [2,'1. Mahnung','+14 дней','Verzug зафиксирован, начисляются проценты и 40 €'],
+ [3,'2. Mahnung — letzte Frist','+30 дней','последний срок, названы следующие шаги'],
+ [4,'Передача','+60 дней','Inkasso или адвокат — внутренние письма исчерпаны'],
+ [5,'Gerichtlicher Mahnbescheid','+120 дней','суд или осознанное списание'],
+];
+function vMahn(){
+  const M=S.mw||{}, g=M.gesamt||{}, it=(M.items||[]).slice();
+  const kunden=(M.kunden||[]).slice();
+  const verj=(M.verjaehrt||[]), ohneD=(M.ohne_datum||[]);
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `<div class="kpis">
+    ${kpi('c','Просрочено',EUR(g.offen),g.n+' счетов')}
+    ${kpi('w','Проценты начислены',EUR(g.zinsen),(M.zinssatz||0).toFixed(2)+' % годовых')}
+    ${kpi('w','Пеня § 288 Abs. 5',EUR(g.pauschale),'по 40 € на счёт')}
+    ${kpi('o','Можно требовать сверху',EUR(g.zusatz),'и это по закону ваше')}
+  </div>
+
+  <div class="panel" style="border-color:var(--accent)"><h3>Что здесь важно понять первым<span class="rt chip on">§ 286 BGB</span></h3><div class="pb">
+    <p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-2);line-height:1.65">
+    В отношениях между предпринимателями <b>просрочка наступает сама</b> — через 30 дней после срока оплаты и получения счёта.
+    Отправлять Mahnung, чтобы начали идти проценты, <b>не нужно</b>: они уже идут. Закон не требует ни трёх напоминаний,
+    ни какой-либо очерёдности — можно передать дело в Inkasso после первого.</p>
+    <p style="margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.65">
+    По вашим счетам уже накапало <b style="color:var(--accent)">${EUR(g.zinsen)}</b> процентов плюс
+    <b style="color:var(--accent)">${EUR(g.pauschale)}</b> фиксированной пени. Это не штраф и не жест доброй воли —
+    это ваше требование по § 288 BGB, которое просто никто не выставил.</p></div></div>
+
+  <div class="panel"><h3>Лестница ступеней<span class="rt chip">правила приложения</span></h3><div class="tbl"><table>
+    <thead><tr><th class="n">Ступень</th><th>Что отправляем</th><th>Когда</th><th>Смысл</th><th class="n">Счетов сейчас</th></tr></thead><tbody>
+    ${STUFEN.map(([n,name,wann,sinn])=>{
+      const cnt=it.filter(x=>x.stufe===n).length;
+      return `<tr${cnt?'':' style="opacity:.45"'}><td class="n"><b>${n}</b></td>
+        <td><b>${H(name)}</b></td><td style="font-family:var(--f-mono);font-size:12px">${H(wann)}</td>
+        <td style="color:var(--ink-2)">${H(sinn)}</td><td class="n">${cnt||'—'}</td></tr>`;}).join('')}
+    </tbody></table></div>
+    <p class="note">Сроки — настройка, а не закон. Немецкое право не предписывает три ступени; эта лестница выбрана
+      так, чтобы не портить отношения там, где просрочка случайна, и не тянуть там, где она системная.</p></div>
+
+  <div class="panel" style="border-color:var(--crit)"><h3>Порядок действий — по деньгам, а не по дате<span class="rt chip crit">первые ${Math.min(10,it.length)}</span></h3>
+    <div class="tbl"><table><thead><tr><th>Счёт</th><th>Заказчик</th><th class="n">Долг</th><th class="n">Дней</th>
+      <th class="n">Проценты</th><th class="n">К требованию</th><th>Ступень</th></tr></thead><tbody>
+    ${it.slice(0,14).map(x=>`<tr${x.stufe>=4?' style="background:var(--crit-bg)"':''}>
+      <td><b>${H(x.nummer)}</b><div style="color:var(--muted);font-size:11.5px;font-family:var(--f-mono)">${H(x.datum||'—')}</div></td>
+      <td>${H(x.kunde)}</td>
+      <td class="n">${EUR(x.offen)}</td>
+      <td class="n" style="color:${x.tage>180?'var(--crit)':'var(--ink)'}">${x.tage??'—'}</td>
+      <td class="n" style="color:var(--accent)">${EUR(x.zinsen)}</td>
+      <td class="n" style="font-weight:600">${EUR(x.gesamt)}</td>
+      <td><span class="pill ${x.stufe>=4?'p-crit':x.stufe>=2?'p-warn':'p-neut'}">${H(x.stufe_label)}</span></td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Список отсортирован не по дате, а по <b>весу просрочки</b> — сумма, умноженная на дни.
+      Так наверх поднимается то, где деньги реально стоят, а не то, что просто дольше всех висит.</p></div>
+
+  <div class="panel"><h3>Одно письмо на заказчика, а не на счёт<span class="rt chip">${kunden.length} адресатов</span></h3>
+    <div class="tbl"><table><thead><tr><th>Заказчик</th><th class="n">Счетов</th><th class="n">Долг</th>
+      <th class="n">Проценты + пеня</th><th class="n">Макс. дней</th><th>Что отправляем</th></tr></thead><tbody>
+    ${kunden.map(k=>`<tr><td><b>${H(k.kunde)}</b></td><td class="n">${k.n}</td>
+      <td class="n">${EUR(k.offen)}</td><td class="n" style="color:var(--accent)">${EUR(k.zinsen+k.pauschale)}</td>
+      <td class="n">${k.max_tage}</td>
+      <td><span class="pill ${k.stufe>=4?'p-crit':k.stufe>=2?'p-warn':'p-neut'}">${H((STUFEN[k.stufe]||STUFEN[0])[1])}</span></td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Заказчику с четырьмя просроченными счетами уходит <b>одно</b> письмо со списком, а не четыре письма.
+      Так делают все приличные системы: четыре письма подряд читаются как сбой автоматики, и на них перестают отвечать.</p></div>
+
+  ${verj.length?`<div class="panel" style="border-color:var(--crit)"><h3>Срок давности<span class="rt chip crit">${verj.length}</span></h3>
+    ${verj.map(v=>`<div class="row" style="cursor:default"><span class="stripe sperre"></span>
+      <span class="grow"><span class="t">${H(v.kunde)} · ${H(v.nummer)}</span>
+      <span class="s" style="font-family:var(--f-body);font-size:12.5px;letter-spacing:0;color:var(--ink-2)">${H(v.problem||('погашено давностью '+v.verjaehrt_am))}</span></span>
+      <span class="amt" style="color:var(--crit)">${EUR(v.offen)}</span></div>`).join('')}
+    <p class="note">По § 195 BGB требования гасятся через <b>три года</b>, считая с конца года возникновения (§ 199 BGB).
+      После этого должник вправе просто отказаться платить, и суд его поддержит. Строку выше нужно решать сейчас:
+      либо признание долга должником, либо судебный Mahnbescheid, который прерывает течение срока, либо честное списание.</p></div>`:''}
+
+  <div class="panel"><h3>Правила, которых нет в простых системах<span class="rt chip">чем догоняем передовые</span></h3>
+    ${[
+      ['Не мешать Mahnung и текущую работу','Если у заказчика идёт активный объект, автоматическое напоминание может стоить дороже долга. Такие письма уходят только после вашего подтверждения.'],
+      ['Тон по истории, а не по номеру ступени','Тот, кто всегда платил вовремя и опоздал впервые, получает мягкое напоминание даже на третьей ступени. Хронический неплательщик — жёсткое с первой.'],
+      ['Сторож срока давности','За полгода до истечения трёхлетнего срока счёт поднимается наверх независимо от суммы. Это то, чего нет почти нигде, и именно так теряются самые старые деньги.'],
+      ['Частичная оплата не сбрасывает ступень','Платёж в 100 € по счёту на 50 000 € — не повод начинать заново. Пересчитывается остаток, ступень остаётся.'],
+      ['Проценты считаются, но выставляются осознанно','Сумма всегда видна, но включать её в письмо — ваше решение. С постоянным заказчиком иногда выгоднее простить проценты и получить тело долга.'],
+    ].map(([t,x])=>`<div class="row" style="cursor:default"><span class="stripe ok"></span>
+      <span class="grow"><span class="t">${t}</span>
+      <span class="s" style="font-family:var(--f-body);font-size:12.5px;letter-spacing:0;color:var(--ink-2)">${x}</span></span></div>`).join('')}
+  </div>
+
+  <div class="panel"><h3>Как считаются проценты</h3><div class="pb">
+    <div class="meta">
+      <div><div class="k">Basiszinssatz</div><div class="v">${(M.basiszins||0).toFixed(2)} %</div></div>
+      <div><div class="k">Надбавка § 288 Abs. 2</div><div class="v">+ 9,00 п.п.</div></div>
+      <div><div class="k">Итого B2B</div><div class="v" style="color:var(--accent)">${(M.zinssatz||0).toFixed(2)} %</div></div>
+      <div><div class="k">Пеня § 288 Abs. 5</div><div class="v">${EUR(M.pauschale)}</div></div>
+    </div>
+    <p class="note">Формула: долг × ${(M.zinssatz||0).toFixed(2)} % × дни просрочки ÷ 365, плюс 40 € разово на каждый счёт.
+      Basiszinssatz пересматривается 1 января и 1 июля — приложение следит за этим через Rechtsradar.
+      Пеня 40 € действует только против предпринимателей и засчитывается в счёт расходов на Inkasso.</p>
+  </div></div>`;
+}
+
+/* ---------- почта: MailOps ---------- */
+function vPost(){
+  const P=S.po||{};
+  if(!P.gesamt) return `<div class="panel"><div class="empty">Данные по почте ещё не загружены в базу приложения.</div></div>`;
+  const G=P.gesamt, E=P.extraktion||{}, EM=P.eingehende_mahnungen||{}, K=P.kennzahlen||{}, ML=P.mahnlauf||{};
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  const schwereFarbe={'критично':'var(--crit)','высоко':'var(--warn)','средне':'var(--muted)'};
+
+  const boxen = P.postfaecher.map(m=>`
+    <div class="row" style="gap:10px;align-items:flex-start">
+      <div class="stripe ${m.status==='ok'?'ok':'sperre'}"></div>
+      <div class="grow">
+        <div class="t" style="font-family:var(--f-mono);font-size:12.5px">${H(m.adresse)}</div>
+        <div class="bx">${m.briefe} писем · ${m.typ.toUpperCase()} · последнее ${H(m.letzte)}
+          ${m.fehler?`<br><span style="color:var(--crit)">${H(m.fehler)}</span>`:''}</div>
+      </div>
+      <div style="font-family:var(--f-display);font-weight:700;font-size:19px">${m.briefe}</div>
+    </div>`).join('');
+
+  const maxArt = Math.max(...P.arten.map(a=>a.n));
+  const arten = P.arten.map(a=>`<tr>
+      <td><b>${H(a.k)}</b> <span style="color:var(--muted);font-size:12px">${H(a.ru)}</span></td>
+      <td style="width:180px"><div class="bar"><i style="width:${Math.round(a.n/maxArt*100)}%"></i></div></td>
+      <td class="n">${a.n}</td></tr>`).join('');
+
+  const felder = E.felder.map(f=>`<tr><td>${H(f.feld)}</td>
+      <td style="width:180px"><div class="bar"><i style="width:${f.pct}%;background:${f.pct<50?'var(--crit)':f.pct<70?'var(--warn)':'var(--ok)'}"></i></div></td>
+      <td class="n">${f.pct} %</td><td class="n" style="color:var(--muted)">${f.n}</td></tr>`).join('');
+
+  const firmen = P.firmen.map(f=>`<tr><td><b>${H(f.k)}</b>${f.gueltig?'':' <span class="pill" style="background:var(--crit);color:#fff">такой фирмы нет</span>'}</td>
+      <td class="n">${f.n}</td></tr>`).join('');
+
+  const haengt = P.haengt.map(h=>`<tr><td><b>${H(h.was)}</b><div class="bx">${H(h.detail)}</div></td>
+      <td class="n" style="font-family:var(--f-display);font-weight:700;font-size:18px">${h.n}</td></tr>`).join('');
+
+  const defekte = P.defekte.map(d=>`
+    <div class="row" style="gap:10px;align-items:flex-start;border-top:1px solid var(--line-soft)">
+      <div class="stripe ${d.schwere==='критично'?'sperre':d.schwere==='высоко'?'pruefen':''}"></div>
+      <div class="grow">
+        <div class="t">${d.nr}. ${H(d.titel)}
+          <span class="pill" style="color:${schwereFarbe[d.schwere]||'var(--muted)'};border:1px solid currentColor">${H(d.schwere)}</span></div>
+        <div class="bx">${H(d.text)}</div>
+        <div class="bx" style="color:var(--ok)">→ ${H(d.fix)}</div>
+      </div>
+    </div>`).join('');
+
+  const dubl = P.dublette_kreditor.map(d=>`<tr>
+      <td><b>${H(d.gruppe)}</b><div class="bx">${d.zeilen.map(H).join('<br>')}</div>
+          <div class="bx" style="color:var(--warn)">${H(d.risiko)}</div></td>
+      <td class="n" style="font-weight:600">${EUR(d.summe)}</td></tr>`).join('');
+
+  const stufen = (ML.stufen||[]).map(s=>`<tr>
+      <td style="font-family:var(--f-display);font-weight:700;font-size:17px;color:var(--accent)">${s.nr}</td>
+      <td><b>${H(s.name)}</b><div class="bx">${H(s.sinn)}</div></td>
+      <td style="white-space:nowrap;font-family:var(--f-mono);font-size:12px">${H(s.tag)}</td>
+      <td style="font-size:12.5px">${H(s.ton)}</td>
+      <td class="n">${s.gebuehr?EUR(s.gebuehr):'—'}</td>
+      <td class="n">${s.zinsen?'да':'—'}</td></tr>`).join('');
+
+  const regeln = (ML.regeln||[]).map(r=>`<tr>
+      <td style="font-family:var(--f-mono);font-size:11.5px;color:var(--accent);white-space:nowrap">${H(r.code)}</td>
+      <td><b>${H(r.titel)}</b><div class="bx">${H(r.text)}</div></td></tr>`).join('');
+
+  const vorlagen = (P.vorlagen||[]).map(v=>`
+    <div style="padding:12px 16px;border-top:1px solid var(--line-soft)">
+      <div class="t">Ступень ${v.stufe} · <span style="font-family:var(--f-mono);font-size:12.5px">${H(v.betreff)}</span></div>
+      <pre style="white-space:pre-wrap;font-family:var(--f-mono);font-size:11.5px;line-height:1.6;color:var(--ink-2);margin:8px 0 0;background:var(--surface-2);padding:11px 13px;border-radius:4px;overflow-x:auto">${H(v.text)}</pre>
+    </div>`).join('');
+
+  const mahnTop = (EM.top||[]).map(m=>`<tr><td>${H(m.kontrahent)}</td>
+      <td class="n" style="color:var(--muted)">${m.briefe}</td>
+      <td class="n" style="font-weight:600">${EUR(m.summe)}</td></tr>`).join('');
+
+  return `<div class="kpis">
+    ${kpi('','Писем в базе',G.briefe,`${G.eingang} входящих · ${G.ausgang} исходящих · ${H(P.zeitraum)}`)}
+    ${kpi('c','Mahnungen нам',EM.briefe+' + '+EM.inkasso,'напоминаний и инкассо получено за три недели')}
+    ${kpi('c','Mahnungen от нас',P.ausgehende_mahnungen,'ни одного напоминания не отправлено')}
+    ${kpi('w','DSO',K.dso_tage+' дн.','цель '+K.dso_ziel+' дн. · день ≈ 13 700 € живых денег')}
+  </div>
+
+  <div class="panel"><h3>Асимметрия<span class="rt" style="color:var(--crit)">главный вывод</span></h3>
+    <div style="padding:14px 18px">
+      <p style="margin:0 0 10px;font-size:14.5px;line-height:1.6">За три недели фирме пришло <b>${EM.briefe} Mahnung и ${EM.inkasso} писем от инкассо</b>.
+      За то же время фирма отправила <b>ноль</b> напоминаний — при просроченной дебиторке ${EUR(K.ueberfaellig)}
+      и невзысканном праве на проценты и пени ${EUR(K.zinsanspruch)}.</p>
+      <p style="margin:0;font-size:13.5px;color:var(--muted);line-height:1.6">Это не проблема программы. Программа читает почту хорошо.
+      Не существует стороны, которая просит деньги обратно — есть только сторона, которая их отдаёт.
+      Всё остальное в этом разделе — детали по сравнению с этим.</p>
+    </div>
+    <div class="tbl"><table><thead><tr><th>Кто мануёт нас</th><th class="n">Писем</th><th class="n">Сумма</th></tr></thead>
+      <tbody>${mahnTop}</tbody></table></div>
+    <p class="note">Volkswagen Bank прислал 32 письма — это лизинг машин, где каждый договор мануется отдельно.
+      Finanzkasse Nürnberg на 74 445,80 € — приоритет выше всех коммерческих: у налоговой есть Vollstreckung без суда.</p>
+  </div>
+
+  <div class="panel"><h3>Лестница напоминаний<span class="rt">полный цикл ${ML.zyklus_tage} дней от срока оплаты</span></h3>
+    <div class="tbl"><table><thead><tr><th></th><th>Ступень</th><th>Когда</th><th>Тон</th><th class="n">Gebühr</th><th class="n">Проценты</th></tr></thead>
+      <tbody>${stufen}</tbody></table></div>
+    <p class="note">${H(ML.grundlage)}. Трёх Mahnung закон не требует: просрочка наступает сама через 30 дней
+      после срока и получения счёта. Ступени нужны не по закону, а чтобы не портить отношения с заказчиком,
+      который просто забыл заплатить.</p>
+  </div>
+
+  <div class="panel"><h3>Правила Mahnlauf<span class="rt">${(ML.regeln||[]).length} правил</span></h3>
+    <div class="tbl"><table><tbody>${regeln}</tbody></table></div>
+  </div>
+
+  <div class="panel"><h3>Тексты писем<span class="rt">немецкий, готово к отправке</span></h3>
+    ${vorlagen}
+    <p class="note">Поля в фигурных скобках подставляются автоматически из счёта.
+      Ступень 3 — единственная, где сумма процентов и 40 € стоят в письме цифрой: до неё они считаются, но не пишутся.</p>
+  </div>
+
+  <div class="panel"><h3>Четыре ящика<span class="rt">${H(P.quelle)}</span></h3>
+    <div style="padding:6px 14px 12px">${boxen}</div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="panel"><h3>Коды фирм</h3>
+        <div class="tbl"><table><tbody>${firmen}</tbody></table></div>
+        <p class="note">EUAK и VKBG модель придумала сама. UNKLAR — треть потока.</p>
+      </div>
+      <div class="panel"><h3>Качество извлечения</h3>
+        <div class="tbl"><table><tbody>${felder}</tbody></table></div>
+        <p class="note">Август → сентябрь сумма упала с ${E.monate[0].betrag} % до ${E.monate[1].betrag} %.
+          Падение вдвое за месяц — это не «модель стала хуже», это надо смотреть по логам.</p>
+      </div>
+    </div>
+    <div>
+      <div class="panel"><h3>Что зависло</h3>
+        <div class="tbl"><table><tbody>${haengt}</tbody></table></div>
+        <p class="note">377 черновиков — генератор пишет ответы дважды в день с 16 августа, отправлено из них два.
+          Место, где с ними работают, и есть Postzentrale.</p>
+      </div>
+      <div class="panel"><h3>Разные виды почты</h3>
+        <div class="tbl"><table><tbody>${arten}</tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel"><h3>Дубликаты в кредиторке<span class="rt">риск двойной оплаты</span></h3>
+    <div class="tbl"><table><tbody>${dubl}</tbody></table></div>
+    <p class="note">Система пишет дубли в duplicates_log (201 запись), но сравнивает строку названия целиком.
+      Одно польское юрлицо в трёх написаниях для неё — три поставщика.</p>
+  </div>
+
+  <div class="panel"><h3>Что чинить<span class="rt">по убыванию важности</span></h3>
+    ${defekte}
+    <p class="note">Порядок именно такой: сначала то, что закрывает доступ посторонним и возвращает управление
+      (токены, бот), потом то, что портит данные каждый день (коды фирм, дубликаты), и только потом качество разбора.</p>
+  </div>`;
+}
+
+/* ---------- неоплаченные фактуры ---------- */
+function vUnbez(){
+  const U=S.ub||{}, Q=U.quellen||[], K=U.kennzahlen_kalender||{};
+  const wir=Q.filter(q=>q.richtung==='мы должны'), uns=Q.filter(q=>q.richtung==='нам должны');
+  const sum=a=>a.reduce((s,x)=>s+x.summe,0);
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  const liste=(rows,farbe)=>`<div class="tbl"><table><thead><tr><th>Кому / от кого</th><th>Пометка</th><th class="n">Сумма</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><b>${H(r.name)}</b></td>
+      <td style="color:var(--muted);font-size:12.5px">${H(r.art||r.datum||r.nummer||'—')}${
+        r.faellig?` · срок ${H(r.faellig)}`:''}${r.mahngebuehr?` · пени ${EUR(r.mahngebuehr)}`:''}</td>
+      <td class="n" style="font-weight:600;color:${farbe}">${EUR(r.betrag)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  return `<div class="kpis">
+    ${kpi('c','Мы должны',EUR(sum(wir)),wir.reduce((a,x)=>a+x.n,0)+' позиций в 2 реестрах')}
+    ${kpi('w','Нам должны',EUR(sum(uns)),uns.reduce((a,x)=>a+x.n,0)+' позиций в 3 реестрах')}
+    ${kpi('','Разница',EUR(sum(uns)-sum(wir)),'если бы всё было живым')}
+    ${kpi('c','Было на счетах',EUR(K.kontostand||0),'по календарю, март 2026')}
+  </div>
+
+  <div class="panel" style="border-color:var(--warn)"><h3>Прежде чем складывать эти цифры<span class="rt chip warn">важно</span></h3><div class="pb">
+    <p style="margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.65">
+    Реестры собраны из разных таблиц и на разные даты — от марта до сентября. Они <b>частично описывают одни и те же долги</b>,
+    поэтому суммировать их в одну цифру нельзя: получится двойной счёт. Ниже каждый источник показан отдельно,
+    со своей датой и со своей степенью надёжности. Свести их в один реестр можно только после того,
+    как у каждого документа появится номер — тогда дубли схлопнутся сами.</p></div></div>
+
+  <div class="panel"><h3>Источники<span class="rt chip">${Q.length}</span></h3><div class="tbl"><table>
+    <thead><tr><th>Реестр</th><th>Направление</th><th>Состояние на</th><th class="n">Позиций</th><th class="n">Сумма</th><th>Чему верить</th></tr></thead><tbody>
+    ${Q.map(q=>`<tr><td><b>${H(q.name)}</b></td>
+      <td><span class="pill ${q.richtung==='мы должны'?'p-crit':'p-warn'}">${H(q.richtung)}</span></td>
+      <td style="font-family:var(--f-mono);font-size:12px">${H(q.stand)}</td>
+      <td class="n">${q.n}</td>
+      <td class="n" style="font-weight:600">${EUR(q.summe)}${q.summe_alt?`<span class="nb">или ${EUR(q.summe_alt)}</span>`:''}</td>
+      <td style="color:var(--ink-2);font-size:12.5px">${H(q.zuverlaessig)}</td></tr>`).join('')}
+    </tbody></table></div></div>
+
+  <div class="panel" style="border-color:var(--crit)"><h3>Мы должны · просроченная кредиторка<span class="rt chip crit">платёжный календарь, март 2026</span></h3>
+    ${liste(U.kreditoren_kalender||[],'var(--crit)')}
+    <p class="note">Итого ${EUR((U.kreditoren_kalender||[]).reduce((s,x)=>s+x.betrag,0))}.
+      Больше половины — социальные фонды и налоги: SOKA-BAU ${EUR(50000)}, BG BAU ${EUR(28381.11)}, AOK ${EUR(22884.85)}.
+      Это те долги, по которым не договариваются об отсрочке так же легко, как с поставщиком материалов.
+      Данные полугодовой давности — часть могла быть погашена, проверить построчно.</p></div>
+
+  <div class="panel"><h3>Мы должны · кредиторка из почты<span class="rt chip">свежая, 05.09.2026</span></h3>
+    ${liste(U.kreditoren_mailops||[],'var(--crit)')}
+    <p class="note">Итого ${EUR((U.kreditoren_mailops||[]).reduce((s,x)=>s+x.betrag,0))} по ${(U.kreditoren_mailops||[]).length} документам.
+      Это единственный реестр, который обновляется сам — остальные ведутся вручную и отстают.</p></div>
+
+  <div class="panel"><h3>Нам должны · ожидаемые поступления<span class="rt chip">календарь, март 2026</span></h3>
+    ${liste(U.erwartungen_kalender||[],'var(--ok)')}
+    <p class="note">Итого ${EUR((U.erwartungen_kalender||[]).reduce((s,x)=>s+x.betrag,0))}, но
+      <b>${EUR(319200)} из них — невыставленные часы за март и апрель</b>. Это не дебиторка: счёта нет,
+      значит и требования нет. Настоящих счетов здесь на ${EUR((U.erwartungen_kalender||[]).reduce((s,x)=>s+x.betrag,0)-319200)}.</p></div>
+
+  <div class="panel"><h3>Что показывал календарь в марте<span class="rt chip">для сравнения с сегодня</span></h3>
+    <div class="meta">
+      <div><div class="k">На счетах</div><div class="v">${EUR(K.kontostand)}</div></div>
+      <div><div class="k">Доступно денег</div><div class="v" style="color:var(--crit)">${EUR(K.verfuegbar)}</div></div>
+      <div><div class="k">Расходы в месяц</div><div class="v">${EUR(K.monatsausgaben)}</div></div>
+      <div><div class="k">Месяцев работы</div><div class="v" style="color:var(--crit)">${K.monate_moeglich}</div></div>
+      <div><div class="k">Если никто не заплатит</div><div class="v" style="color:var(--crit)">${EUR(K.wenn_niemand_zahlt)}</div></div>
+      <div><div class="k">Если заплатят частично</div><div class="v">${EUR(K.wenn_teilweise)}</div></div>
+      <div><div class="k">Если заплатят все</div><div class="v">${EUR(K.wenn_alle_zahlen)}</div></div>
+    </div>
+    <p class="note">Это цифры из вашего же платёжного календаря на март 2026. Сегодня на счету ${EUR(Number((S.gd||{}).kontostand||0))},
+      то есть за полгода положение заметно выправилось. Но расходы в месяц там оценены в ${EUR(K.monatsausgaben)},
+      а по банковским платежам за август получается около ${EUR(((S.geld||{}).gesamt||0)/((S.geld||{}).tage||24)*30)} —
+      то есть тратить стали больше.</p></div>`;
+}
+
+/* ---------- нумерация ---------- */
+function vNummern(){
+  const N=S.nr||{};
+  const dz=(N.objekte||[]).filter(o=>o.zusammengefasst>1);
+  const kpi=(cl,k,v,m)=>`<div class="kpi ${cl}"><div class="k">${k}</div><div class="v">${v}</div><div class="m">${m}</div></div>`;
+  return `<div class="kpis">
+    ${kpi('','Заказчиков',(N.debitoren||[]).length,'D-10001 и далее')}
+    ${kpi('','Поставщиков',(N.kreditoren||[]).length,'K-70001 и далее')}
+    ${kpi('','Объектов',(N.objekte||[]).length,'O-0101 и далее')}
+    ${kpi('o','Дублей схлопнуто',dz.length,'было записано дважды')}
+  </div>
+
+  <div class="panel"><h3>Схема нумерации<span class="rt chip">совместима с DATEV</span></h3><div class="tbl"><table>
+    <thead><tr><th>Что</th><th>Показывается</th><th>Уходит в DATEV</th><th>Диапазон</th><th>Почему так</th></tr></thead><tbody>
+    ${(N.schema||[]).map(x=>`<tr><td><b>${H(x.was)}</b></td>
+      <td style="font-family:var(--f-mono);font-size:13px;color:var(--accent)">${H(x.anzeige)}</td>
+      <td style="font-family:var(--f-mono);font-size:12.5px">${H(x.datev)}</td>
+      <td style="font-family:var(--f-mono);font-size:12px;color:var(--muted)">${H(x.bereich)}</td>
+      <td style="color:var(--ink-2)">${H(x.warum)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Главная выгода: номер заказчика — это и есть номер счёта дебитора в SKR03/SKR04, номер поставщика — счёта кредитора,
+      номер объекта — Kostenstelle. Стапель уходит в DATEV без таблицы соответствий, а Steuerberater видит те же номера, что и вы.</p></div>
+
+  <div class="panel"><h3>Правила, которые делают нумерацию рабочей</h3>
+    ${(N.regeln||[]).map((r,i)=>`<div class="row" style="cursor:default"><span class="stripe ok"></span>
+      <span class="grow"><span class="t" style="font-weight:400;font-size:13.5px">${H(r)}</span></span></div>`).join('')}
+    <p class="note">Первое правило — самое важное. Сейчас обозначения придумывают люди, поэтому появились три параллельные системы:
+      номера машин, номера вида №7-11 и адреса как ключ. Пока номер выдаёт система, третьей системы не возникнет.</p></div>
+
+  ${dz.length?`<div class="panel"><h3>Что уже склеилось<span class="rt chip">${dz.length}</span></h3>
+    ${dz.map(o=>`<div class="row" style="cursor:default"><span class="stripe ok"></span>
+      <span class="grow"><span class="t">${H(o.anzeige)} · ${H(o.kunde)}</span>
+      ${o.aliase.map(a=>`<span class="s">было: ${H(a)}</span>`).join('')}</span></div>`).join('')}
+    <p class="note">Прежние обозначения не стёрты — они сохранены как псевдонимы. По ним находится вся старая переписка и документы.</p></div>`:''}
+
+  <div class="panel"><h3>Объекты<span class="rt chip">${(N.objekte||[]).length}</span></h3><div class="tbl"><table>
+    <thead><tr><th>Номер</th><th>Kostenstelle</th><th>Заказчик</th><th>Адрес</th><th>Машины</th></tr></thead><tbody>
+    ${(N.objekte||[]).map(o=>`<tr><td style="font-family:var(--f-mono);font-weight:600;color:var(--accent)">${H(o.anzeige)}</td>
+      <td style="font-family:var(--f-mono);font-size:12.5px;color:var(--muted)">${o.nummer}</td>
+      <td>${H(o.kunde)}${o.debitor?` <span class="pill p-neut">${H(o.debitor)}</span>`:''}</td>
+      <td>${H(o.adresse)}</td>
+      <td style="font-family:var(--f-mono);font-size:11.5px;color:var(--muted)">${o.kennzeichen.join(', ')||'—'}</td></tr>`).join('')}
+    </tbody></table></div></div>
+
+  <div class="panel"><h3>Заказчики<span class="rt chip">Debitoren</span></h3><div class="tbl"><table>
+    <thead><tr><th>Номер</th><th>Название</th><th class="n">Счетов</th><th class="n">Выставлено</th><th>Варианты написания</th></tr></thead><tbody>
+    ${(N.debitoren||[]).map(d=>`<tr><td style="font-family:var(--f-mono);font-weight:600;color:var(--accent)">${H(d.anzeige)}</td>
+      <td>${H(d.name)}</td><td class="n">${d.belege}</td><td class="n">${EUR(d.summe)}</td>
+      <td style="font-size:12px;color:var(--muted)">${d.varianten.length>1?H(d.varianten.join(' · ')):'—'}</td></tr>`).join('')}
+    </tbody></table></div></div>
+
+  <div class="panel"><h3>Поставщики и субподряд<span class="rt chip">Kreditoren</span></h3><div class="tbl"><table>
+    <thead><tr><th>Номер</th><th>Название</th><th>Роль</th><th class="n">Оборот</th><th class="n">Не оплачено</th></tr></thead><tbody>
+    ${(N.kreditoren||[]).map(k=>`<tr><td style="font-family:var(--f-mono);font-weight:600;color:var(--accent)">${H(k.anzeige)}</td>
+      <td>${H(k.name)}</td><td>${k.subunternehmer?'<span class="pill p-warn">субподряд</span>':'<span class="pill p-neut">поставщик</span>'}</td>
+      <td class="n">${EUR(k.summe)}</td><td class="n">${k.offen?EUR(k.offen):'—'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Номера присвоены по обороту: чем больше проходит через контрагента, тем меньше номер. Это временно —
+      в рабочей версии номер выдаётся по порядку появления и больше не меняется никогда.</p></div>`;
+}
+
+/* ---------- разнос по объектам ---------- */
+var RZ = { entwurf:{}, teilAuf:{}, neuform:false, tage:400, modus:'neu', monat:'', monate:[], filt:'ausgabe', geladen:false, laeuft:false, fehler:'',
+           offen:[], erledigt:[], objekte:[], kategorien:[], zahlen:null, suche:'' };
+
+const rzE = n => Number(n||0).toLocaleString('ru-RU',{maximumFractionDigits:0})+' €';
+const rzKat = kz => (RZ.kategorien.find(k=>k.kz===kz)||{}).bez || kz;
+
+async function ladeRazn(){
+  if(RZ.laeuft) return;
+  RZ.laeuft = true; RZ.fehler=''; render();
+  try{
+    const r = await fetch('/api/razn?tage='+RZ.tage+'&modus='+RZ.modus+'&monat='+encodeURIComponent(RZ.monat||''), {credentials:'same-origin'});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    RZ.offen=d.offen||[]; RZ.erledigt=d.erledigt||[];
+    RZ.objekte=d.objekte||[]; RZ.kategorien=d.kategorien||[]; RZ.zahlen=d.zahlen||null; RZ.monate=d.monate||[];
+    RZ.geladen=true;
+  }catch(e){ RZ.fehler = e.message||String(e); }
+  RZ.laeuft=false; render();
+}
+
+async function rzObjektAnlegen(){
+  const g = id => { const e=document.getElementById(id); return e? e.value.trim():''; };
+  const bez = g('ro_bez');
+  if(bez.length<3){ toast('Нужно название объекта'); return; }
+  try{
+    const r = await fetch('/api/razn/objekt-neu', {method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({bez:bez, kunde:g('ro_kunde'), adresse:g('ro_adr'), firma:g('ro_firma'), nr:g('ro_nr')})});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    RZ.objekte.unshift({nr:d.nr, bez:d.bez, kunde:g('ro_kunde'), adresse:g('ro_adr'),
+      firma:g('ro_firma'), status:'aktiv'});
+    RZ.neuform=false;
+    toast('Объект создан: '+d.nr);
+    render();
+  }catch(e){ toast('Не создался: '+(e.message||e)); }
+}
+
+/* ---------- черновик карточки ---------- */
+/* Человек выбирает категорию, потом ищет следующий платёж — и перерисовка
+   стирала выбор. Теперь выбранное держится здесь до подтверждения. */
+const RZ_FELDER = ['rzk_','rzo_','rzg_','tk_','to_','tb_','tg_'];
+function rzMerken(el){
+  if(!el || !el.id) return;
+  const p = RZ_FELDER.find(x=>el.id.startsWith(x));
+  if(!p) return;
+  const id = el.id.slice(p.length);
+  RZ.entwurf[id] = RZ.entwurf[id] || {};
+  RZ.entwurf[id][p] = el.value;
+}
+function rzZurueck(){
+  for(const id in RZ.entwurf){
+    const e = RZ.entwurf[id];
+    for(const p in e){
+      const el = document.getElementById(p+id);
+      if(el && e[p] != null && el.value !== e[p]) el.value = e[p];
+    }
+  }
+}
+function rzVergessen(id){ delete RZ.entwurf[id]; }
+
+async function rzTeil(id, loeschen, teilId){
+  const z = RZ.offen.find(x=>x.id===id) || RZ.erledigt.find(x=>x.id===id) || {};
+  try{
+    let koerper;
+    if(loeschen){ koerper = {loeschen:true, teil_id:teilId}; }
+    else {
+      const sk=document.getElementById('tk_'+id), so=document.getElementById('to_'+id);
+      const sb=document.getElementById('tb_'+id), sg=document.getElementById('tg_'+id);
+      const betrag=(sb?sb.value:'').trim();
+      if(!betrag){ toast('Впишите сумму'); if(sb) sb.focus(); return; }
+      koerper = {id:id, objekt:so?so.value:'', kategorie:sk?sk.value:'',
+                 betrag:betrag, grund:sg?sg.value.trim():'', schluessel:z.schluessel||''};
+    }
+    const r = await fetch('/api/razn/teil', {method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(koerper)});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    if(!loeschen) rzVergessen(id);
+    toast(loeschen?'Часть убрана':'Часть записана');
+    RZ.geladen=false; await ladeRazn();
+  }catch(e){ toast(e.message||String(e)); }
+}
+function rzRest(x){
+  const v=(x.teile||[]).reduce((s2,t)=>s2+Number(t.betrag||0),0);
+  return Math.round((Math.abs(x.betrag)-v)*100)/100;
+}
+
+function stufeVon(kz){ return (RZ.kategorien.find(k=>k.kz===kz)||{}).stufe || ''; }
+function rzBelege(x){
+  const b = x.belege || []; if(!b.length) return '';
+  const marke = { genau:['оригинал',' on'], nah:['похоже по сумме',' warn'], name:['документ контрагента',''] };
+  return '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    + '<span class="muted" style="font-size:12px">оригинал:</span>'
+    + b.map(function(o){ const m = marke[o.treffer] || ['',''];
+        const t = (o.doc_nr? '№'+o.doc_nr+' ' : '') + EUR(o.betrag) + (o.datum? ' · '+o.datum : '');
+        return '<a class="chip'+m[1]+'" style="text-decoration:none" target="_blank" rel="noopener" '
+          + 'href="/api/razn/original?mail='+encodeURIComponent(o.mail_id)+'&drive='+encodeURIComponent(o.drive_id)+'" '
+          + 'title="'+H((o.kontrahent||'')+' — '+m[0])+'">📄 '+H(t)+'</a>';
+      }).join('')
+    + '</div>';
+}
+async function rzSetzen(id, festK, festO){
+  const z = RZ.offen.find(x=>x.id===id) || {};
+  const sk = document.getElementById('rzk_'+id), so = document.getElementById('rzo_'+id);
+  const gr = document.getElementById('rzg_'+id);
+  const kategorie = festK || (sk? sk.value : '');
+  const objekt    = festO || (so? so.value : '');
+  const st = stufeVon(kategorie);
+  if(!kategorie){ toast('Сначала выберите категорию'); return; }
+  if(st==='EKT' && !objekt){ toast('Прямые затраты нужно отнести на объект'); return; }
+  try{
+    const r = await fetch('/api/razn/setzen', {method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id:id, objekt:objekt, kategorie:kategorie,
+        grund: gr? gr.value.trim():'', schluessel: z.schluessel||''})});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    rzVergessen(id);
+    if(d.fertig){
+      const i = RZ.offen.findIndex(x=>x.id===id);
+      if(i>=0){ const x=RZ.offen.splice(i,1)[0];
+        x.objekt=d.objekt; x.kategorie=d.kategorie; x.grund=gr?gr.value.trim():''; RZ.erledigt.unshift(x);
+        if(RZ.zahlen){ const f=RZ.modus==='audit'?'alt':'neu';
+          RZ.zahlen[f+'_stk']--; RZ.zahlen.fertig_stk++;
+          if(x.typ==='expense'){ RZ.zahlen[f+'_eur']=Math.round((RZ.zahlen[f+'_eur']-x.betrag)*100)/100;
+            RZ.zahlen.fertig_eur=Math.round((RZ.zahlen.fertig_eur+x.betrag)*100)/100; } } }
+      toast('Записано: '+rzKat(d.kategorie)+' · '+d.objekt);
+    } else {
+      const x = RZ.offen.find(y=>y.id===id);
+      if(x){ x.objekt=d.objekt; x.kategorie=d.kategorie; }
+      toast(d.kategorie&&!d.objekt ? 'Категория есть, нужен объект' : 'Объект есть, нужна категория');
+    }
+    render();
+  }catch(e){ toast('Не записалось: '+(e.message||e)); }
+}
+
+function vRazn(){
+  if(!RZ.geladen && !RZ.laeuft && !RZ.fehler) setTimeout(ladeRazn,0);
+  const z = RZ.zahlen;
+  const kopf = '<div class="panel"><h2>Разнос по объектам и категориям</h2>'
+    + '<p class="lead">Оплаты приходят из FinMap. Куда и за что они пошли — решает человек. '
+    + 'Категории и теги FinMap показаны серым как подсказка и в расчёт не идут, пока их не подтвердили. '
+    + 'Система учится только на ваших подтверждениях: пока по контрагенту нет ни одного решения, поля пустые.</p>'
+    + '<p class="lead" style="margin-top:8px">Объект спрашивается только у прямых затрат. '
+    + 'Общие по стройке — топливо, техника, жильё — закрываются одной категорией и делятся между объектами по дням в конце месяца. '
+    + 'Общие по фирме — налоги, банк, офис — на объекты не идут вовсе.</p>'
+    + '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">'
+    + '<button class="btn'+(RZ.modus==='neu'?' primary':'')+'" data-rzmod="neu">Новое — с отсечки</button>'
+    + '<button class="btn'+(RZ.modus==='audit'?' primary':'')+'" data-rzmod="audit">Аудит старого</button>'
+    + '<span style="flex:1"></span>'
+    + [60,90,120,180,365].map(t=>'<button class="btn'+(RZ.tage===t?' primary':'')+'" data-rztage="'+t+'">'+t+' дн.</button>').join('')
+    + '</div>'
+    + '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">'
+    + '<button class="btn" data-rzneu="1">'+(RZ.neuform?'Скрыть форму':'Новый объект')+'</button>'
+    + '</div>'
+    + (RZ.neuform? '<div class="card"><div class="row" style="gap:6px;flex-wrap:wrap">'
+        + '<input id="ro_bez" placeholder="название: заказчик — город, улица" style="flex:2;min-width:210px">'
+        + '<input id="ro_kunde" placeholder="заказчик" style="flex:1;min-width:120px">'
+        + '<input id="ro_adr" placeholder="адрес" style="flex:1;min-width:120px">'
+        + '<select id="ro_firma"><option value="">— фирма —</option><option value="VAVK">VAV Kaiser GmbH</option><option value="VAVT">VAV Kaiser Trockenbau GmbH</option></select>'
+        + '<input id="ro_nr" placeholder="номер, можно пусто" style="width:150px">'
+        + '<button class="btn primary" data-rzobj="1">Создать</button>'
+        + '</div><div class="muted" style="margin-top:7px;font-size:12px">Пустой номер выдаётся сам из серии O-01xx. Объект сразу появляется в списках разноса.</div></div>' : '')
+    + (z? '<div class="kpis" style="margin-top:12px">'
+        + '<div class="kpi c"><div class="k">'+(RZ.modus==='audit'?'старое, до отсечки':'новое, с '+z.stichtag)+'</div>'
+        + '<div class="v">'+(RZ.modus==='audit'?z.alt_stk:z.neu_stk)+'</div>'
+        + '<div class="s">'+rzE(RZ.modus==='audit'?z.alt_eur:z.neu_eur)+' расхода</div></div>'
+        + '<div class="kpi"><div class="k">разнесено</div><div class="v">'+z.fertig_stk+'</div><div class="s">'+rzE(z.fertig_eur)+'</div></div>'
+        + '<div class="kpi"><div class="k">выучено правил</div><div class="v">'+z.gelernt+'</div><div class="s">по вашим решениям</div></div>'
+        + '<div class="kpi"><div class="k">'+(RZ.modus==='audit'?'после отсечки ждёт':'до отсечки лежит')+'</div>'
+        + '<div class="v">'+(RZ.modus==='audit'?z.neu_stk:z.alt_stk)+'</div>'
+        + '<div class="s">'+rzE(RZ.modus==='audit'?z.neu_eur:z.alt_eur)+'</div></div>'
+        + '</div>' : '')
+    + '</div>';
+  const MNAM=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  const mLabel=k=>{const p=String(k).split('-');return MNAM[Number(p[1])-1]+' '+p[0].slice(2);};
+  const monatszeile = RZ.monate.length
+    ? '<div class="panel"><h3>Месяц в работе</h3>'
+      + '<p class="lead">Идём помесячно назад. Цифра — сколько операций осталось разобрать.</p>'
+      + '<div class="row" style="gap:6px;flex-wrap:wrap">'
+      + '<button class="btn'+(RZ.monat?'':' primary')+'" data-rzmonat="">с даты старта</button>'
+      + RZ.monate.slice(0,14).map(m=>'<button class="btn'+(RZ.monat===m.monat?' primary':'')+'" data-rzmonat="'+m.monat+'">'
+        +mLabel(m.monat)+(m.offen?' <span class="c">'+m.offen+'</span>':' ✓')+'</button>').join('')
+      + '</div></div>'
+    : '';
+  if(RZ.laeuft && !RZ.geladen) return kopf+'<div class="panel"><div class="empty">Забираю операции из FinMap за год — это занимает полминуты…</div></div>';
+  if(RZ.fehler) return kopf+'<div class="panel"><div class="empty">FinMap не ответил.<br><span style="font-family:var(--f-mono);font-size:12px">'+H(RZ.fehler)+'</span></div></div>';
+
+  const STUFEN=[['EKT','прямо на объект'],['BGK','общие по стройке — делятся по дням'],
+                ['AGK','общие по фирме — на объект не идут'],['','не затраты периода']];
+  const optK = STUFEN.map(([st,t])=>{
+    const l=RZ.kategorien.filter(k=>st?k.stufe===st:!['EKT','BGK','AGK'].includes(k.stufe));
+    return l.length? '<optgroup label="'+H(t)+'">'
+      +l.map(k=>'<option value="'+H(k.kz)+'">'+H(k.bez)+'</option>').join('')+'</optgroup>':'';
+  }).join('');
+  const stufeVon = kz => (RZ.kategorien.find(k=>k.kz===kz)||{}).stufe || '';
+  const optO = RZ.objekte.map(o=>'<option value="'+H(o.nr)+'">'+H(o.nr+' — '+(o.bez||''))+'</option>').join('');
+  const q = (RZ.suche||'').toLowerCase();
+  let liste = RZ.offen.filter(x=> RZ.filt==='alle' ? true : (RZ.filt==='ausgabe' ? x.typ==='expense' : x.typ!=='expense'));
+  if(q) liste = liste.filter(x=>((x.partner||'')+' '+(x.kommentar||'')+' '+(x.fm_kategorie||'')).toLowerCase().includes(q));
+
+  const karte = x => {
+    const lk = x.lern_kategorie, lo = x.lern_objekt;
+    const vorschlag = (lk||lo)
+      ? '<div style="margin-top:6px;font-size:12px">По вашим прошлым решениям: '
+        + (lk? '<b>'+H(rzKat(lk.wert))+'</b> ('+lk.treffer+')':'')
+        + (lk&&lo? ' · ':'')
+        + (lo? '<b>'+H(lo.wert)+'</b> ('+lo.treffer+')':'')
+        + ' <button class="btn" data-rzlern="'+x.id+'">Принять</button></div>'
+      : '';
+    const fm = [x.fm_kategorie, x.fm_tag, x.fm_projekt].filter(Boolean).join(' / ');
+    return '<div class="card">'
+    + '<div class="row" style="justify-content:space-between;align-items:baseline;gap:10px">'
+    + '<div><b style="font-size:16px">'+rzE(x.betrag)+'</b> <span class="muted">'+H(x.datum)+' · '+H(x.konto||'')+'</span></div>'
+    + '<span class="chip'+(x.typ!=='expense'?' on':'')+'">'+(x.typ==='income'?'приход':x.typ==='transfer'?'перевод':'расход')+'</span></div>'
+    + '<div style="margin-top:4px"><b>'+H(x.partner||'без контрагента')+'</b></div>'
+    + (x.kommentar? '<div class="muted" style="margin-top:2px;font-size:12px">'+H(x.kommentar)+'</div>':'')
+    + (fm? '<div style="margin-top:4px;font-size:12px" class="muted">FinMap (не подтверждено): '+H(fm)+'</div>':'')
+    + vorschlag
+    + rzBelege(x)
+    + '<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">'
+    + '<select id="rzk_'+x.id+'"><option value="">— категория —</option>'+optK+'</select>'
+    + '<select id="rzo_'+x.id+'"><option value="">— объект: нужен для прямых затрат —</option>'+optO+'</select>'
+    + '<input id="rzg_'+x.id+'" placeholder="за что (коротко)" style="flex:1;min-width:140px">'
+    + '<button class="btn primary" data-rz="'+x.id+'">Подтвердить</button>'
+    + '<button class="btn" data-rzbuero="'+x.id+'">Офис</button>'
+    + '</div>'
+    + (x.verteilung==='schluessel'? '<div class="muted" style="margin-top:4px;font-size:12px">делится по дням между объектами</div>':'')
+    + (x.verteilung==='firma'? '<div class="muted" style="margin-top:4px;font-size:12px">расход фирмы, в маржу объекта не входит</div>':'')
+    + (function(){
+        const auf = RZ.teilAuf[x.id];
+        const teile = x.teile||[];
+        const rest = rzRest(x);
+        if(!auf && !teile.length)
+          return '<div class="row" style="margin-top:6px"><button class="btn" data-rzteil="'+x.id+'">Разделить между объектами</button></div>';
+        let h='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)">';
+        if(teile.length) h+='<table style="margin-top:0"><tbody>'+teile.map(t=>
+          '<tr><td class="num">'+rzE(t.betrag)+'</td><td>'+H(rzKat(t.kategorie))+'</td>'
+          +'<td>'+H(t.objekt||(t.verteilung==="schluessel"?"по дням":"фирма"))+'</td>'
+          +'<td>'+H(t.grund||'')+'</td>'
+          +'<td style="text-align:right"><button class="btn sm" data-rzteilweg="'+t.id+'" data-op="'+x.id+'">убрать</button></td></tr>').join('')
+          +'</tbody></table>';
+        h+='<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">'
+          +'<b'+(Math.abs(rest)<0.01?' style="color:var(--ok)"':'')+'>остаток '+rzE(rest)+'</b>'
+          +'<select id="tk_'+x.id+'"><option value="">— категория —</option>'+optK+'</select>'
+          +'<select id="to_'+x.id+'"><option value="">— объект —</option>'+optO+'</select>'
+          +'<input id="tb_'+x.id+'" placeholder="сумма" value="" style="width:110px">'
+          +'<input id="tg_'+x.id+'" placeholder="за что" style="flex:1;min-width:110px">'
+          +'<button class="btn" data-rzrest="'+x.id+'" data-wert="'+rest+'">весь остаток</button>'
+          +'<button class="btn primary" data-rzteiladd="'+x.id+'">Добавить</button></div>';
+        h+='</div>';
+        return h;
+      })()
+    + ((x.kategorie||x.objekt)? '<div class="muted" style="margin-top:4px;font-size:12px">уже стоит: '
+        +H([x.kategorie?rzKat(x.kategorie):'', x.objekt||''].filter(Boolean).join(' · '))+'</div>':'')
+    + '</div>';
+  };
+
+  const filter = '<div class="panel"><div class="row" style="gap:6px;flex-wrap:wrap">'
+    + [['ausgabe','расходы'],['einnahme','приходы и переводы'],['alle','всё']]
+        .map(([k,t])=>'<button class="btn'+(RZ.filt===k?' primary':'')+'" data-rzfilt="'+k+'">'+t+'</button>').join('')
+    + '<input id="rzsuche" placeholder="поиск по контрагенту" value="'+H(RZ.suche||'')+'" style="flex:1;min-width:180px">'
+    + '</div></div>';
+
+  const body = liste.length
+    ? '<div class="panel"><h3>К разбору — '+liste.length+' шт, сверху крупное</h3>'+liste.slice(0,50).map(karte).join('')
+      + (liste.length>50? '<div class="muted" style="margin-top:8px">показаны первые 50</div>':'')+'</div>'
+    : '<div class="panel"><div class="empty">'+(RZ.modus==='audit'?'В старом периоде неразобранного нет.':'Всё новое разнесено. Чисто.')+'</div></div>';
+
+  const fertig = RZ.erledigt.length
+    ? '<div class="panel"><h3>Разнесено — '+RZ.erledigt.length+'</h3><table><thead><tr><th>дата</th><th>сумма</th><th>контрагент</th><th>категория</th><th>объект</th><th>как</th><th>за что</th><th>кто</th></tr></thead><tbody>'
+      + RZ.erledigt.slice(0,40).map(x=>'<tr><td>'+H(x.datum)+'</td><td class="num">'+rzE(x.betrag)+'</td><td>'+H(x.partner||'')+'</td><td>'+H(rzKat(x.kategorie))+'</td><td>'+H(x.objekt||'')+'</td><td class="muted">'+(x.verteilung==='schluessel'?'по дням':x.verteilung==='firma'?'фирма':'прямо')+'</td><td>'+H(x.grund||'')+'</td><td>'+H(x.wer||'')+'</td></tr>').join('')
+      + '</tbody></table></div>' : '';
+
+  return kopf+monatszeile+filter+body+fertig;
+}
+
+/* ---------- написать нам ---------- */
+/* Человек пишет там, где споткнулся. Обстановку прикладывает система:
+   раздел, месяц, фильтр, поиск, версия — чтобы он не описывал словами то,
+   что программа и так знает. */
+var HW = { offen:false, art:'aenderung', bild:null, meine:[], laeuft:false };
+const HARTEN = [['aenderung','поправить'],['idee','добавить'],['fehler','не работает'],['frage','вопрос']];
+
+function hUmstand(){
+  const t = TABS.find(x=>x[0]===view);
+  const o = { raedchen: view, abschnitt: t?t[1]:view, zeit: new Date().toISOString(),
+    fenster: innerWidth+'x'+innerHeight, browser: navigator.userAgent.slice(0,120) };
+  if(view==='razn'){ o.monat = RZ.monat||'с даты старта'; o.filter = RZ.filt;
+    o.suche = RZ.suche||''; o.offen_stk = RZ.zahlen?RZ.zahlen.neu_stk:null; }
+  if(view==='recht'){ o.sicht = PR.sicht; o.filter = PR.filt; o.tage = PR.tage; }
+  if(view==='objekte'){ o.suche = RZ.osuche||''; }
+  return o;
+}
+function hUmstandText(){
+  const u = hUmstand();
+  const t = ['раздел «'+(u.abschnitt||'')+'»'];
+  if(u.monat) t.push('месяц: '+u.monat);
+  if(u.filter) t.push('фильтр: '+u.filter);
+  if(u.suche) t.push('поиск: '+u.suche);
+  return t.join(' · ');
+}
+
+async function hLaden(){
+  try{ const r = await fetch('/api/hinweis',{credentials:'same-origin'});
+    const d = await r.json(); HW.meine = d.liste||[]; }catch(e){ HW.meine=[]; }
+}
+function hOeffnen(){
+  HW.offen = true; HW.bild = null; HW.art = 'aenderung';
+  hZeichnen();
+  hLaden().then(hZeichnen);
+  document.getElementById('hfenster').hidden = false;
+}
+function hSchliessen(){ HW.offen=false; document.getElementById('hfenster').hidden = true; }
+
+const HSTATUS = {neu:['отправлено',''],gesehen:['прочитано',''],laeuft:['в работе',' warn'],
+                 erledigt:['сделано',' ok'],abgelehnt:['отклонено','']};
+function hZeichnen(){
+  const k = document.getElementById('hkasten'); if(!k) return;
+  k.innerHTML =
+    '<h2>Написать нам</h2>'
+  + '<p class="lead">Что поправить, что добавить, что не работает. Обстановку приложу сам — вам её описывать не нужно.</p>'
+  + '<div class="fzeile fart">'
+  + HARTEN.map(([a,t])=>'<button data-hart="'+a+'" aria-pressed="'+(HW.art===a)+'">'+t+'</button>').join('')
+  + '</div>'
+  + '<div class="fzeile"><input type="text" id="h_titel" placeholder="одной строкой: что именно" maxlength="160"></div>'
+  + '<div class="fzeile"><textarea id="h_text" placeholder="подробно: что вы делали, что ожидали, что получилось"></textarea></div>'
+  + '<div class="fzeile" style="margin-bottom:12px">'
+  + '<button class="btn sm mikrofon" data-hdiktat="h_text" data-sprache="de-DE">Sprechen DE</button>'
+  + '<button class="btn sm mikrofon" data-hdiktat="h_text" data-sprache="ru-RU">Голос RU</button>'
+  + '<span class="muted" style="font-size:12px">можно продиктовать</span></div>'
+  + '<div class="ablage" id="h_ablage">'
+  + (HW.bild ? '<img src="'+HW.bild+'" alt="снимок">' 
+             : 'Снимок экрана: Cmd+Shift+4, потом Ctrl+V прямо сюда. Или нажмите и выберите файл.')
+  + '</div>'
+  + (HW.bild ? '<div class="fzeile"><button class="btn sm" data-hbildweg="1">Убрать снимок</button></div>' : '')
+  + '<div class="umstand"><b>Приложится само:</b> '+H(hUmstandText())+'</div>'
+  + '<div class="fzeile"><button class="btn primary" data-hsenden="1"'+(HW.laeuft?' disabled':'')+'>'
+  + (HW.laeuft?'Отправляю…':'Отправить')+'</button>'
+  + '<button class="btn" data-hzu="1">Закрыть</button></div>'
+  + (HW.meine.length ? '<div class="meine"><b>Что вы уже писали</b>'
+      + HW.meine.slice(0,8).map(m=>{
+          const st = HSTATUS[m.status]||[m.status,''];
+          return '<div class="zeile"><div class="row" style="justify-content:space-between;gap:10px">'
+            + '<b>'+H(m.titel)+'</b><span class="chip'+st[1]+'">'+st[0]+'</span></div>'
+            + '<div class="muted" style="font-size:12px">№ '+m.id+' · '+H(String(m.angelegt).slice(0,10))+'</div>'
+            + (m.antwort ? '<div class="ant">'+H(m.antwort)+'</div>' : '');
+        }).join('') + '</div>' : '');
+}
+
+/* картинка: вставка, выбор файла, перетаскивание — и всегда ужимаем */
+function hBildAus(datei){
+  if(!datei || !/^image\//.test(datei.type)) return;
+  const leser = new FileReader();
+  leser.onload = e => {
+    const bild = new Image();
+    bild.onload = () => {
+      const max = 1600, k = Math.min(1, max/Math.max(bild.width, bild.height));
+      const c2 = document.createElement('canvas');
+      c2.width = Math.round(bild.width*k); c2.height = Math.round(bild.height*k);
+      c2.getContext('2d').drawImage(bild, 0, 0, c2.width, c2.height);
+      HW.bild = c2.toDataURL('image/jpeg', 0.72);
+      hZeichnen();
+    };
+    bild.src = e.target.result;
+  };
+  leser.readAsDataURL(datei);
+}
+
+async function hSenden(){
+  const t = (document.getElementById('h_titel')||{}).value||'';
+  if(t.trim().length<3){ toast('Нужно короткое название'); return; }
+  HW.laeuft = true; hZeichnen();
+  try{
+    const r = await fetch('/api/hinweis',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({art:HW.art, titel:t.trim(),
+        text:(document.getElementById('h_text')||{}).value||'',
+        kontext:hUmstand(), bild:HW.bild})});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    HW.bild=null; HW.laeuft=false;
+    await hLaden(); hZeichnen();
+    toast('Отправлено, № '+d.id);
+  }catch(e){ HW.laeuft=false; hZeichnen(); toast('Не отправилось: '+(e.message||e)); }
+}
+
+/* ---------- плитки как кнопки ---------- */
+/* Плитка ведёт туда, где с этой цифрой можно что-то сделать.
+   Совпадение по названию плитки: не нашлось — плитка просто не кликается. */
+var KPI_ZIEL = [
+  [/mahnungen\s+нам/i,            'unbez'],
+  [/mahnungen\s+от\s+нас/i,       'mahn'],
+  [/^\s*dso/i,                    'debit'],
+  [/писем\s+в\s+базе/i,           'post'],
+  [/без\s+объекта/i,              'objekte'],
+  [/объектов\s+в\s+справочнике/i, 'objekte'],
+  [/объект\s+записан\s+дважды/i,  'objekte'],
+  [/субподряд/i,                  'partner'],
+  [/без\s+iban/i,                 'partner'],
+  [/контрагентов/i,               'partner'],
+  [/блокирующих/i,                'regeln'],
+  [/правил\s+в\s+каталоге/i,      'regeln'],
+  [/на\s+проверку/i,              'belege'],
+  [/пени/i,                       'mahn'],
+  [/ближайшие\s+сроки/i,          'geld'],
+  [/просрочен/i,                  'geld'],
+  [/не\s+разнесено/i,             'razn'],
+  [/к\s+адвокату/i,               'recht'],
+  [/на\s+этой\s+неделе/i,         'recht'],
+];
+function kpiKlickbar(){
+  var erl = (window.__vav && window.__vav.benutzer && window.__vav.benutzer.tabs) || null;
+  document.querySelectorAll('#app .kpi').forEach(function(el){
+    if(el.dataset.goto) return;
+    var k = el.querySelector('.k');
+    var t = k ? (k.textContent||'') : '';
+    for(var i=0;i<KPI_ZIEL.length;i++){
+      if(!KPI_ZIEL[i][0].test(t)) continue;
+      var ziel = KPI_ZIEL[i][1];
+      if(ziel===view) return;
+      if(erl && erl.indexOf(ziel)<0) return;
+      el.dataset.goto = ziel;
+      el.classList.add('klick');
+      el.setAttribute('role','button');
+      el.setAttribute('tabindex','0');
+      el.setAttribute('title','Открыть раздел');
+      return;
+    }
+  });
+}
+document.getElementById('app').addEventListener('keydown',function(ev){
+  if(ev.key!=='Enter' && ev.key!==' ') return;
+  var el = ev.target.closest && ev.target.closest('.kpi.klick[data-goto]');
+  if(!el) return;
+  ev.preventDefault();
+  view = el.dataset.goto; render(); scrollTo({top:0,behavior:'smooth'});
+});
+
+/* ---------- правовой контур ---------- */
+var PR = { tage:180, sicht:'fristen', filt:'offen', geladen:false, laeuft:false, fehler:'',
+           fristen:[], anwalt:[], zahlen:null, auf:'' };
+
+async function ladePR(){
+  if(PR.laeuft) return;
+  PR.laeuft=true; PR.fehler=''; render();
+  try{
+    const r = await fetch('/api/recht?tage='+PR.tage, {credentials:'same-origin'});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    PR.fristen=d.fristen||[]; PR.anwalt=d.anwalt||[]; PR.zahlen=d.zahlen||null; PR.geladen=true;
+  }catch(e){ PR.fehler=e.message||String(e); }
+  PR.laeuft=false; render();
+}
+
+async function prStatus(schluessel, status){
+  try{
+    const el = document.getElementById('prn_'+schluessel.replace(/[^a-z0-9]/gi,'_'));
+    const r = await fetch('/api/recht/status', {method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({schluessel:schluessel, status:status, notiz: el? el.value.trim():''})});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    const treffer = PR.fristen.filter(x=>x.schluessel===schluessel).concat(PR.anwalt.filter(x=>x.schluessel===schluessel));
+    treffer.forEach(x=>{ x.status=status; if(el) x.notiz=el.value.trim(); });
+    if(PR.zahlen){ PR.zahlen.ueberfaellig = PR.fristen.filter(x=>x.status==='offen'&&x.tage<0).length;
+      PR.zahlen.diese_woche = PR.fristen.filter(x=>x.status==='offen'&&x.tage>=0&&x.tage<=7).length;
+      PR.zahlen.erledigt = PR.fristen.filter(x=>x.status==='erledigt').length; }
+    toast(status==='erledigt'?'Закрыто':status==='verworfen'?'Убрано из календаря':status==='anwalt'?'Помечено адвокату':'Открыто снова');
+    render();
+  }catch(e){ toast('Не записалось: '+(e.message||e)); }
+}
+
+function vObjektregister(){
+  if(!RZ.geladen && !RZ.laeuft && !RZ.fehler) setTimeout(ladeRazn,0);
+  const O = RZ.objekte||[];
+  const q = (RZ.osuche||'').toLowerCase();
+  const gefiltert = q ? O.filter(o=>((o.nr||'')+' '+(o.bez||'')+' '+(o.kunde||'')+' '+(o.adresse||'')).toLowerCase().includes(q)) : O;
+  const quelle = k => k==='postzentrale' ? 'почтовое приложение'
+                    : k==='hand' ? 'заведён здесь'
+                    : k==='fest' ? 'постоянный' : 'перенесён из планов';
+  const kopf = vAkte() + '<div class="panel"><h2>Объекты</h2>'
+    + '<p class="lead">Один справочник на все программы. Объект, заведённый в почтовом приложении, '
+    + 'появляется здесь сам — номер остаётся тот же. Заведённый здесь виден и там. '
+    + 'Нажмите на строку — откроется досье: письма, документы, часы и оплаты этого объекта.</p>'
+    + '<div class="kpis" style="margin-top:12px">'
+    + '<div class="kpi"><div class="k">всего объектов</div><div class="v">'+O.length+'</div><div class="m">в справочнике</div></div>'
+    + '<div class="kpi o"><div class="k">активных</div><div class="v">'+O.filter(o=>o.status==='aktiv').length+'</div><div class="m">в работе сейчас</div></div>'
+    + '<div class="kpi"><div class="k">из почтового приложения</div><div class="v">'+O.filter(o=>o.quelle==='postzentrale').length+'</div><div class="m">перешли сами</div></div>'
+    + '<div class="kpi"><div class="k">заведено здесь</div><div class="v">'+O.filter(o=>o.quelle==='hand').length+'</div><div class="m">руками в бухгалтере</div></div>'
+    + '</div>'
+    + '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:12px">'
+    + '<button class="btn" data-rzneu="1">'+(RZ.neuform?'Скрыть форму':'Новый объект')+'</button>'
+    + '<input id="osuche" placeholder="поиск: номер, заказчик, адрес" value="'+H(RZ.osuche||'')+'" style="flex:1;min-width:200px">'
+    + '</div>'
+    + (RZ.neuform? '<div class="card"><div class="row" style="gap:6px;flex-wrap:wrap">'
+        + '<input id="ro_bez" placeholder="название: заказчик — город, улица" style="flex:2;min-width:210px">'
+        + '<input id="ro_kunde" placeholder="заказчик" style="flex:1;min-width:120px">'
+        + '<input id="ro_adr" placeholder="адрес" style="flex:1;min-width:120px">'
+        + '<select id="ro_firma"><option value="">— фирма —</option><option value="VAVK">VAV Kaiser GmbH</option><option value="VAVT">VAV Kaiser Trockenbau GmbH</option></select>'
+        + '<input id="ro_nr" placeholder="номер, можно пусто" style="width:150px">'
+        + '<button class="btn primary" data-rzobj="1">Создать</button>'
+        + '</div><div class="muted" style="margin-top:7px;font-size:12px">Пустой номер выдаётся сам из серии O-01xx.</div></div>' : '')
+    + '</div>';
+  if(RZ.laeuft && !RZ.geladen) return kopf+'<div class="panel"><div class="empty">Читаю справочник…</div></div>';
+  if(RZ.fehler) return kopf+'<div class="panel"><div class="empty">Справочник не прочитался.<br><span style="font-family:var(--f-mono);font-size:12px">'+H(RZ.fehler)+'</span></div></div>';
+  if(!gefiltert.length) return kopf+'<div class="panel"><div class="empty">'+(q?'Ничего не нашлось.':'Справочник пуст.')+'</div></div>';
+  return kopf + '<div class="panel"><h3>'+(q?'Найдено — '+gefiltert.length:'Все объекты — '+O.length)+'</h3>'
+    + '<table><thead><tr><th>номер</th><th>название</th><th>заказчик</th><th>адрес</th><th>статус</th><th>откуда</th></tr></thead><tbody>'
+    + gefiltert.slice(0,300).map(o=>'<tr data-akte="'+H(o.nr)+'" style="cursor:pointer">'
+        + '<td style="font-family:var(--f-mono);font-size:12px">'+H(o.nr)+'</td>'
+        + '<td>'+H(o.bez||'')+'</td><td>'+H(o.kunde||'')+'</td><td>'+H(o.adresse||'')+'</td>'
+        + '<td>'+(o.status==='aktiv'?'<span class="chip on">в работе</span>':'<span class="chip">спит</span>')+'</td>'
+        + '<td class="muted" style="font-size:12px">'+H(quelle(o.quelle))+'</td></tr>').join('')
+    + '</tbody></table>'
+    + (gefiltert.length>300? '<div class="muted" style="margin-top:8px">показаны первые 300</div>':'')
+    + '</div>';
+}
+
+/**
+ * Досье объекта. Номер рождается в плане Олега и живёт с объектом до конца;
+ * Постцентраль вешает на него письма и документы, план — часы, банк — оплаты.
+ * Здесь всё сходится в одном месте, по одному номеру.
+ */
+let AKTE = { nr:null, laeuft:false, daten:null, fehler:null };
+
+async function ladeAkte(nr){
+  AKTE = { nr, laeuft:true, daten:null, fehler:null }; render();
+  try {
+    const r = await fetch('/api/objekt-akte?nr=' + encodeURIComponent(nr), {credentials:'same-origin'});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.fehler || 'не открылось');
+    AKTE = { nr, laeuft:false, daten:d, fehler:null };
+  } catch(e){ AKTE = { nr, laeuft:false, daten:null, fehler:e.message }; }
+  render();
+}
+
+function akteSchliessen(){ AKTE = { nr:null, laeuft:false, daten:null, fehler:null }; render(); }
+
+function vAkte(){
+  if(!AKTE.nr) return '';
+  const zu = '<button class="btn" data-aktezu="1">Закрыть</button>';
+  const rahmen = inhalt => '<div class="panel" style="border-color:var(--accent)">'
+    + '<div class="row" style="justify-content:space-between;align-items:baseline">'
+    + '<h2 style="margin:0">Досье объекта '+H(AKTE.nr)+'</h2>'+zu+'</div>'+inhalt+'</div>';
+  if(AKTE.laeuft) return rahmen('<div class="empty">Собираю…</div>');
+  if(AKTE.fehler) return rahmen('<div class="empty">'+H(AKTE.fehler)+'</div>');
+  const d = AKTE.daten, o = d.objekt, z = d.zahlen, st = d.stunden || {};
+  const eur = c => (Number(c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2})+' €';
+  const tag = t => t ? String(t).slice(0,10).split('-').reverse().slice(0,2).join('.') : '';
+  return rahmen(
+      '<p class="lead">'+H([o.kunde,o.adresse].filter(Boolean).join(' · '))+'</p>'
+    + '<div class="kpis" style="margin-top:12px">'
+    + '<div class="kpi"><div class="k">документов</div><div class="v">'+z.belege+'</div><div class="m">разнесено сюда</div></div>'
+    + '<div class="kpi"><div class="k">писем</div><div class="v">'+z.briefe+'</div><div class="m">без вложенных документов</div></div>'
+    + '<div class="kpi o"><div class="k">сумма по документам</div><div class="v">'+eur(z.summe_cent)+'</div><div class="m">как прочитано</div></div>'
+    + '<div class="kpi"><div class="k">часы бригад</div><div class="v">'+(st.tage||0)+'</div><div class="m">'
+      + (st.tage? 'дней, людей '+(st.leute||0)+', '+tag(st.von)+'—'+tag(st.bis) : 'план не отмечал') +'</div></div>'
+    + '</div>'
+    + (d.post.length
+      ? '<h3 style="margin-top:16px">Письма и документы</h3>'
+        + '<table><thead><tr><th>дата</th><th>номер</th><th>от кого</th><th>что</th><th style="text-align:right">сумма</th></tr></thead><tbody>'
+        + d.post.map(p=>'<tr><td style="white-space:nowrap">'+tag(p.received_at)+'</td>'
+            + '<td style="font-family:var(--f-mono);font-size:12px">'+H(p.doc_nr||'—')+'</td>'
+            + '<td>'+H(String(p.absender||'').slice(0,40))+'</td>'
+            + '<td>'+H(String(p.subject||p.doc_type||'').slice(0,60))+'</td>'
+            + '<td style="text-align:right;white-space:nowrap">'+(p.betrag_cent?eur(p.betrag_cent):'—')+'</td></tr>').join('')
+        + '</tbody></table>'
+      : '<div class="empty" style="margin-top:14px">Сюда ещё ничего не разнесено. '
+        + 'Письма и счета приходят из почтового приложения — там их относят к объекту.</div>')
+    + (d.geld.length ? '<h3 style="margin-top:16px">Оплаты, отнесённые сюда</h3>'
+        + '<div class="muted" style="font-size:12.5px">операций: '+d.geld.length+'</div>' : ''));
+}
+
+function vRecht(){
+  if(!PR.geladen && !PR.laeuft && !PR.fehler) setTimeout(ladePR,0);
+  const z = PR.zahlen;
+  const kopf = '<div class="panel"><h2>Правовой контур</h2>'
+    + '<p class="lead">Сроки собраны из писем: берётся только та дата, которая в письме написана прямо. '
+    + 'Ничего не досчитывается. Рядом с каждым сроком — выдержка из письма, чтобы проверить первоисточник. '
+    + 'Это календарь и чеклист, а не правовая оценка: спорное отдаём адвокату.</p>'
+    + '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">'
+    + '<button class="btn'+(PR.sicht==='fristen'?' primary':'')+'" data-prs="fristen">Сроки</button>'
+    + '<button class="btn'+(PR.sicht==='anwalt'?' primary':'')+'" data-prs="anwalt">К адвокату</button>'
+    + '<span style="flex:1"></span>'
+    + [90,180,365].map(t=>'<button class="btn'+(PR.tage===t?' primary':'')+'" data-prt="'+t+'">'+t+' дн.</button>').join('')
+    + '</div>'
+    + (z? '<div class="kpis" style="margin-top:12px">'
+        + '<div class="kpi c"><div class="k">просрочено</div><div class="v">'+z.ueberfaellig+'</div><div class="s">срок прошёл</div></div>'
+        + '<div class="kpi w"><div class="k">на этой неделе</div><div class="v">'+z.diese_woche+'</div><div class="s">7 дней</div></div>'
+        + '<div class="kpi o"><div class="k">к адвокату</div><div class="v">'+z.anwalt+'</div><div class="s">писем помечено</div></div>'
+        + '<div class="kpi"><div class="k">закрыто</div><div class="v">'+z.erledigt+'</div><div class="s">из '+z.fristen+' сроков</div></div>'
+        + '</div>' : '')
+    + '</div>';
+  if(PR.laeuft && !PR.geladen) return kopf+'<div class="panel"><div class="empty">Читаю письма…</div></div>';
+  if(PR.fehler) return kopf+'<div class="panel"><div class="empty">Не прочиталось.<br><span style="font-family:var(--f-mono);font-size:12px">'+H(PR.fehler)+'</span></div></div>';
+
+  const filter = '<div class="panel"><div class="row" style="gap:6px;flex-wrap:wrap">'
+    + [['offen','открытые'],['erledigt','закрытые'],['verworfen','убранные'],['alle','всё']]
+        .map(([k,t])=>'<button class="btn'+(PR.filt===k?' primary':'')+'" data-prf="'+k+'">'+t+'</button>').join('')
+    + '</div></div>';
+
+  const knopf = (x, extra) => '<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">'
+    + '<input id="prn_'+x.schluessel.replace(/[^a-z0-9]/gi,'_')+'" placeholder="что сделали / кому передали" value="'+H(x.notiz||'')+'" style="flex:1;min-width:160px">'
+    + (x.status==='offen'
+        ? '<button class="btn primary" data-pre="'+H(x.schluessel)+'">Закрыть</button>'
+          + '<button class="btn" data-pra="'+H(x.schluessel)+'">К адвокату</button>'
+          + '<button class="btn" data-prv="'+H(x.schluessel)+'">Не срок</button>'
+        : '<button class="btn" data-pro="'+H(x.schluessel)+'">Открыть снова</button>')
+    + (extra||'') + '</div>';
+
+  const drive = d => d ? ' · <a href="https://drive.google.com/file/d/'+H(d)+'/view" target="_blank" rel="noopener">оригинал</a>' : '';
+
+  if(PR.sicht==='anwalt'){
+    let l = PR.anwalt.filter(x=>PR.filt==='alle'?true:x.status===PR.filt);
+    const karte = x => '<div class="card">'
+      + '<div class="row" style="justify-content:space-between;align-items:baseline;gap:10px">'
+      + '<div><b>'+H(x.wer||'без отправителя')+'</b> <span class="muted">'+H(x.empfangen)+'</span></div>'
+      + '<span class="chip'+(x.risiko==='high'?' crit':'')+'">'+H(x.typ||'')+'</span></div>'
+      + (x.betreff? '<div style="margin-top:2px">'+H(x.betreff)+'</div>':'')
+      + '<div style="margin-top:6px;font-size:13px">'+H(x.hinweis)+'</div>'
+      + '<div class="muted" style="margin-top:4px;font-size:12px">письмо #'+x.mail_id+(x.kopien>1?' копий: '+x.kopien:'')+drive(x.drive)+'</div>'
+      + knopf(x) + '</div>';
+    return kopf+filter+(l.length
+      ? '<div class="panel"><h3>Письма к адвокату — '+l.length+'</h3>'+l.slice(0,40).map(karte).join('')
+        +(l.length>40?'<div class="muted" style="margin-top:8px">показаны первые 40</div>':'')+'</div>'
+      : '<div class="panel"><div class="empty">Здесь пусто.</div></div>');
+  }
+
+  let l = PR.fristen.filter(x=>PR.filt==='alle'?true:x.status===PR.filt);
+  const gruppen = [
+    ['просрочено', x=>x.tage<0, 'c'],
+    ['сегодня и завтра', x=>x.tage>=0&&x.tage<=1, 'c'],
+    ['на этой неделе', x=>x.tage>1&&x.tage<=7, 'w'],
+    ['ближайший месяц', x=>x.tage>7&&x.tage<=31, 'o'],
+    ['дальше', x=>x.tage>31, '']
+  ];
+  const karte = x => '<div class="card">'
+    + '<div class="row" style="justify-content:space-between;align-items:baseline;gap:10px">'
+    + '<div><b style="font-size:15px">'+H(x.datum)+(x.uhrzeit?' '+H(x.uhrzeit):'')+'</b> '
+    + '<span class="muted">'+(x.tage<0?('просрочено на '+(-x.tage)+' дн.'):x.tage===0?'сегодня':('через '+x.tage+' дн.'))+'</span></div>'
+    + '<span class="chip'+(x.anwalt?' crit':'')+'">'+H(x.art)+'</span></div>'
+    + '<div style="margin-top:4px"><b>'+H(x.wer||'без отправителя')+'</b>'
+    + (x.betreff? ' <span class="muted">· '+H(x.betreff)+'</span>':'')+'</div>'
+    + '<div style="margin-top:6px;font-size:13px">'+H(x.hinweis)+'</div>'
+    + '<div class="muted" style="margin-top:4px;font-size:12px">письмо от '+H(x.empfangen)+' · #'+x.mail_id+drive(x.drive)+'</div>'
+    + knopf(x) + '</div>';
+  const teile = gruppen.map(([titel,f,kl])=>{
+    const g = l.filter(f);
+    if(!g.length) return '';
+    return '<div class="panel"><h3>'+titel+' — '+g.length+'</h3>'+g.slice(0,40).map(karte).join('')
+      +(g.length>40?'<div class="muted" style="margin-top:8px">показаны первые 40</div>':'')+'</div>';
+  }).join('');
+  return kopf+filter+(teile||'<div class="panel"><div class="empty">Сроков в этом отборе нет.</div></div>');
+}
+
+let DIKTAT = null;
+function diktieren(ziel, sprache, knopf){
+  const Erk = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const feld = document.getElementById(ziel);
+  if(!Erk){ toast('Этот браузер не распознаёт речь — напишите текстом'); if(feld) feld.focus(); return; }
+  if(DIKTAT){ try{ DIKTAT.stop(); }catch(e){} return; }
+  const r = new Erk();
+  r.lang = sprache; r.interimResults = true; r.continuous = true;
+  const anfang = feld && feld.value.trim() ? feld.value.trim()+' ' : '';
+  r.onstart = () => { if(knopf) knopf.classList.add('hoert'); toast('Говорите…'); };
+  r.onresult = e => { let t=''; for(let i=0;i<e.results.length;i++) t+=e.results[i][0].transcript;
+    if(feld) feld.value = anfang + t.trim(); };
+  r.onerror = e => toast(e.error==='not-allowed' ? 'Микрофон не разрешён' : 'Не расслышал: '+e.error);
+  r.onend = () => { if(knopf) knopf.classList.remove('hoert'); DIKTAT=null; if(feld) feld.focus(); };
+  DIKTAT = r;
+  try{ r.start(); }catch(e){ DIKTAT=null; toast('Микрофон занят'); }
+}
+
+/* ---------- действия ---------- */
+document.getElementById('app').addEventListener('change',ev=>{ rzMerken(ev.target); });
+document.getElementById('app').addEventListener('input',ev=>{
+  rzMerken(ev.target);
+  if(ev.target && ev.target.id==='osuche'){ RZ.osuche=ev.target.value; clearTimeout(window._osT);
+    window._osT=setTimeout(()=>{ const v=RZ.osuche; render(); const e2=document.getElementById('osuche'); if(e2){e2.focus(); e2.setSelectionRange(v.length,v.length);} },350); return; }
+  if(ev.target && ev.target.id==='rzsuche'){ RZ.suche=ev.target.value; clearTimeout(window._rzT);
+    window._rzT=setTimeout(()=>{ const v=RZ.suche; render(); const el=document.getElementById('rzsuche'); if(el){el.focus(); el.setSelectionRange(v.length,v.length);} },350); }
+});
+document.getElementById('nav').addEventListener('click',ev=>{
+  const b=ev.target.closest('button[data-v]'); if(!b) return; view=b.dataset.v; render(); scrollTo({top:0,behavior:'smooth'});
+});
+document.getElementById('app').addEventListener('click',async ev=>{
+  const _prs=ev.target.closest('button[data-prs]'); if(_prs){ PR.sicht=_prs.dataset.prs; render(); return; }
+  const _prt=ev.target.closest('button[data-prt]'); if(_prt){ PR.tage=+_prt.dataset.prt; PR.geladen=false; ladePR(); return; }
+  const _prf=ev.target.closest('button[data-prf]'); if(_prf){ PR.filt=_prf.dataset.prf; render(); return; }
+  const _pre=ev.target.closest('button[data-pre]'); if(_pre){ await prStatus(_pre.dataset.pre,'erledigt'); return; }
+  const _pra=ev.target.closest('button[data-pra]'); if(_pra){ await prStatus(_pra.dataset.pra,'anwalt'); return; }
+  const _prv=ev.target.closest('button[data-prv]'); if(_prv){ await prStatus(_prv.dataset.prv,'verworfen'); return; }
+  const _pro=ev.target.closest('button[data-pro]'); if(_pro){ await prStatus(_pro.dataset.pro,'offen'); return; }
+  const _ak=ev.target.closest('[data-akte]'); if(_ak){ await ladeAkte(_ak.dataset.akte); scrollTo({top:0,behavior:'smooth'}); return; }
+  const _akz=ev.target.closest('[data-aktezu]'); if(_akz){ akteSchliessen(); return; }
+  const _tA=ev.target.closest('button[data-rzteil]'); if(_tA){ RZ.teilAuf[_tA.dataset.rzteil]=true; render(); return; }
+  const _tR=ev.target.closest('button[data-rzrest]'); if(_tR){ const e2=document.getElementById('tb_'+_tR.dataset.rzrest); if(e2){e2.value=_tR.dataset.wert; e2.focus();} return; }
+  const _tP=ev.target.closest('button[data-rzteiladd]'); if(_tP){ await rzTeil(_tP.dataset.rzteiladd,false); return; }
+  const _tW=ev.target.closest('button[data-rzteilweg]'); if(_tW){ await rzTeil(_tW.dataset.op,true,_tW.dataset.rzteilweg); return; }
+  const _rzn=ev.target.closest('button[data-rzneu]'); if(_rzn){ RZ.neuform=!RZ.neuform; render(); return; }
+  const _rzo=ev.target.closest('button[data-rzobj]'); if(_rzo){ await rzObjektAnlegen(); return; }
+  const _rzt=ev.target.closest('button[data-rztage]'); if(_rzt){ RZ.tage=+_rzt.dataset.rztage; RZ.geladen=false; ladeRazn(); return; }
+  const _rzmn=ev.target.closest('button[data-rzmonat]'); if(_rzmn){ RZ.monat=_rzmn.dataset.rzmonat; RZ.geladen=false; ladeRazn(); return; }
+  const _rzm=ev.target.closest('button[data-rzmod]'); if(_rzm){ RZ.modus=_rzm.dataset.rzmod; RZ.geladen=false; ladeRazn(); return; }
+  const _rzf=ev.target.closest('button[data-rzfilt]'); if(_rzf){ RZ.filt=_rzf.dataset.rzfilt; render(); return; }
+  const _rzl=ev.target.closest('button[data-rzlern]'); if(_rzl){ const _x=RZ.offen.find(y=>y.id===_rzl.dataset.rzlern)||{};
+    await rzSetzen(_rzl.dataset.rzlern, _x.lern_kategorie?_x.lern_kategorie.wert:'', _x.lern_objekt?_x.lern_objekt.wert:''); return; }
+  const _rzb=ev.target.closest('button[data-rzbuero]'); if(_rzb){ await rzSetzen(_rzb.dataset.rzbuero,'K-BUER','O-0100'); return; }
+  const _rz=ev.target.closest('button[data-rz]'); if(_rz){ await rzSetzen(_rz.dataset.rz); return; }
+  const f=ev.target.closest('button[data-f]');       if(f){ filt=f.dataset.f; render(); return; }
+  const gt=ev.target.closest('[data-goto]'); if(gt){ view=gt.dataset.goto; render(); scrollTo({top:0,behavior:'smooth'}); return; }
+  const rb=ev.target.closest('button[data-beleg]');  if(rb){ sel=rb.dataset.beleg; if(view!=='belege'){view='belege';filt='alle';} render(); return; }
+  const rp=ev.target.closest('button[data-partner]');if(rp){ selP=rp.dataset.partner; render(); return; }
+  const a=ev.target.closest('button[data-act]');     if(!a||!DB) return;
+  const act=a.dataset.act;
+  try{
+    if(act==='lsave'){
+      const cur=S.gd||{};
+      await DB.doc('grunddaten/basis').set({...cur,
+        zahlungsziel:document.getElementById('l_ziel')?.value.trim()||'45',
+        basis:document.getElementById('l_basis')?.value||'tabelle',
+        wann:new Date().toISOString()});
+      toast('Прогноз пересчитан');
+    } else if(act==='erwan'||act==='erwaus'){
+      await DB.doc('erwartung/'+a.dataset.nr).set({aus:act==='erwaus',wann:new Date().toISOString()});
+      toast(act==='erwaus'?'Убрано из прогноза':'Добавлено в прогноз');
+    } else if(act==='eadd'){
+      const g=id=>document.getElementById(id)?.value.trim()||'';
+      const dt=g('e_datum'), ku=g('e_kunde'), be=parseFloat(g('e_betrag').replace(',','.'));
+      if(!dt||!be){ toast('Нужны дата и сумма'); return; }
+      const id='E'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      await DB.doc('einnahmen/'+id).set({datum:dt,kunde:ku,betrag:be,wann:new Date().toISOString()});
+      toast('Поступление добавлено');
+    } else if(act==='edel'){
+      await DB.doc('einnahmen/'+a.dataset.id).delete(); toast('Убрано');
+    } else if(act==='gsave'){
+      const g=id=>document.getElementById(id)?.value.trim()||'';
+      await DB.doc('grunddaten/basis').set({umsatz_monat:g('g_umsatz'),kontostand:g('g_konto'),
+        gewst_vz:g('g_gewst'),kst_vz:g('g_kst'),wann:new Date().toISOString()});
+      toast('Сохранено');
+    } else if(act==='psave'&&selP){
+      const g=id=>document.getElementById(id)?.value.trim()||'';
+      await DB.doc('partner_daten/'+selP).set({iban:g('p_iban'),ust_idnr:g('p_ust'),
+        fb_48b_bis:g('p_48b'),fb_48b_nummer:g('p_48bn'),ust1tg_bis:g('p_tg'),
+        mindestlohn_bis:g('p_ml'),wann:new Date().toISOString()});
+      toast('Карточка сохранена');
+    } else if(act==='zuo'&&sel){
+      const v=document.getElementById('zuo').value;
+      await DB.doc('zuordnung/'+sel).set({objekt:v,wann:new Date().toISOString()});
+      toast(v?'Объект привязан':'Привязка снята');
+    } else if(act==='kom'&&sel){
+      const cur=S.ent[sel]||{};
+      await DB.doc('entscheidungen/'+sel).set({...cur,kommentar:document.getElementById('kom').value,wann:new Date().toISOString()});
+      toast('Комментарий сохранён');
+    } else if(act==='clear'&&sel){
+      await DB.doc('entscheidungen/'+sel).delete(); toast('Отметка снята');
+    } else if(sel){
+      const lab={ok:'разобрано',rueck:'запрос поставщику',sperr:'платёж заблокирован'}[act];
+      if(!lab) return;
+      await DB.doc('entscheidungen/'+sel).set({status:lab,
+        kommentar:document.getElementById('kom')?.value||'',wann:new Date().toISOString()});
+      toast(lab[0].toUpperCase()+lab.slice(1));
+    }
+  }catch(err){ toast('Не удалось сохранить: '+(err?.code||err?.message||'ошибка')); }
+});
+
+/* ---------- Drive и выгрузка ---------- */
+document.getElementById('refresh').addEventListener('click',async()=>{
+  const btn=document.getElementById('refresh'); btn.disabled=true; btn.textContent='Проверяю…';
+  try{
+    if(!MCP) MCP = await claude.use('mcp');
+    if(!MCP){ toast('Подключение к Drive этому просмотру не выдано'); return; }
+    const r=await MCP.callTool('Google Drive','search_files',
+      {query:"title contains 'Кредиторка'", pageSize:5, excludeContentSnippets:true});
+    const files=(r?.payload?.files)||[];
+    const f=files.find(x=>x.id==='1M98apdA9FEW-QQnmP5nkvZSdBfoWdKoRFOs_-cb6ia0')||files[0];
+    if(!f){ toast('Таблица не найдена'); return; }
+    const mt=(f.modifiedTime||'').slice(0,10);
+    toast(mt>(S.meta.stand||'') ? `Таблица менялась ${mt} — снимок устарел, нужен новый прогон`
+                                : `Таблица не менялась с ${mt} — снимок актуален`);
+  }catch(err){ toast('Drive недоступен: '+(err?.code||err?.message||'ошибка')); }
+  finally{ btn.disabled=false; btn.textContent='Проверить Drive'; }
+});
+document.getElementById('export').addEventListener('click',async()=>{
+  if(!DL) DL = await claude.use('downloads');
+  if(!DL){ toast('Выгрузка этому просмотру не выдана'); return; }
+  const head=['ID','Контрагент','Номер','Дата','Срок','Сумма','Фирма','Объект','Решение','Статус','Комментарий','Находки'];
+  const esc=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+  const rows=S.belege.map(e=>[e.mail_id,e.partner,e.nummer,e.datum,e.faellig,
+    String(e.betrag).replace('.',','),e.firma,objOf(e),e.entscheidung,
+    S.ent[e.mail_id]?.status||'',S.ent[e.mail_id]?.kommentar||'',
+    (e.befunde||[]).map(f=>f.regel).join(' ')].map(esc).join(';'));
+  try{ await DL.save({filename:`buchhalter-vav_${S.meta.stand||'export'}.csv`,
+        data:'﻿'+[head.map(esc).join(';'),...rows].join('\r\n')});
+       toast('Файл предложен к сохранению'); }
+  catch(err){ toast('Выгрузка отменена'); }
+});
+
+/* ---------- действия окна «Написать нам» ---------- */
+document.getElementById('melden').addEventListener('click', hOeffnen);
+document.getElementById('hfenster').addEventListener('click', ev => {
+  if(ev.target.id === 'hfenster') hSchliessen();
+});
+addEventListener('keydown', ev => { if(ev.key === 'Escape' && HW.offen) hSchliessen(); });
+
+document.getElementById('hkasten').addEventListener('click', async ev => {
+  const a = ev.target.closest('button[data-hart]');
+  if(a){ HW.art = a.dataset.hart; hZeichnen(); return; }
+  const dk = ev.target.closest('button[data-hdiktat]');
+  if(dk){ diktieren(dk.dataset.hdiktat, dk.dataset.sprache, dk); return; }
+  if(ev.target.closest('button[data-hbildweg]')){ HW.bild=null; hZeichnen(); return; }
+  if(ev.target.closest('button[data-hzu]')){ hSchliessen(); return; }
+  if(ev.target.closest('button[data-hsenden]')){ await hSenden(); return; }
+  if(ev.target.closest('#h_ablage')){
+    const e2 = document.createElement('input');
+    e2.type='file'; e2.accept='image/*';
+    e2.onchange = () => hBildAus(e2.files && e2.files[0]);
+    e2.click();
+  }
+});
+
+/* снимок вставляется из буфера прямо в окно */
+addEventListener('paste', ev => {
+  if(!HW.offen) return;
+  const el = (ev.clipboardData||{}).items||[];
+  for(const it of el) if(it.type && it.type.startsWith('image/')) { hBildAus(it.getAsFile()); ev.preventDefault(); return; }
+});
+document.getElementById('hfenster').addEventListener('dragover', ev => {
+  ev.preventDefault();
+  const a = document.getElementById('h_ablage'); if(a) a.classList.add('drauf');
+});
+document.getElementById('hfenster').addEventListener('dragleave', () => {
+  const a = document.getElementById('h_ablage'); if(a) a.classList.remove('drauf');
+});
+document.getElementById('hfenster').addEventListener('drop', ev => {
+  ev.preventDefault();
+  const a = document.getElementById('h_ablage'); if(a) a.classList.remove('drauf');
+  const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if(f) hBildAus(f);
+});
+
+boot();
+</script>
+
+
+</body></html>
