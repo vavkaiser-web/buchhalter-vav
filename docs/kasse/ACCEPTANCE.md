@@ -50,9 +50,13 @@
 - `src/kasse-integration.ts` — клиент и обработчик событий для vavapp
 - `src/server.ts` — эндпоинты /api/kasse/vorschuss, /api/kasse/antraege, /integration/kasse-ereignis
 
-## Gate 3: Продакшн
-- [ ] nginx config применён, SSL работает
-- [ ] pm2 запускает сервис при перезагрузке
-- [ ] SW кэширует страницы в HTTPS-окружении
-- [ ] Мониторинг ошибок настроен
-- [ ] Реальные пользователи добавлены (только с разрешения Андрея)
+## Gate 3: Продакшн — ЗАКРЫТ ✅ (2026-10-03)
+
+### Проверено
+- [x] nginx config применён, SSL работает (https://kasse-178-105-169-97.sslip.io)
+- [x] pm2 запускает сервис через start.sh (set -a; source .env; exec node) — env vars сохраняются при перезагрузке
+- [x] Миграции 001 и 002 применены в prod Supabase (buch_konto, buch_plan, buch_beleg и др.)
+- [x] vavapp интеграция задеплоена (kasse-integration.ts, kasse_antrag, KASSE_INTEGRATION_TOKEN)
+- [x] Пользователь andrei (gf/владелец) добавлен, вход и рабочий стол работают
+- [ ] SW кэширует страницы в HTTPS-окружении (следующий этап)
+- [ ] Мониторинг ошибок настроен (следующий этап)
