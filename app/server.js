@@ -32,6 +32,7 @@ const bankabgleich = require('./bankabgleich.js');
 const debitor = require('./debitor.js');
 const dokument = require('./dokument.js');
 const rk = require('./rechnung_kontrolle.js');
+const bg = require('./bestellung_gate.js');
 
 const PORT   = Number(process.env.PORT || 3026);
 const WURZEL = __dirname;
@@ -999,6 +1000,39 @@ http.createServer(async (req, res) => {
       const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
       if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
       try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.nachZahlungPruefen(Number(b.beleg_id))); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+
+    // --- Гейт утверждения заказов (bestellung_gate) ---
+    if (p === '/api/bestellung/gate/beurteilen' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung', 'disponent'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await bg.beurteilen(b.bestellung_id, n.login)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/bestellung/gate/oleg' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['disponent', 'gf'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'только Олег (disponent)' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await bg.oleGenehmigen(b, n)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/bestellung/gate/gf' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (n.rolle !== 'gf') return jsonAntwort(res, 403, { fehler: 'только Андрей (gf)' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await bg.gfGenehmigen(b, n)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/bestellung/gate/ablehnen' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['disponent', 'gf'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await bg.ablehnen(b, n)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/bestellung/gate/status' && req.method === 'GET') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      const id = u.searchParams.get('id');
+      if (!id) return jsonAntwort(res, 400, { fehler: 'нет id' });
+      try { return jsonAntwort(res, 200, await bg.gateStatus(id)); }
       catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
     }
 

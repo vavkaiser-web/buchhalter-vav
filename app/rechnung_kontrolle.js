@@ -14,6 +14,7 @@
 
 const { Pool } = require('pg');
 const aufgaben = require('./aufgaben.js');
+const gate = require('./bestellung_gate.js');
 
 const pool = new Pool({ connectionString: process.env.PILOT_IMPORT_DB });
 function mit(fn) {
@@ -49,6 +50,7 @@ async function pruefung(beleg_id, bestellung_id, login) {
     if (bId) {
       best = (await cl.query(
         'SELECT b.id, b.objekt_nr, b.lieferant, b.summe_cent, b.status, b.basis, b.umfang, ' +
+        'b.braucht_andrej, b.braucht_grund, b.oleg_am, b.gf_am, b.ablehn_von, ' +
         'coalesce((SELECT sum(betrag_cent) FROM bestellung_rechnung r WHERE r.bestellung_id=b.id),0) fakturiert ' +
         'FROM bestellung b WHERE b.id=$1',
         [bId])).rows[0];
@@ -206,6 +208,17 @@ async function pruefung(beleg_id, bestellung_id, login) {
                (best && ergebnis === 'blockiert' ? ' Превышение заказа — необходимо одобрение.' : ''),
       });
       if (uberfaellig && ergebnis === 'ok') ergebnis = 'hinweis';
+    }
+
+    // ── Проверка 10: гейт утверждения заказа ─────────────────────────────────
+    if (best) {
+      const g = await gate.gateCheck(cl, bId);
+      items.push({
+        art: 'gate',
+        status: g.gateOk ? 'ok' : 'blockiert',
+        notiz: g.notiz,
+      });
+      if (!g.gateOk) ergebnis = 'blockiert';
     }
 
     // ── Записать прогон ──────────────────────────────────────────────────────
