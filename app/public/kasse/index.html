@@ -295,6 +295,7 @@ function statusTag(zustand) {
     entwurf:     ['warn','Черновик'],
     eingereicht: ['warn','На проверке'],
     bewilligt:   ['good','Одобрено'],
+    genehmigt:   ['good','Одобрено'],
     abgelehnt:   ['bad','Отклонено'],
     ausgegeben:  ['good','Деньги выданы'],
     ausstehend:  ['warn','На проверке'],
@@ -441,12 +442,14 @@ function detailPanel(r) {
     </button>` : ''}
     <div class="v-actions">
       ${istBuch && typ==='beleg' && r.status==='ausstehend' ? btn('Принять чек','belegPruefen','primary') : ''}
+      ${(istBuch||istDisp) && typ==='plan' && r.status==='entwurf' ? btn('Подать на одобрение','planEinreichen','primary') : ''}
       ${istBuch && typ==='plan' && r.status==='eingereicht' ? btn('Одобрить','planBewilligen','primary') : ''}
       ${istBuch && typ==='ea' && !r.erledigt ? btn('Одобрить запрос','eingangBewilligen','primary') : ''}
       ${istBuch && typ==='ea' && !r.erledigt ? btn('Отклонить','eingangAblehnen','') : ''}
-      ${istBuch && r.status==='eingereicht' ? btn('Отклонить','ablehnen','') : ''}
+      ${istBuch && typ==='plan' && r.status==='eingereicht' ? btn('Отклонить','ablehnen','') : ''}
+      ${istBuch && typ==='beleg' && r.status==='ausstehend' ? btn('Отклонить','ablehnen','') : ''}
       ${istBuch && typ!=='ea' && !['abgelehnt','geprueft','erstattet','ausgegeben'].includes(r.status) ? btn('Задать вопрос','rueckfrageNeu','') : ''}
-      ${istDisp && r.status==='bewilligt' ? btn('Выдать деньги','ausgeben','primary') : ''}
+      ${(istDisp||istBuch) && typ==='plan' && ['bewilligt','genehmigt'].includes(r.status) ? btn('Выдать деньги','ausgeben','primary') : ''}
     </div>
     <div id="detail-modal"></div>
   </div>
@@ -558,6 +561,7 @@ function renderModal(mod) {
   } else if (mod==='neuerBeleg') {
     title = 'Добавить чек';
     body = `<form id="beleg-form" class="v-form">
+      <input type="hidden" name="art" value="kraftstoff">
       <div class="v-seg" style="margin-bottom:4px">
         ${[['kraftstoff','Бензин'],['material','Материалы'],['sonstig','Другое']].map(([v,t])=>
           `<button type="button" class="art-btn" data-art="${v}" aria-pressed="${v==='kraftstoff'}">${t}</button>`).join('')}
@@ -594,14 +598,13 @@ function renderModal(mod) {
   } else if (mod==='ausgeben') {
     title = 'Выдача денег';
     const r = S.ausgewaehlt;
-    body = r ? `<form id="ausgabe-form" class="v-form">
-      <div class="v-note">Деньги выдаёт Олег лично. Квитанция оформляется сразу. Подпись получателя при выдаче.</div>
-      ${keys([['Получатель',r.person_name||r.login||''],['Сумма',euro(r.betrag_cent)]])}
-      <label>Назначение квитанции<select name="zweck">
-        <option>На материалы</option><option>На бензин</option><option>Аванс</option>
-      </select></label>
-      <button type="submit" class="v-button primary full">Подготовить квитанцию</button>
-    </form>` : '';
+    const qt = r && (S.lage.quittungen||[]).find(q => q.plan_id === r.id && q.status === 'vorbereitet');
+    body = qt ? `<form id="ausgabe-form" class="v-form">
+      <input type="hidden" name="qt_id" value="${qt.id}">
+      <div class="v-note">Деньги выдаются наличными. Квитанция оформляется сразу.</div>
+      ${keys([['Получатель',qt.empfaenger||''],['Сумма',euro(qt.betrag)]])}
+      <button type="submit" class="v-button primary full">Выдать и оформить квитанцию</button>
+    </form>` : '<p class="v-note">Квитанция к этой заявке не найдена.</p>';
   } else if (mod==='rueckfrageNeu') {
     title = 'Задать вопрос';
     body = `<form id="rf-form" class="v-form">
@@ -715,9 +718,9 @@ async function formAbsenden(form) {
       await api('POST','plan/einfach',{betrag: parseEur(d.betrag), zweck: d.zweck||'', person_name: d.empfaenger||''});
       toast('Заявка на аванс подана');
     } else if (form.id==='ausgabe-form') {
-      const r = S.ausgewaehlt;
-      if (r) await api('POST',`quittung/dringend`,{plan_ref: r.ref, betrag: r.betrag_cent, zweck: d.zweck});
-      toast('Квитанция подготовлена');
+      const qtId = d.qt_id;
+      if (qtId) await api('POST',`quittung/${qtId}/ausgeben`,{});
+      toast('Квитанция оформлена, деньги выданы');
     } else if (form.id==='rf-form') {
       const r = S.ausgewaehlt;
       if (r) await api('POST','rueckfrage',{beleg_ref: r.ref||String(r.id), frage: d.frage});
@@ -725,7 +728,7 @@ async function formAbsenden(form) {
     } else if (form.id==='ablehnen-form') {
       const r = S.ausgewaehlt;
       if (r) {
-        const pfad = r.plan_ref ? `plan/${r.ref}/entscheiden` : `beleg/${r.id}/pruefen`;
+        const pfad = r.plan_ref ? `plan/${r.id}/entscheiden` : `beleg/${r.id}/pruefen`;
         await api('POST', pfad, {aktion:'ablehnen', grund: d.grund});
         toast('Документ отклонён');
       }
@@ -790,9 +793,20 @@ document.getElementById('app').addEventListener('click', async e => {
     if (r) { await api('POST',`beleg/${r.id}/pruefen`,{aktion:'geprueft'}); await lageLaden(); toast('Чек принят'); renderApp(); }
     return;
   }
+  if (act==='planEinreichen') {
+    const r = S.ausgewaehlt;
+    if (r) {
+      try { await api('POST',`plan/${r.id}/einreichen`,{}); await lageLaden(); toast('Заявка подана на одобрение'); S.ausgewaehlt = null; renderApp(); }
+      catch(e) { toast(e.message,'err'); }
+    }
+    return;
+  }
   if (act==='planBewilligen') {
     const r = S.ausgewaehlt;
-    if (r) { await api('POST',`plan/${r.ref}/entscheiden`,{aktion:'bewilligen'}); await lageLaden(); toast('Заявка одобрена'); renderApp(); }
+    if (r) {
+      try { await api('POST',`plan/${r.id}/entscheiden`,{aktion:'bewilligen'}); await lageLaden(); toast('Заявка одобрена'); S.ausgewaehlt = null; renderApp(); }
+      catch(e) { toast(e.message,'err'); }
+    }
     return;
   }
   if (act==='eingangBewilligen') {
@@ -831,12 +845,17 @@ document.getElementById('app').addEventListener('submit', async e => {
 });
 
 /* ---------- Переключение типа чека ---------- */
-document.getElementById('app').addEventListener('change', e => {
-  if (e.target.classList.contains('art-btn') || e.target.closest('.art-btn')) {
-    const art = e.target.dataset.art;
-    const fzg = document.getElementById('fzg-label');
-    if (fzg) fzg.style.display = art==='kraftstoff' ? '' : 'none';
-  }
+document.getElementById('app').addEventListener('click', e => {
+  const artBtn = e.target.closest('.art-btn');
+  if (!artBtn) return;
+  const form = artBtn.closest('form');
+  if (!form) return;
+  const art = artBtn.dataset.art;
+  form.querySelectorAll('.art-btn').forEach(b => b.setAttribute('aria-pressed', String(b===artBtn)));
+  const hidden = form.querySelector('input[name="art"]');
+  if (hidden) hidden.value = art;
+  const fzg = document.getElementById('fzg-label');
+  if (fzg) fzg.style.display = art==='kraftstoff' ? '' : 'none';
 });
 
 /* ---------- Инициализация ---------- */

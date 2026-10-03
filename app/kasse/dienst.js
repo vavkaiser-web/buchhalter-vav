@@ -223,7 +223,8 @@ async function planEntscheiden(n, id, b) {
   return tx(async q => {
     const p = (await q(`SELECT * FROM ${S}buch_geldplan WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     pruefe(p, 'Заявка не найдена', 404);
-    const neu = b && b.genehmigt === false ? 'abgelehnt' : 'genehmigt';
+    const ablehnen = b && (b.aktion === 'ablehnen' || b.genehmigt === false);
+    const neu = ablehnen ? 'abgelehnt' : 'genehmigt';
     if (p.status === neu) return { ok: true, wiederholt: true };
     pruefe(p.status === 'eingereicht', 'Утверждается только поданная заявка', 409);
     await q(`UPDATE ${S}buch_geldplan SET status = $2, entschieden_am = now(), entschieden_von = $3 WHERE id = $1`, [p.id, neu, n.login]);
@@ -236,7 +237,7 @@ async function planEntscheiden(n, id, b) {
 async function ausgeben(q, n, qt) {
   let konto;
   if (istDisp(n)) konto = await halterFuer(q, n);
-  else if (istBuch(n)) konto = 'hauptkasse';
+  else if (istBuch(n) || istGf(n)) konto = 'hauptkasse';
   else darf(false, 'Выдаёт ответственный за наличные или бухгалтерия');
   await sperreKonto(q, konto);
   const s = await saldo(q, konto);
@@ -274,7 +275,7 @@ async function quittungAusgeben(n, id) {
     и зарплата, в пределах фактического остатка, квитанция — сразу.
     Для подрядчиков такое право не согласовано — не разрешаем. */
 async function dringendAusgeben(n, b) {
-  darf(istDisp(n), 'Срочную выдачу оформляет ответственный за наличные');
+  darf(istDisp(n) || istGf(n), 'Срочную выдачу оформляет ответственный за наличные или Андрей');
   pruefe(['vorschuss', 'lohn'].includes(b.zweck), 'Срочно без согласования — только аванс или зарплата. Выплата подрядчику — через список, утверждённый Андреем.');
   return tx(async q => {
     if (b.idem) {

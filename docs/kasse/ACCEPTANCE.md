@@ -77,3 +77,22 @@
 - `kasse/api.js` — маршруты `plan/einfach`, `eingang/:id/bewilligen`, `eingang/:id/ablehnen`
 - `public/kasse/index.html` — "+ Аванс" кнопка, форма плана, блок "От VAV App", EA-детали
 - `public/kasse/sw.js` — версия кэша `kasse-vav-v2`
+
+## Gate 5: Жизненный цикл плана — ЗАКРЫТ ✅ (2026-10-03)
+
+### Проверено
+- [x] "Подать на одобрение" (entwurf → eingereicht): кнопка для buero/disponent, план переходит в статус `eingereicht`
+- [x] "Одобрить" (eingereicht → genehmigt): кнопка для GF/buero, `planEntscheiden` пишет `genehmigt` (соответствует DB CHECK constraint)
+- [x] "Отклонить" (eingereicht → abgelehnt): форма с причиной, `{aktion:'ablehnen'}` корректно обрабатывается
+- [x] Статус `genehmigt` отображается как "Одобрено" (зелёный tag) в списке и деталях
+- [x] Кнопка "Выдать деньги" появляется для `genehmigt` планов (disp/gf/buch)
+- [x] Форма выдачи берёт данные из связанной квитанции (empfaenger, betrag), не из плана
+- [x] `POST quittung/:id/ausgeben` вызывается с numeric quittung_id из `S.lage.quittungen`
+- [x] GF (gf-роль) разрешён в `ausgeben()` → konto `hauptkasse`
+- [x] Бизнес-ошибка остатка ("Сумма превышает доступный остаток") возвращается корректно
+
+### Компоненты
+- `kasse/dienst.js` — `planEinreichen()`, `planEntscheiden()` (genehmigt/abgelehnt), `ausgeben()` с GF-разрешением
+- `kasse/api.js` — маршруты `plan/:id/einreichen`, `plan/:id/entscheiden`, `quittung/:id/ausgeben`
+- `public/kasse/index.html` — кнопка "Подать на одобрение", форма выдачи через `quittung/:id/ausgeben`
+- `public/kasse/sw.js` — версия кэша `kasse-vav-v5`
