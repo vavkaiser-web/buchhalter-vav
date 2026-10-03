@@ -59,6 +59,22 @@ async function kandidaten(cl, nr, b) {
     const rows = (await cl.query("SELECT * FROM beleg WHERE id<>$1 AND lieferant_key=$2 AND betrag_cent=$3", [nr, b.lkey, b.betrag_cent])).rows;
     rows.forEach(r => add(r, r.rechnung_nr && b.rechnung_nr && r.rechnung_nr !== b.rechnung_nr ? 'тот же поставщик и сумма, разные номера' : 'тот же поставщик и сумма', 'mittel'));
   }
+  // UTA ↔ чек: та же дата + та же сумма, один источник 'uta', другой нет → двойной расход
+  if (b.datum && b.betrag_cent != null && b.quelle) {
+    if (b.quelle === 'uta') {
+      const rows = (await cl.query(
+        "SELECT * FROM beleg WHERE id<>$1 AND quelle<>'uta' AND betrag_cent=$2 AND datum=$3::date",
+        [nr, b.betrag_cent, b.datum]
+      )).rows;
+      rows.forEach(r => add(r, 'UTA-транзакция: та же дата и сумма, что и ручной чек — возможен двойной расход', 'mittel'));
+    } else {
+      const rows = (await cl.query(
+        "SELECT * FROM beleg WHERE id<>$1 AND quelle='uta' AND betrag_cent=$2 AND datum=$3::date",
+        [nr, b.betrag_cent, b.datum]
+      )).rows;
+      rows.forEach(r => add(r, 'чек: та же дата и сумма, что и UTA-транзакция — возможен двойной расход', 'mittel'));
+    }
+  }
   return treffer;
 }
 
@@ -74,6 +90,7 @@ async function belegEmpfang(d, user) {
     }
     const lief = String(d.lieferant || '').trim();
     const b = {
+      quelle: String(d.quelle || 'email'),
       lkey: razn.schluessel(lief), rechnung_nr: String(d.rechnung_nr || '').trim(),
       betrag_cent: cent(d.betrag != null ? d.betrag : d.betrag_cent),
       datum: /^\d{4}-\d{2}-\d{2}$/.test(String(d.datum || '')) ? d.datum : null,
@@ -333,7 +350,7 @@ async function liste() {
     for (const r of rows) {
       let erklaerung = [];
       if (r.status === 'moeglicher_dubup' || r.status === 'dubup')
-        erklaerung = (await kandidaten(cl, r.id, { lkey: r.lieferant_key, rechnung_nr: r.rechnung_nr, betrag_cent: r.betrag_cent != null ? Number(r.betrag_cent) : null }))
+        erklaerung = (await kandidaten(cl, r.id, { lkey: r.lieferant_key, rechnung_nr: r.rechnung_nr, betrag_cent: r.betrag_cent != null ? Number(r.betrag_cent) : null, quelle: r.quelle, datum: tag(r.datum) }))
           .map(k => ({ ziel_id: k.id, grund: k.grund, staerke: k.staerke, betrag_cent: k.betrag_cent, rechnung_nr: k.rechnung_nr }));
       const signale = (await cl.query('SELECT id, art, text, neuer_wert, angewandt, erledigt FROM beleg_signal WHERE beleg_id=$1 ORDER BY id', [r.id])).rows;
       const extra = (await cl.query('SELECT id, art, betrag_cent, status, entscheidung FROM beleg_extra WHERE beleg_id=$1 ORDER BY id', [r.id])).rows;
@@ -360,7 +377,7 @@ async function eins(id) {
     const signale = (await cl.query('SELECT * FROM beleg_signal WHERE beleg_id=$1 ORDER BY id', [Number(id)])).rows;
     const extra = (await cl.query('SELECT * FROM beleg_extra WHERE beleg_id=$1 ORDER BY id', [Number(id)])).rows;
     const kand = (r.status === 'moeglicher_dubup' || r.status === 'dubup')
-      ? await kandidaten(cl, r.id, { lkey: r.lieferant_key, rechnung_nr: r.rechnung_nr, betrag_cent: r.betrag_cent != null ? Number(r.betrag_cent) : null }) : [];
+      ? await kandidaten(cl, r.id, { lkey: r.lieferant_key, rechnung_nr: r.rechnung_nr, betrag_cent: r.betrag_cent != null ? Number(r.betrag_cent) : null, quelle: r.quelle, datum: tag(r.datum) }) : [];
     return { beleg: { ...r, betrag_cent: r.betrag_cent != null ? Number(r.betrag_cent) : null, datum: tag(r.datum), faellig: tag(r.faellig), pruef_frist: tag(r.pruef_frist) }, verknuepfungen: verkn, historie: hist, signale, extra, kandidaten: kand };
   });
 }
