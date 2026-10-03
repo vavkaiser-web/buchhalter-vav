@@ -67,10 +67,11 @@ HTTP-маршруты (все требуют роль `gf` или `buchhaltung`)
 
 - [x] **UTA-интеграция** — `dublette.js`: `kandidaten()` перекрёстно матчит `quelle='uta'` vs не-UTA по дате+сумме → `moeglicher_dubup`; 5 сценариев в `test-uta-dublette.cjs` (13/13 ✓). Флоу разрешения: `verknuepfen(art='operation')` + `entscheiden('separate')`.
 
+- [x] **Правило 10 — bestellung gate** (`app/bestellung_gate.js`): порог 3.000 €, нарезка (≥2 заказа тому же поставщику за 60 дней >порога), Олег ≤3k, Олег+Андрей >3k/нет бюджета, без делегирования при отсутствии Андрея. `genehmigt` без гейт-записей → пропускается (backward compat). 5 маршрутов `/api/bestellung/gate/*`. 17/17 тестов в `test-bestellung-gate.cjs`. Итого: 62 ✓ 0 ✗.
+
 ## Что НЕ сделано (следующие этапы)
 
-- [ ] Правило 10 (нарезка заказа против порога) — bestellung gate (`dop_bestellung_gate.sql`)
-- [ ] `belegGeaendertPruefen` — вызов при замене файла счёта; маршрут `POST /api/rechnung/beleg-geaendert` есть, UI-кнопка не добавлена
+- [ ] `belegGeaendertPruefen` — UI-кнопка при замене файла счёта; маршрут `POST /api/rechnung/beleg-geaendert` уже есть
 
 ---
 
