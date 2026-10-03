@@ -127,6 +127,21 @@ HTTP-маршруты (все требуют роль `gf` или `buchhaltung`)
 
 **Итого тестов: 186 ✓ 0 ✗** (32 + 13 + 17 + 31 + 24 + 37 + 32)
 
+## Полный прогон (2026-10-03)
+
+Все 7 тест-файлов прошли без ошибок:
+
+| Файл | ✓ |
+|---|---|
+| test-dop-rechnung.cjs | 32 |
+| test-uta-dublette.cjs | 13 |
+| test-bestellung-gate.cjs | 17 |
+| test-bankabgleich.cjs | 31 |
+| test-monat.cjs | 24 |
+| test-steuerberater.cjs | 37 |
+| test-debitor.cjs | 32 |
+| **Итого** | **186 ✓ 0 ✗** |
+
 ---
 
 ## Запуск
