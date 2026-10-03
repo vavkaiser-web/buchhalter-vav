@@ -261,6 +261,8 @@ const S = {
   lage: null,         // данные /api/k/lage (адаптированные)
   ausgewaehlt: null,  // выбранная запись
   filter: 'alle',
+  planTab: 'pending', // авансы: pending/ready/done
+  modalData: null,    // контекст для модальных окон
   modal: null,
   mobilTab: 'home',
   sync: { ok: true, wann: null, fehler: null },
@@ -337,16 +339,16 @@ function renderLage() {
   ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Передача денег','neueUebergabe','primary') : ''}
 </div>
 <div class="v-metrics">
-  <button class="v-metric" data-action="hauptkasse">
-    <span>Основная касса</span>
+  <button class="v-metric" data-action="metrikNalichnye">
+    <span>Наличные в кассе</span>
     <strong class="v-num">${euro(hauptkasse)}</strong>
-    <span>Ответственный: бухгалтер ↗</span>
+    <span>Свободно: ${euro(kasse.frei)} · Резерв: ${euro(kasse.reserviert)} ↗</span>
   </button>
   ${halter.map(h=>`
-  <button class="v-metric" data-action="halterSaldo" data-login="${esc(h.login)}">
-    <span>У ${esc(h.kurzname||h.name||h.login)}</span>
+  <button class="v-metric" data-action="metrikHalter" data-login="${esc(h.login)}">
+    <span>У ${esc(h.kurzname||h.name||h.login)} (директор)</span>
     <strong class="v-num">${euro(h.saldo||0)}</strong>
-    <span>Остаток ↗</span>
+    <span>Свободно: ${euro(h.frei)} · Резерв: ${euro(h.reserviert)} ↗</span>
   </button>`).join('')}
   <button class="v-metric" data-action="offeneRueckfragen">
     <span>Открытых вопросов</span>
@@ -371,53 +373,101 @@ function renderLage() {
 }
 
 function renderEingang() {
-  const belege = (S.lage?.belege_queue||[]).filter(b => S.filter==='alle' || b.status===S.filter);
-  const plaene = (S.lage?.plaene_offen||[]);
-  const ea = (S.lage?.eingaenge||[]).filter(e => !e.erledigt);
-  const alle = [...belege, ...plaene].sort((a,b)=>(b.erstellt_ts||0)-(a.erstellt_ts||0));
   const myLogin = S.ich?.login;
   const isDisp = S.ich?.rolle === 'disponent';
+  const isBuch = ['gf','buchhaltung'].includes(S.ich?.rolle);
+
+  const belege = S.lage?.belege_queue||[];
+  const plaene = S.lage?.plaene_offen||[];
+  const ea = (S.lage?.eingaenge||[]).filter(e => !e.erledigt);
   const quittVorb = (S.lage?.quittungenVorbereitet||[]).filter(q =>
     !isDisp || q.von_konto === 'halter:' + myLogin
   );
-  return `
-<div class="v-head">
-  <div>
-    <div class="v-label">Очередь документов</div>
-    <h1>На проверке</h1>
-    <p>Чеки и заявки на аванс от сотрудников.</p>
-  </div>
-  ${['gf','buchhaltung','disponent'].includes(S.ich?.rolle) ? btn(icon('plus')+' Аванс','neuerPlan','primary') : ''}
-</div>
-<div class="v-work">
-  <div>
-    ${quittVorb.length ? `<div class="v-panel" style="margin-bottom:12px">
-      <div class="v-panelhead"><h2>Ожидают выдачи</h2><span class="v-small">${quittVorb.length} квитанций</span></div>
-      ${quittVorb.map(q=>`<div class="v-event" style="gap:8px">
+  const ausgegeben = (S.lage?.quittungen||[]).filter(q =>
+    q.status === 'ausgegeben' && (!isDisp || q.von_konto === 'halter:' + myLogin)
+  ).slice(0, 20);
+
+  const countPending = belege.length + plaene.length + ea.length;
+  const countReady = quittVorb.length;
+  const countDone = ausgegeben.length;
+  const tab = S.planTab || 'pending';
+
+  let listContent = '';
+  if (tab === 'pending') {
+    const sortiert = [...belege, ...plaene].sort((a,b)=>(b.erstellt_ts||0)-(a.erstellt_ts||0));
+    const gefiltert = sortiert.filter(r => S.filter==='alle' || r.status===S.filter);
+    listContent = `
+      ${ea.length ? `<div class="v-panel" style="margin-bottom:12px">
+        <div class="v-panelhead"><h2>От VAV App</h2><span class="v-small">${ea.length} позиций</span></div>
+        ${ea.map(r => itemZeile(r, 'ea')).join('')}
+      </div>` : ''}
+      <div class="v-panel">
+        <div class="v-panelhead"><h2>Чеки и заявки</h2><span class="v-small">${sortiert.length}</span></div>
+        <div class="v-tabs">
+          ${[['alle','Все'],['ausstehend','Новые'],['rueckfrage','Вопросы']].map(([id,t])=>
+            `<button class="${S.filter===id?'active':''}" data-filter="${id}">${t}</button>`).join('')}
+        </div>
+        ${gefiltert.length ? gefiltert.map(r => itemZeile(r)).join('') : '<div class="v-stateempty">Очередь пуста</div>'}
+      </div>`;
+  } else if (tab === 'ready') {
+    listContent = `<div class="v-panel">
+      <div class="v-panelhead">
+        <h2>К выдаче</h2>
+        ${quittVorb.length > 1 ? `<button class="v-button small" data-action="druckenAlle">Печать всех</button>` : ''}
+      </div>
+      ${quittVorb.length ? quittVorb.map(q=>`
+      <div class="v-event" style="gap:8px">
         ${icon('banknote')}
         <span style="flex:1;min-width:0">
           <span class="v-rowtitle">${esc(q.empfaenger||'—')}</span>
-          <span class="v-small" style="display:block">${esc(q.nr||'')} · ${esc(q.plan_nr||'')}</span>
+          <span class="v-small" style="display:block">${esc(q.nr||'')} · ${esc(q.plan_nr||'')} · ${euro(q.betrag)}</span>
         </span>
-        <span class="v-num" style="white-space:nowrap">${euro(q.betrag)}&nbsp;
+        <span style="white-space:nowrap;display:flex;gap:4px;align-items:center">
           <button class="v-button small primary" data-action="quittungAusgeben" data-qt-id="${q.id}">Выдать</button>
           <button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">Печать</button>
         </span>
-      </div>`).join('')}
-    </div>` : ''}
-    ${ea.length ? `<div class="v-panel" style="margin-bottom:12px">
-      <div class="v-panelhead"><h2>От VAV App</h2><span class="v-small">${ea.length} позиций</span></div>
-      ${ea.map(r => itemZeile(r, 'ea')).join('')}
-    </div>` : ''}
-    <div class="v-panel">
-      <div class="v-panelhead"><h2>Входящие</h2><span class="v-small">${alle.length} позиций</span></div>
-      <div class="v-tabs">
-        ${[['alle','Все'],['ausstehend','Новые'],['rueckfrage','Вопросы']].map(([id,t])=>
-          `<button class="${S.filter===id?'active':''}" data-filter="${id}">${t}</button>`).join('')}
-      </div>
-      ${alle.length ? alle.map(r => itemZeile(r)).join('') : '<div class="v-stateempty">Очередь пуста</div>'}
-    </div>
+      </div>`).join('') : '<div class="v-stateempty">Нет готовых к выдаче</div>'}
+    </div>`;
+  } else {
+    listContent = `<div class="v-panel">
+      <div class="v-panelhead"><h2>Выдано</h2><span class="v-small">${ausgegeben.length}</span></div>
+      ${ausgegeben.length ? ausgegeben.map(q=>`
+      <div class="v-event" style="gap:8px">
+        ${icon('check-circle')}
+        <span style="flex:1;min-width:0">
+          <span class="v-rowtitle">${esc(q.empfaenger||'—')}</span>
+          <span class="v-small" style="display:block">${esc(q.nr||'')} · ${esc(q.ausgegeben_text||q.plan_nr||'')}</span>
+        </span>
+        <span class="v-num" style="white-space:nowrap">${euro(q.betrag)}${!q.original_am ? `&nbsp;<button class="v-button small" data-action="quittungOriginalOk" data-qt-id="${q.id}">Оригинал</button>` : ''}</span>
+      </div>`).join('') : '<div class="v-stateempty">Нет выданных</div>'}
+    </div>`;
+  }
+
+  function tabBtn(id, label, count) {
+    const active = tab===id ? 'active' : '';
+    const badge = count > 0 ? ` <span class="v-count">${count}</span>` : '';
+    return `<button class="${active}" data-plantab="${id}">${label}${badge}</button>`;
+  }
+
+  return `
+<div class="v-head">
+  <div>
+    <div class="v-label">Авансы и выдачи</div>
+    <h1>На проверке</h1>
+    <p>Заявки, квитанции и чеки от сотрудников.</p>
   </div>
+  <div style="display:flex;gap:8px">
+    ${isDisp ? `<button class="v-button" data-action="zaehlenNalichnye">Пересчёт</button>` : ''}
+    ${['gf','buchhaltung','disponent'].includes(S.ich?.rolle) ? btn(icon('plus')+' Аванс','neuerPlan','primary') : ''}
+  </div>
+</div>
+<div class="v-tabs" style="margin-bottom:12px">
+  ${tabBtn('pending','На согласовании',countPending)}
+  ${tabBtn('ready','К выдаче',countReady)}
+  ${tabBtn('done','Выдано',countDone)}
+</div>
+<div class="v-work">
+  <div>${listContent}</div>
   ${S.ausgewaehlt ? detailPanel(S.ausgewaehlt) : '<div></div>'}
 </div>`;
 }
@@ -575,17 +625,17 @@ function renderKasse() {
   </div>
 </div>
 <div class="v-metrics">
-  <div class="v-metric">
-    <span>Основная касса</span>
+  <button class="v-metric" data-action="metrikNalichnye">
+    <span>Наличные в кассе</span>
     <strong class="v-num">${euro(l.kasse?.hauptkasse)}</strong>
-    <span>Свободно: ${euro(l.kasse?.frei)}</span>
-  </div>
+    <span>Свободно: ${euro(l.kasse?.frei)} · Резерв: ${euro(l.kasse?.reserviert)} ↗</span>
+  </button>
   ${(l.halter||[]).map(h=>`
-  <div class="v-metric">
-    <span>У ${esc(h.kurzname||h.name||h.login)}</span>
+  <button class="v-metric" data-action="metrikHalter" data-login="${esc(h.login)}">
+    <span>У ${esc(h.kurzname||h.name||h.login)} (директор)</span>
     <strong class="v-num">${euro(h.saldo)}</strong>
-    <span>Свободно: ${euro(h.frei)}</span>
-  </div>`).join('')}
+    <span>Свободно: ${euro(h.frei)} · Резерв: ${euro(h.reserviert)} ↗</span>
+  </button>`).join('')}
 </div>
 <div class="v-panel">
   <div class="v-panelhead"><h2>Журнал движений</h2></div>
@@ -694,11 +744,82 @@ function renderModal(mod) {
     const halter = S.lage?.halter || [];
     body = `<form id="genehmigen-form" class="v-form">
       <div class="v-note">Выберите, кто будет выдавать деньги сотруднику.</div>
-      <label>Кассир<select name="konto">
-        <option value="hauptkasse">Основная касса (Бухгалтер · ${euro(S.lage?.kasse?.frei ?? S.lage?.kasse?.hauptkasse)} свободно)</option>
-        ${halter.map(h=>`<option value="${esc(h.id)}">${esc(h.name||h.login)} (${euro(h.frei)} свободно)</option>`).join('')}
+      <label>Кто выдаёт<select name="konto">
+        <option value="hauptkasse">Основная касса · ${euro(S.lage?.kasse?.frei ?? S.lage?.kasse?.hauptkasse)} свободно</option>
+        ${halter.map(h=>`<option value="${esc(h.id)}">${esc(h.name||h.login)}, директор · ${euro(h.frei)} свободно</option>`).join('')}
       </select></label>
       <button type="submit" class="v-button primary full">Одобрить и назначить кассира</button>
+    </form>`;
+  }
+  if (mod==='metrikNalichnye') {
+    title = 'Журнал наличных';
+    const bew = (S.lage?.bewegungen||[]).slice().reverse();
+    body = bew.length ? `<div class="v-ledger">
+      ${bew.map(b=>`<div class="v-event">
+        ${icon('arrow-right-left')}
+        <span style="flex:1">
+          <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
+          <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
+        </span>
+        <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}</span>
+      </div>`).join('')}
+    </div>` : '<div class="v-stateempty">Движений нет</div>';
+  } else if (mod==='metrikReserviert') {
+    title = 'Зарезервировано';
+    const qt = S.lage?.quittungenVorbereitet||[];
+    body = qt.length ? `<div class="v-note" style="margin-bottom:8px">Одобренные заявки с назначенным кассиром, ожидающие выдачи.</div>
+      <div class="v-ledger">
+        ${qt.map(q=>`<div class="v-event">
+          ${icon('banknote')}
+          <span style="flex:1">
+            <span class="v-rowtitle">${esc(q.empfaenger||'—')}</span>
+            <span class="v-small" style="display:block">${esc(q.nr||'')} · ${esc(q.plan_nr||'')}</span>
+          </span>
+          <span class="v-num">${euro(q.betrag)}</span>
+        </div>`).join('')}
+        <div class="v-event" style="font-weight:600;border-top:1px solid var(--v-brd);padding-top:8px">
+          ${icon('sigma')}
+          <span style="flex:1">Итого зарезервировано</span>
+          <span class="v-num">${euro(qt.reduce((s,q)=>s+(q.betrag_cent||0),0))}</span>
+        </div>
+      </div>` : '<div class="v-stateempty">Активных резервов нет</div>';
+  } else if (mod==='metrikFrei') {
+    title = 'Свободный остаток';
+    const k = S.lage?.kasse||{};
+    const l = S.modalData && S.lage?.halter?.find(h=>h.login===S.modalData);
+    const konto = l || k;
+    const name = l ? (l.kurzname||l.name||l.login) : 'Основная касса';
+    body = `<div class="v-ledger">
+      <div class="v-event">${icon('wallet')}<span style="flex:1">${esc(name)} — наличные</span><span class="v-num">${euro(konto.hauptkasse??konto.saldo)}</span></div>
+      <div class="v-event">${icon('lock')}<span style="flex:1">Зарезервировано</span><span class="v-num" style="color:var(--v-warn)">−${euro(konto.reserviert||0)}</span></div>
+      <div class="v-event" style="font-weight:600;border-top:1px solid var(--v-brd);padding-top:8px">${icon('circle-check')}<span style="flex:1">Свободно для выдачи</span><span class="v-num" style="color:var(--v-ok)">${euro(konto.frei??konto.hauptkasse??konto.saldo)}</span></div>
+    </div>
+    <div class="v-note" style="margin-top:8px">Расчётный остаток по подтверждённым движениям.</div>`;
+  } else if (mod==='metrikHalter') {
+    title = 'Остаток директора';
+    const h = S.lage?.halter?.find(x=>x.login===S.modalData);
+    if (h) {
+      body = `<div class="v-ledger">
+        <div class="v-event">${icon('user')}<span style="flex:1">${esc(h.name||h.login)}</span><span class="v-num">${euro(h.saldo)}</span></div>
+        <div class="v-event">${icon('lock')}<span style="flex:1">Зарезервировано</span><span class="v-num" style="color:var(--v-warn)">−${euro(h.reserviert||0)}</span></div>
+        <div class="v-event" style="font-weight:600;border-top:1px solid var(--v-brd);padding-top:8px">${icon('circle-check')}<span style="flex:1">Свободно</span><span class="v-num" style="color:var(--v-ok)">${euro(h.frei)}</span></div>
+        <div class="v-event">${icon('arrow-down-left')}<span style="flex:1">Всего получено</span><span class="v-num">${euro(h.erhalten)}</span></div>
+        <div class="v-event">${icon('arrow-up-right')}<span style="flex:1">Всего выдано</span><span class="v-num">${euro(h.ausgaben)}</span></div>
+        <div class="v-event">${icon('corner-up-left')}<span style="flex:1">Всего возвращено</span><span class="v-num">${euro(h.zurueck)}</span></div>
+      </div>`;
+    } else {
+      body = '<div class="v-stateempty">Данные не найдены</div>';
+    }
+  } else if (mod==='zaehlen') {
+    title = 'Пересчёт наличных';
+    const isDisp = S.ich?.rolle === 'disponent';
+    const h = isDisp ? (S.lage?.halter||[]).find(x=>x.login===S.ich?.login) : null;
+    const saldo = isDisp && h ? h.saldo : (S.lage?.kasse?.hauptkasse||0);
+    body = `<form id="zaehlen-form" class="v-form">
+      <div class="v-note">По журналу: <strong>${euro(saldo)}</strong>. Введите фактически пересчитанную сумму.</div>
+      <label>Пересчитано, €<input name="betrag" inputmode="decimal" placeholder="0,00" required autofocus></label>
+      <div id="zaehlen-diff" style="display:none;padding:8px;border-radius:6px;margin-top:4px"></div>
+      <button type="submit" class="v-button primary full">Записать пересчёт</button>
     </form>`;
   }
   return `<section class="v-modal">
@@ -820,9 +941,26 @@ async function formAbsenden(form) {
       const r = S.ausgewaehlt;
       if (r) {
         await api('POST', `plan/${r.id}/entscheiden`, {konto: d.konto});
-        toast('Заявка одобрена. Кассир назначен.');
+        toast('Заявка одобрена. Выдающий назначен.');
         S.ausgewaehlt = null;
       }
+    } else if (form.id==='zaehlen-form') {
+      const isDisp = S.ich?.rolle === 'disponent';
+      const h = isDisp ? (S.lage?.halter||[]).find(x=>x.login===S.ich?.login) : null;
+      const saldo = isDisp && h ? h.saldo : (S.lage?.kasse?.hauptkasse||0);
+      const eingabe = Math.round(parseFloat(d.betrag.replace(',','.')) * 100);
+      const diff = eingabe - saldo;
+      const diffEl = document.getElementById('zaehlen-diff');
+      if (diffEl) {
+        const ok = diff === 0;
+        diffEl.style.display = '';
+        diffEl.style.background = ok ? 'var(--v-ok-bg,#e8f5e9)' : 'var(--v-warn-bg,#fff8e1)';
+        diffEl.style.color = ok ? 'var(--v-ok,green)' : 'var(--v-warn,#e65100)';
+        diffEl.textContent = ok
+          ? 'Расхождений нет. По журналу: ' + euro(saldo)
+          : 'Расхождение: ' + (diff > 0 ? '+' : '') + euro(Math.abs(diff)) + (diff > 0 ? ' излишек' : ' недостача') + '. По журналу: ' + euro(saldo);
+      }
+      return; // не закрывать модал, не перезагружать
     }
     S.modal = null;
     await lageLaden();
@@ -834,7 +972,7 @@ async function formAbsenden(form) {
 
 /* ---------- Нажатия ---------- */
 document.getElementById('app').addEventListener('click', async e => {
-  const b = e.target.closest('[data-action],[data-nav],[data-record],[data-filter]');
+  const b = e.target.closest('[data-action],[data-nav],[data-record],[data-filter],[data-plantab]');
   if (!b) return;
 
   if (b.dataset.nav) {
@@ -847,6 +985,13 @@ document.getElementById('app').addEventListener('click', async e => {
 
   if (b.dataset.filter) {
     S.filter = b.dataset.filter;
+    renderApp();
+    return;
+  }
+
+  if (b.dataset.plantab) {
+    S.planTab = b.dataset.plantab;
+    S.ausgewaehlt = null;
     renderApp();
     return;
   }
@@ -877,7 +1022,34 @@ document.getElementById('app').addEventListener('click', async e => {
     window.location.reload();
     return;
   }
-  if (act==='modalClose') { S.modal = null; renderApp(); return; }
+  if (act==='modalClose') { S.modal = null; S.modalData = null; renderApp(); return; }
+
+  const scrollToModal = () => document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  if (act==='metrikNalichnye') { S.modal = 'metrikNalichnye'; renderApp(); scrollToModal(); return; }
+  if (act==='metrikReserviert') { S.modal = 'metrikReserviert'; renderApp(); scrollToModal(); return; }
+  if (act==='metrikFrei') { S.modalData = null; S.modal = 'metrikFrei'; renderApp(); scrollToModal(); return; }
+  if (act==='metrikHalter') {
+    S.modalData = b.dataset.login || null;
+    S.modal = 'metrikHalter';
+    renderApp();
+    scrollToModal();
+    return;
+  }
+  if (act==='zaehlenNalichnye') { S.modal = 'zaehlen'; renderApp(); scrollToModal(); return; }
+  if (act==='druckenAlle') {
+    const isDisp = S.ich?.rolle === 'disponent';
+    const myLogin = S.ich?.login;
+    const qt = (S.lage?.quittungenVorbereitet||[]).filter(q => !isDisp || q.von_konto === 'halter:'+myLogin);
+    qt.forEach(q => window.open('/api/k/quittung/'+q.id+'/druck', '_blank'));
+    return;
+  }
+  if (['hauptkasse','halterSaldo','offeneRueckfragen'].includes(act)) {
+    if (act === 'offeneRueckfragen') { S.seite = 'rueckfragen'; S.modal = null; }
+    else if (act === 'hauptkasse') S.modal = 'metrikNalichnye';
+    else if (act === 'halterSaldo') { S.modalData = b.dataset.login||null; S.modal = 'metrikHalter'; }
+    renderApp();
+    return;
+  }
 
   if (act==='belegPruefen') {
     const r = S.ausgewaehlt;
