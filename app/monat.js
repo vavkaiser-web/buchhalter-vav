@@ -18,10 +18,9 @@ async function mit(fn) {
   finally { try { await cl.end(); } catch (e) {} }
 }
 
-// Две фирмы владельца — единый справочник, без дублей.
+// Фирма владельца.
 const FIRMEN = {
-  kaiser:     'VAV Kaiser GmbH',
-  trockenbau: 'VAV Kaiser Trockenbau GmbH',
+  kaiser: 'VAV Kaiser GmbH',
 };
 
 // Порядок состояний месяца. Каждое — отдельный смысл, не смешивать.

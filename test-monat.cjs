@@ -34,7 +34,7 @@ async function test01() {
   console.log('\n1. uebersicht: структура ответа');
   const r = await mn.uebersicht(J);
   ok('год совпадает', r.jahr === J, r.jahr);
-  ok('две фирмы', r.firmen.length === 2, r.firmen.length);
+  ok('одна фирма', r.firmen.length === 1, r.firmen.length);
   ok('12 месяцев у каждой', r.firmen.every(f => f.monate.length === 12), r.firmen.map(f => f.monate.length));
   ok('статус_каталог 6 элементов', r.status_katalog.length === 6, r.status_katalog.length);
   ok('первый статус = gesammelt', r.firmen[0].monate[0].status === 'gesammelt', r.firmen[0].monate[0].status);
@@ -76,7 +76,7 @@ async function test03() {
 // ── 4. Права: обычный buchhaltung не может natalia_geprueft ──────────────────
 async function test04() {
   console.log('\n4. Права: обычный buchhaltung не может natalia_geprueft');
-  const f = 'trockenbau'; const m = 5;
+  const f = 'kaiser'; const m = 5;
   try {
     await mn.statusSetzen({ firma: f, jahr: J, monat: m, status: 'geprueft' }, buch);
     let err = null;
