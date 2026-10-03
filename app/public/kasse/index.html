@@ -229,12 +229,22 @@ function adaptLage(raw) {
   const meine_plaene = plaene_offen;
   // Вопросы
   const rueckfragen_offen = (raw.rueckfragen||[]).filter(r=>r.status==='offen').length;
-  const eingang_anzahl = belege_queue.length + plaene_offen.length;
+  // Входящие от vavapp
+  const eingaenge = (raw.eingaenge||[]).map(e=>({
+    ...e, ref: String(e.id), ea_ref: e.kasse_ref,
+    betrag_cent: e.betrag,
+    bezeichnung: e.art==='vorschuss' ? 'Аванс от VAV App' : 'Чек от VAV App',
+    person_name: e.person_name || e.person_id || '—',
+    erstellt_text: e.erstellt_am ? new Date(e.erstellt_am).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
+    erstellt_ts: e.id,
+    erledigt: !!e.verarbeitet_am,
+  }));
+  const eingang_anzahl = belege_queue.length + plaene_offen.length + eingaenge.filter(e=>!e.erledigt).length;
   // Объекты и машины для форм
   const objekte = (raw.objekte||[]).map(o=>({id: o.nummer, name: o.bez||o.nummer}));
   const fahrzeuge = (raw.fahrzeuge||[]).map(f=>({id: f.id, kennzeichen: f.text||f.id}));
   return { ...raw, hauptkasse, halter, firma, bewegungen, belege_queue, meine_belege,
-    plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge };
+    plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge, eingaenge };
 }
 
 /* ---------- Состояние приложения ---------- */
@@ -355,6 +365,7 @@ function renderLage() {
 function renderEingang() {
   const belege = (S.lage?.belege_queue||[]).filter(b => S.filter==='alle' || b.status===S.filter);
   const plaene = (S.lage?.plaene_offen||[]);
+  const ea = (S.lage?.eingaenge||[]).filter(e => !e.erledigt);
   const alle = [...belege, ...plaene].sort((a,b)=>(b.erstellt_ts||0)-(a.erstellt_ts||0));
   return `
 <div class="v-head">
@@ -363,23 +374,30 @@ function renderEingang() {
     <h1>На проверке</h1>
     <p>Чеки и заявки на аванс от сотрудников.</p>
   </div>
+  ${['gf','buchhaltung','disponent'].includes(S.ich?.rolle) ? btn(icon('plus')+' Аванс','neuerPlan','primary') : ''}
 </div>
 <div class="v-work">
-  <div class="v-panel">
-    <div class="v-panelhead"><h2>Входящие</h2><span class="v-small">${alle.length} позиций</span></div>
-    <div class="v-tabs">
-      ${[['alle','Все'],['ausstehend','Новые'],['rueckfrage','Вопросы']].map(([id,t])=>
-        `<button class="${S.filter===id?'active':''}" data-filter="${id}">${t}</button>`).join('')}
+  <div>
+    ${ea.length ? `<div class="v-panel" style="margin-bottom:12px">
+      <div class="v-panelhead"><h2>От VAV App</h2><span class="v-small">${ea.length} позиций</span></div>
+      ${ea.map(r => itemZeile(r, 'ea')).join('')}
+    </div>` : ''}
+    <div class="v-panel">
+      <div class="v-panelhead"><h2>Входящие</h2><span class="v-small">${alle.length} позиций</span></div>
+      <div class="v-tabs">
+        ${[['alle','Все'],['ausstehend','Новые'],['rueckfrage','Вопросы']].map(([id,t])=>
+          `<button class="${S.filter===id?'active':''}" data-filter="${id}">${t}</button>`).join('')}
+      </div>
+      ${alle.length ? alle.map(r => itemZeile(r)).join('') : '<div class="v-stateempty">Очередь пуста</div>'}
     </div>
-    ${alle.length ? alle.map(r => itemZeile(r)).join('') : '<div class="v-stateempty">Очередь пуста</div>'}
   </div>
   ${S.ausgewaehlt ? detailPanel(S.ausgewaehlt) : '<div></div>'}
 </div>`;
 }
 
-function itemZeile(r) {
+function itemZeile(r, typ) {
   const ref = r.ref || String(r.id);
-  const typ = r.plan_ref ? 'plan' : 'beleg';
+  typ = typ || (r.plan_ref ? 'plan' : 'beleg');
   return `
 <button class="v-row ${S.ausgewaehlt?.ref===ref?'selected':''}" data-record="${esc(ref)}" data-typ="${typ}">
   <span class="v-file">${icon(belegIcon(r.art||r.zweck_art))}</span>
@@ -397,14 +415,15 @@ function itemZeile(r) {
 function detailPanel(r) {
   if (!r) return '';
   const ref = r.ref || String(r.id);
-  const typ = r.plan_ref ? 'plan' : 'beleg';
+  const typ = r._typ || (r.plan_ref ? 'plan' : 'beleg');
   const istBuch = ['gf','buchhaltung'].includes(S.ich?.rolle);
   const istDisp = S.ich?.rolle === 'disponent';
+  const typLabel = typ==='plan' ? 'Заявка на аванс' : typ==='ea' ? 'Запрос от VAV App' : 'Проверка чека';
   return `
 <div class="v-panel">
   <div class="v-panelhead">
-    <span class="v-label">${typ==='plan'?'Заявка на аванс':'Проверка чека'}</span>
-    <span class="v-tag">${esc(ref)}</span>
+    <span class="v-label">${typLabel}</span>
+    <span class="v-tag">${esc(r.ea_ref || ref)}</span>
   </div>
   <div class="v-detail">
     <span class="v-label">${esc(r.bezeichnung||r.zweck||'—')}</span>
@@ -423,8 +442,10 @@ function detailPanel(r) {
     <div class="v-actions">
       ${istBuch && typ==='beleg' && r.status==='ausstehend' ? btn('Принять чек','belegPruefen','primary') : ''}
       ${istBuch && typ==='plan' && r.status==='eingereicht' ? btn('Одобрить','planBewilligen','primary') : ''}
+      ${istBuch && typ==='ea' && !r.erledigt ? btn('Одобрить запрос','eingangBewilligen','primary') : ''}
+      ${istBuch && typ==='ea' && !r.erledigt ? btn('Отклонить','eingangAblehnen','') : ''}
       ${istBuch && r.status==='eingereicht' ? btn('Отклонить','ablehnen','') : ''}
-      ${istBuch && !['abgelehnt','geprueft','erstattet','ausgegeben'].includes(r.status) ? btn('Задать вопрос','rueckfrageNeu','') : ''}
+      ${istBuch && typ!=='ea' && !['abgelehnt','geprueft','erstattet','ausgegeben'].includes(r.status) ? btn('Задать вопрос','rueckfrageNeu','') : ''}
       ${istDisp && r.status==='bewilligt' ? btn('Выдать деньги','ausgeben','primary') : ''}
     </div>
     <div id="detail-modal"></div>
@@ -565,11 +586,9 @@ function renderModal(mod) {
   } else if (mod==='neuerPlan') {
     title = 'Заявка на аванс';
     body = `<form id="plan-form" class="v-form">
+      <label>Получатель<input name="empfaenger" placeholder="Имя сотрудника" required maxlength="120"></label>
       <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
       <label>Назначение<input name="zweck" placeholder="Для чего нужны деньги" required maxlength="200"></label>
-      <label>Объект<select name="objekt"><option value="">—</option>
-        ${(S.lage?.objekte||[]).map(o=>`<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}
-      </select></label>
       <button type="submit" class="v-button primary full">Подать заявку</button>
     </form>`;
   } else if (mod==='ausgeben') {
@@ -693,7 +712,7 @@ async function formAbsenden(form) {
       await api('POST','beleg',{betrag: parseEur(d.betrag), art: d.art||'sonstig', objekt: d.objekt||null, fahrzeug: d.fahrzeug||null, zahlungsweg: d.zahlungsweg||'eigen'});
       toast('Чек отправлен на проверку');
     } else if (form.id==='plan-form') {
-      await api('POST','plan',{betrag: parseEur(d.betrag), zweck: d.zweck||'', objekt: d.objekt||null});
+      await api('POST','plan/einfach',{betrag: parseEur(d.betrag), zweck: d.zweck||'', person_name: d.empfaenger||''});
       toast('Заявка на аванс подана');
     } else if (form.id==='ausgabe-form') {
       const r = S.ausgewaehlt;
@@ -747,6 +766,9 @@ document.getElementById('app').addEventListener('click', async e => {
       S.ausgewaehlt = (S.lage?.belege_queue||[]).find(b=>String(b.id)===ref) || (S.lage?.meine_belege||[]).find(b=>String(b.id)===ref);
     } else if (typ==='rueckfrage') {
       S.ausgewaehlt = (S.lage?.rueckfragen||[]).find(r=>String(r.id)===ref);
+    } else if (typ==='ea') {
+      S.ausgewaehlt = (S.lage?.eingaenge||[]).find(e=>String(e.id)===ref);
+      if (S.ausgewaehlt) S.ausgewaehlt = { ...S.ausgewaehlt, _typ: 'ea' };
     }
     S.modal = null;
     renderApp();
@@ -771,6 +793,22 @@ document.getElementById('app').addEventListener('click', async e => {
   if (act==='planBewilligen') {
     const r = S.ausgewaehlt;
     if (r) { await api('POST',`plan/${r.ref}/entscheiden`,{aktion:'bewilligen'}); await lageLaden(); toast('Заявка одобрена'); renderApp(); }
+    return;
+  }
+  if (act==='eingangBewilligen') {
+    const r = S.ausgewaehlt;
+    if (r) {
+      try { await api('POST',`eingang/${r.id}/bewilligen`,{}); await lageLaden(); toast('Запрос одобрен'); S.ausgewaehlt = null; renderApp(); }
+      catch(e) { toast(e.message,'err'); }
+    }
+    return;
+  }
+  if (act==='eingangAblehnen') {
+    const r = S.ausgewaehlt;
+    if (r) {
+      try { await api('POST',`eingang/${r.id}/ablehnen`,{}); await lageLaden(); toast('Запрос отклонён'); S.ausgewaehlt = null; renderApp(); }
+      catch(e) { toast(e.message,'err'); }
+    }
     return;
   }
   if (act==='fotoOeffnen') {

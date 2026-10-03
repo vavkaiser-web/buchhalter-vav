@@ -60,3 +60,20 @@
 - [x] Пользователь andrei (gf/владелец) добавлен, вход и рабочий стол работают
 - [ ] SW кэширует страницы в HTTPS-окружении (следующий этап)
 - [ ] Мониторинг ошибок настроен (следующий этап)
+
+## Gate 4: Кассовые операции — ЗАКРЫТ ✅ (2026-10-03)
+
+### Проверено
+- [x] "+ Аванс" в Очередь → форма "Заявка на аванс" (Получатель + Сумма + Назначение)
+- [x] Отправка формы → `POST /api/k/plan/einfach` → план сохранён в `buch_geldplan` (Черновик)
+- [x] Очередь показывает счётчик (+1) и план в списке "Входящие"
+- [x] Уведомление "Заявка на аванс подана" после сохранения
+- [x] SW v2 (kasse-vav-v2) — обновление кэша без ручного сброса
+- [x] `eingaenge` (kasse_extern_anfrage) возвращаются в `/api/k/lage` для буро-ролей
+- [x] `eingang/:id/bewilligen` и `eingang/:id/ablehnen` — маршруты GF-одобрения EA-запросов
+
+### Компоненты
+- `kasse/dienst.js` — `planEinfach()`, `eingangBewilligen()`, `eingangAblehnen()`, `eingaenge` в `lage()`
+- `kasse/api.js` — маршруты `plan/einfach`, `eingang/:id/bewilligen`, `eingang/:id/ablehnen`
+- `public/kasse/index.html` — "+ Аванс" кнопка, форма плана, блок "От VAV App", EA-детали
+- `public/kasse/sw.js` — версия кэша `kasse-vav-v2`

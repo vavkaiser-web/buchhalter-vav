@@ -1000,10 +1000,21 @@ async function lage(n, benutzerListe, jetzt) {
     const bankLinks = buero(n) ? (await q(`SELECT finmap_op, ziel_art, ziel_id, status, op_betrag_cent, ziel_betrag_cent
       FROM ${S}buch_bank_link WHERE geloest_am IS NULL`)).map(l => ({ op: l.finmap_op, ziel_art: l.ziel_art, ziel_id: l.ziel_id,
       status: l.status, op_betrag: Number(l.op_betrag_cent), ziel_betrag: Number(l.ziel_betrag_cent) })) : [];
+    // Входящие запросы от vavapp (только для бухгалтерии и GF).
+    let eingaenge = [];
+    if (buero(n)) {
+      const ea = await q(`SELECT id, kasse_ref, art, person_id, person_name, objekt_id, betrag_cent, zweck, erstellt_am, verarbeitet_am
+        FROM ${S}kasse_extern_anfrage ORDER BY id DESC LIMIT 100`);
+      eingaenge = ea.map(e => ({ id: Number(e.id), kasse_ref: e.kasse_ref, art: e.art,
+        person_id: e.person_id, person_name: e.person_name, objekt_id: e.objekt_id,
+        betrag: Number(e.betrag_cent), zweck: e.zweck,
+        erstellt_am: e.erstellt_am, verarbeitet_am: e.verarbeitet_am }));
+    }
+
     return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
       konten: kontenMit, bewegungen, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
-      personen, objekte, fahrzeuge,
+      personen, objekte, fahrzeuge, eingaenge,
       offen: { benachrichtigungen: 'Каналы уведомлений не согласованы — сообщения никому не отправляются' } };
   });
 }
@@ -1040,10 +1051,53 @@ async function verlauf(n, ziel) {
   return lesen(q => q(`SELECT wann, wer, rolle, art, daten FROM ${S}buch_ereignis WHERE ziel = $1 ORDER BY id`, [ziel]));
 }
 
+/* ---------- Упрощённое создание аванса (одна строка, без zeilen) ---------- */
+async function planEinfach(n, b) {
+  darf(buero(n) || istDisp(n), 'Аванс создаёт бухгалтерия, Олег или Андрей');
+  const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
+  const zweck = String(b.zweck || '').trim(); pruefe(zweck.length >= 2, 'Укажите назначение аванса');
+  const empfaenger_ref = String(b.person_ref || '').trim() || null;
+  const empfaenger_name = String(b.person_name || b.empfaenger || '').trim() || n.name || n.login;
+  return planAnlegen(n, {
+    titel: zweck.slice(0, 160),
+    idem: b.idem || null,
+    zeilen: [{ betrag, zweck: 'vorschuss', empfaenger_ref, empfaenger_name }],
+  });
+}
+
+/* ---------- Одобрить / отклонить входящий запрос от vavapp ---------- */
+async function eingangBewilligen(n, id) {
+  darf(istGf(n), 'Одобряет Андрей');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
+    const integratsiya = require('./integratsiya.js');
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'BEWILLIGT', null);
+    await q(`UPDATE ${S}kasse_extern_anfrage SET verarbeitet_am = now() WHERE id = $1`, [ea.id]);
+    await log(q, n, 'eingang_bewilligt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref });
+    return { ok: true, kasse_ref: ea.kasse_ref };
+  });
+}
+
+async function eingangAblehnen(n, id, b) {
+  darf(istGf(n), 'Отклоняет Андрей');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
+    const integratsiya = require('./integratsiya.js');
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'ABGELEHNT', txt(b && b.grund, 300));
+    await q(`UPDATE ${S}kasse_extern_anfrage SET verarbeitet_am = now() WHERE id = $1`, [ea.id]);
+    await log(q, n, 'eingang_abgelehnt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b && b.grund, 300) });
+    return { ok: true, kasse_ref: ea.kasse_ref };
+  });
+}
+
 module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
   abhebung, uebergabe, rueckgabe, bestaetigen,
-  planAnlegen, planEinreichen, planEntscheiden,
+  planAnlegen, planEinfach, planEinreichen, planEntscheiden,
   quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno,
   dateiRegistrieren, dateiDarf,
   belegAnlegen, belegPruefen,
@@ -1051,4 +1105,5 @@ module.exports = {
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
   bankLink, ibanGueltig, Fehler,
+  eingangBewilligen, eingangAblehnen,
 };
