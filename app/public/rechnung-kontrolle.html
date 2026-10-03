@@ -78,6 +78,7 @@ details summary{cursor:pointer;font-size:13px;color:var(--muted);padding:4px 0}
       </div>
       <div class="aktion">
         <button class="btn pri" id="btn-pruefen">Запустить проверку</button>
+        <button class="btn" id="btn-geaendert" title="Файл счёта заменён — сбросить исключения с устаревшим хэшем">Файл заменён</button>
       </div>
     </div>
     <div id="ergebnis-wrap"></div>
@@ -219,6 +220,22 @@ document.getElementById('btn-pruefen').onclick = async function() {
     document.getElementById('ergebnis-wrap').innerHTML = renderPruefErgebnis(r, belegId);
     if (r.ergebnis === 'ok' || r.ergebnis === 'hinweis') msg('Проверка завершена: ' + r.ergebnis, true);
     else msg('Проверка: ' + r.ergebnis);
+  } catch (e) { msg(e.message); }
+  finally { this.disabled = false; }
+};
+
+document.getElementById('btn-geaendert').onclick = async function() {
+  const belegId = Number(document.getElementById('f_beleg').value);
+  if (!belegId) { msg('Укажите ID счёта'); return; }
+  this.disabled = true;
+  try {
+    const r = await api('/api/rechnung/beleg-geaendert', 'POST', { beleg_id: belegId });
+    if (!r) return;
+    if (r.ausnahmen_deaktiviert > 0) {
+      msg(`Файл изменён: ${r.ausnahmen_deaktiviert} исключение(й) сброшено — запустите проверку заново`);
+    } else {
+      msg('Активных исключений с другим хэшем нет — ничего не изменилось', true);
+    }
   } catch (e) { msg(e.message); }
   finally { this.disabled = false; }
 };

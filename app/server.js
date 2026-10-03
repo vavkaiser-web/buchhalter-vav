@@ -1002,6 +1002,12 @@ http.createServer(async (req, res) => {
       try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.nachZahlungPruefen(Number(b.beleg_id))); }
       catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
     }
+    if (p === '/api/rechnung/beleg-geaendert' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.belegGeaendertPruefen(Number(b.beleg_id))); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
 
     // --- Гейт утверждения заказов (bestellung_gate) ---
     if (p === '/api/bestellung/gate/beurteilen' && req.method === 'POST') {
