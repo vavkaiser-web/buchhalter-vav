@@ -103,7 +103,7 @@ function karte(p){
   const rest=p.rest>0;
   let h='<div class="card'+(rest?' rest':'')+'" id="p'+p.id+'"><div class="k1"><span class="tit">'+H(p.bezeichnung)+'<span class="badge">'+H(ARTD[p.art]||p.art)+'</span></span><span class="zahl">'+EURc(p.betrag_cent)+'</span></div>';
   h+='<div class="meta">'+(p.periode?'период '+H(p.periode)+' · ':'')+(p.datum?T(p.datum)+' · ':'')+(p.beleg_ref?H(p.beleg_ref)+' · ':'')+'распределено '+EURc(p.verteilt)+' · <b'+(rest?' style="color:var(--warn)"':'')+'>остаток '+EURc(p.rest)+'</b></div>';
-  h+='<div class="aktion" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" data-auf="'+p.id+'">Распределить / показать</button><button class="btn crit" data-pweg="'+p.id+'">Удалить</button></div>';
+  h+='<div class="aktion" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-auf="'+p.id+'">Распределить / показать</button><details style="display:inline-block"><summary style="cursor:pointer;font-size:12px;color:var(--muted);list-style:none;padding:6px 4px">⋯</summary><button class="btn crit" data-pweg="'+p.id+'" style="margin-top:4px">Удалить</button></details></div>';
   h+='<div id="d'+p.id+'"></div></div>';
   return h;
 }
