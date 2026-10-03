@@ -31,6 +31,7 @@ const dublette = require('./dublette.js');
 const bankabgleich = require('./bankabgleich.js');
 const debitor = require('./debitor.js');
 const dokument = require('./dokument.js');
+const rk = require('./rechnung_kontrolle.js');
 
 const PORT   = Number(process.env.PORT || 3026);
 const WURZEL = __dirname;
@@ -933,6 +934,56 @@ http.createServer(async (req, res) => {
         try { return jsonAntwort(res, 200, await dokument[km[p]](await koerper(req), n)); }
         catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
       }
+    }
+
+    // --- Контроль счёта vs заказ/договор ---
+    if (p === '/api/rechnung/pruefung' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.pruefung(Number(b.beleg_id), b.bestellung_id != null ? Number(b.bestellung_id) : null, n.login)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/rechnung/pruefung' && req.method === 'GET') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { return jsonAntwort(res, 200, await rk.pruefungsliste({ beleg_id: u.searchParams.get('beleg_id'), bestellung_id: u.searchParams.get('bestellung_id'), ergebnis: u.searchParams.get('ergebnis') })); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/rechnung/pruefung/eins' && req.method === 'GET') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { return jsonAntwort(res, 200, await rk.pruefungEins(Number(u.searchParams.get('id')))); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/rechnung/ausnahme-beantragen' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.ausnahmeBeantragen(Number(b.prueflauf_id), { grund: b.grund, notiz: b.notiz }, n.login)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/rechnung/ausnahme-andrej' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (n.rolle !== 'disponent') return jsonAntwort(res, 403, { fehler: 'передаёт Олег (disponent)' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.anfragAnAndrej(Number(b.anfrage_id), n.login)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/rechnung/ausnahme-genehmigen' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (n.rolle !== 'gf') return jsonAntwort(res, 403, { fehler: 'исключение утверждает Андрей (gf)' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.ausnahmeGenehmigen(Number(b.prueflauf_id), { basis: b.basis, grund: b.grund }, n)); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/rechnung/faellig' && req.method === 'GET') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { return jsonAntwort(res, 200, await rk.faelligkeitsUebersicht()); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
+    }
+    if (p === '/api/rechnung/nach-zahlung' && req.method === 'POST') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
+      try { const b = await koerper(req); return jsonAntwort(res, 200, await rk.nachZahlungPruefen(Number(b.beleg_id))); }
+      catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
     }
 
     // --- Поступления от заказчиков и контроль дебиторки ---
