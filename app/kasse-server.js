@@ -116,6 +116,61 @@ function zugangNotiz(ip, eingabe, ergebnis) {
   fs.appendFile(ZUGANG, z, e => e && console.error('журнал входа:', e.message));
 }
 
+/* ---------- страница invite ---------- */
+function inviteHtml(fehler, token, name) {
+  const titel = fehler ? 'Ссылка недействительна' : `Добро пожаловать, ${name || ''}`;
+  const form = fehler ? `<p class="err">${fehler}</p>` : `
+    <p>Придумайте ПИН для входа в Кассу VAV.</p>
+    <form id="f">
+      <label>ПИН<input type="password" name="pin" inputmode="numeric" pattern="\\d{4,8}" minlength="4" maxlength="8" autofocus required placeholder="минимум 4 цифры"></label>
+      <label>Повторите ПИН<input type="password" name="pin2" inputmode="numeric" pattern="\\d{4,8}" minlength="4" maxlength="8" required placeholder="ещё раз"></label>
+      <button type="submit">Установить ПИН и войти</button>
+      <p id="err" style="color:#c00;display:none"></p>
+    </form>
+    <script>
+    document.getElementById('f').onsubmit = async e => {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(e.target));
+      const btn = e.target.querySelector('button');
+      const errEl = document.getElementById('err');
+      errEl.style.display='none';
+      if (d.pin !== d.pin2) { errEl.textContent='ПИН не совпадает'; errEl.style.display='block'; return; }
+      btn.disabled = true; btn.textContent = 'Сохраняем…';
+      try {
+        const r = await fetch('/api/invite/${token}/aktivieren', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+        const j = await r.json();
+        if (!r.ok) { errEl.textContent=j.fehler||'Ошибка'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Установить ПИН и войти'; return; }
+        window.location.href='/kasse/';
+      } catch(err) { errEl.textContent='Нет соединения'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Установить ПИН и войти'; }
+    };
+    </script>`;
+  return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Касса VAV — Приглашение</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;background:#f0f2f5;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .card{background:#fff;border-radius:12px;padding:32px;width:100%;max-width:360px;box-shadow:0 2px 12px #0002}
+    .logo{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+    .logo-icon{width:36px;height:36px;background:#2c4a6b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px}
+    h1{font-size:1.1rem;font-weight:600;color:#1a2e44;margin-bottom:16px}
+    p{color:#555;font-size:.95rem;margin-bottom:16px}
+    label{display:block;margin-bottom:14px;font-size:.9rem;color:#333;font-weight:500}
+    input{display:block;width:100%;margin-top:6px;padding:10px 12px;border:1px solid #ccc;border-radius:8px;font-size:1rem;outline:none}
+    input:focus{border-color:#2c4a6b}
+    button{width:100%;padding:12px;background:#2c4a6b;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;margin-top:8px}
+    button:disabled{opacity:.6}
+    .err{color:#c00;font-size:.9rem;margin-top:8px}
+  </style>
+</head><body>
+  <div class="card">
+    <div class="logo"><div class="logo-icon">₽</div><strong>КАССА VAV</strong></div>
+    <h1>${titel}</h1>
+    ${form}
+  </div>
+</body></html>`;
+}
+
 /* ---------- роли, допущенные в Кассу VAV ---------- */
 const ROLLEN_KASSE = ['gf', 'buchhaltung', 'disponent', 'mitarbeiter'];
 
@@ -196,6 +251,50 @@ http.createServer(async (req, res) => {
     if (p === '/api/logout') {
       res.writeHead(302, { Location: '/kasse/login', 'Set-Cookie': 'kassesess=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax' });
       return res.end();
+    }
+
+    // Invite: установка PIN по одноразовой ссылке.
+    if (p.startsWith('/kasse/invite/') && req.method === 'GET') {
+      const token = p.slice('/kasse/invite/'.length).split('/')[0];
+      const liste = nutzerLesen();
+      const n = liste.find(x => x.invite_token === token);
+      if (!token || !n || (n.invite_bis && n.invite_bis < Date.now())) {
+        const html = inviteHtml('Ссылка недействительна или истекла.', null, null);
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(html);
+      }
+      const html = inviteHtml(null, token, n.name || n.kurzname || n.login);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(html);
+    }
+
+    if (p.startsWith('/api/invite/') && p.endsWith('/aktivieren') && req.method === 'POST') {
+      const token = p.slice('/api/invite/'.length).replace('/aktivieren', '');
+      const { pin, pin2 } = await koerper(req);
+      if (!pin || String(pin) !== String(pin2))
+        return jsonAntwort(res, 400, { fehler: 'ПИН не совпадает' });
+      if (String(pin).length < 4)
+        return jsonAntwort(res, 400, { fehler: 'ПИН должен быть не менее 4 цифр' });
+      if (!/^\d+$/.test(String(pin)))
+        return jsonAntwort(res, 400, { fehler: 'ПИН должен состоять только из цифр' });
+      const liste = nutzerLesen();
+      const idx = liste.findIndex(x => x.invite_token === token);
+      if (idx === -1 || (liste[idx].invite_bis && liste[idx].invite_bis < Date.now()))
+        return jsonAntwort(res, 410, { fehler: 'Ссылка недействительна или истекла' });
+      const n = liste[idx];
+      const salz = crypto.randomBytes(16).toString('hex');
+      const hash = crypto.scryptSync(String(pin), Buffer.from(salz, 'hex'), 32).toString('hex');
+      delete liste[idx].invite_token;
+      delete liste[idx].invite_bis;
+      liste[idx].salz = salz;
+      liste[idx].hash = hash;
+      fs.writeFileSync(NUTZER, JSON.stringify(liste, null, 2));
+      zugangNotiz(ip, n.login, 'пин установлен через invite');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Set-Cookie': `kassesess=${tokenBauen(n.login)}; Path=/; HttpOnly; SameSite=Lax${lokal() ? '' : '; Secure'}; Max-Age=${TAGE * 86400}`,
+      });
+      return res.end(JSON.stringify({ ok: true }));
     }
 
     // PWA Касса VAV: корень → редирект.
