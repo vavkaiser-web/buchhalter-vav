@@ -83,19 +83,38 @@ async function laden(){
     ladenEinst();
   }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
 }
+function inPanel(id,label,placeholder,action,extra){
+  return '<div id="p_'+id+'" style="display:none;margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:9px;border:1px solid var(--line)">'
+    +'<label style="font-size:12.5px;color:var(--muted);display:block;margin-bottom:4px">'+label+'</label>'
+    +(extra||'')
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    +'<input id="v_'+id+'" style="flex:1;min-width:120px;max-width:220px" placeholder="'+placeholder+'">'
+    +'<button class="btn pri" '+action+'>Сохранить</button>'
+    +'<button class="btn" onclick="hideP(\''+id+'\')">Отмена</button></div></div>';
+}
+function hideP(id){ const el=document.getElementById('p_'+id); if(el)el.style.display='none'; }
+function showP(id){ document.querySelectorAll('[id^="p_"]').forEach(el=>el.style.display='none'); const el=document.getElementById('p_'+id); if(el)el.style.display='block'; const inp=document.getElementById('v_'+id); if(inp)inp.focus(); }
+window.hideP=hideP; window.showP=showP;
+
 function karte(x){
-  return '<div class="karte '+H(x.status)+'"><div class="k1"><div><strong>'+H(x.kategorie_text)+' · '+H(x.bezeichnung)+'</strong> '
+  const klarId='klar_'+x.id, aktId='akt_'+x.id, tilgId='tilg_'+x.id;
+  return '<div class="karte '+H(x.status)+'" id="karte_'+x.id+'">'
+    +'<div class="k1"><div><strong>'+H(x.kategorie_text)+' · '+H(x.bezeichnung)+'</strong> '
     +'<span class="chip '+(x.status==='bestaetigt'?'ok':x.status==='auf_klaerung'?'crit':'warn')+'">'+H(x.status_text)+'</span></div>'
     +'<span class="sum">'+(x.bekannt?EUR(x.betrag_cent):'<span class="chip warn">не получено</span>')+'</span></div>'
     +'<div class="meta">'+(x.quelle?'источник '+H(x.quelle):'')+(x.beleg_ref?'<span>· '+H(x.beleg_ref)+'</span>':'')+'<span>· v'+x.version+'</span>'
     +(x.geprueft_von?'<span>· проверил '+H(x.geprueft_von)+'</span>':'')
     +(x.offen_rest_cent!=null?'<span>· осталось '+EUR(x.offen_rest_cent)+(x.getilgt_cent?' (погашено '+EUR(x.getilgt_cent)+')':'')+'</span>':'')+'</div>'
     +(KANN?'<div class="aktion">'
-      +(x.status!=='bestaetigt'?'<button class="btn pri" data-best="'+x.id+'">Подтвердить</button>':'')
-      +(x.status!=='auf_klaerung'?'<button class="btn crit" data-klar="'+x.id+'">На уточнение</button>':'')
-      +'<button class="btn" data-akt="'+x.id+'">Уточнить сумму</button>'
-      +(x.offen_rest_cent!=null&&x.offen_rest_cent>0?'<button class="btn" data-tilg="'+x.id+'">Погашение</button>':'')
-      +'</div>':'')
+      +(x.status!=='bestaetigt'?'<button class="btn pri" data-best="'+x.id+'">Подтвердить</button>':'<span class="chip ok">подтверждено</span>')
+      +(x.status!=='auf_klaerung'?'<button class="btn" onclick="showP(\''+klarId+'\')" style="color:var(--crit)">На уточнение</button>':'')
+      +'<button class="btn" onclick="showP(\''+aktId+'\')">Изменить сумму</button>'
+      +(x.offen_rest_cent!=null&&x.offen_rest_cent>0?'<button class="btn" onclick="showP(\''+tilgId+'\')">Погашение</button>':'')
+      +'</div>'
+      +inPanel(klarId,'Причина расхождения / уточнения:','объясните расхождение','data-klar="'+x.id+'"')
+      +inPanel(aktId,'Уточнённая сумма €:','напр. 12500,00','data-akt="'+x.id+'"')
+      +(x.offen_rest_cent!=null&&x.offen_rest_cent>0?inPanel(tilgId,'Сумма погашения €:','напр. 5000,00','data-tilg="'+x.id+'"'):'')
+      :'')
     +'</div>';
 }
 async function ladenEinst(){
@@ -132,9 +151,9 @@ document.getElementById('app').addEventListener('click',async e=>{
   let b;
   try{
     if((b=e.target.closest('[data-best]'))){ b.disabled=true; await P('/api/anfang/bestaetigen',{id:Number(b.dataset.best)}); msg('Подтверждено',true); laden(); return; }
-    if((b=e.target.closest('[data-klar]'))){ const g=prompt('Причина расхождения / уточнения:'); if(g==null)return; await P('/api/anfang/klaerung',{id:Number(b.dataset.klar),grund:g}); msg('Отмечено на уточнении',true); laden(); return; }
-    if((b=e.target.closest('[data-akt]'))){ const v=prompt('Новая сумма €:'); if(v==null)return; const c=centAus(v); if(Number.isNaN(c))return msg('сумма не число'); const r=await P('/api/anfang/aktualisieren',{id:Number(b.dataset.akt),betrag_cent:c===''?null:c,grund:'уточнение'}); msg('Обновлено'+(r.delta_cent!=null?' (Δ '+EUR(r.delta_cent)+')':''),true); laden(); return; }
-    if((b=e.target.closest('[data-tilg]'))){ const v=prompt('Сумма погашения €:'); if(v==null)return; const c=centAus(v); if(!c||c<=0)return msg('нужна сумма'); await P('/api/anfang/tilgung',{bestand_id:Number(b.dataset.tilg),betrag_cent:c,quelle_ref:'оплата 2026'}); msg('Погашение записано — остаток уменьшен',true); laden(); return; }
+    if((b=e.target.closest('[data-klar]'))){ const v=(document.getElementById('v_klar_'+b.dataset.klar)||{}).value||''; if(!v.trim())return msg('нужна причина уточнения'); await P('/api/anfang/klaerung',{id:Number(b.dataset.klar),grund:v.trim()}); msg('Отмечено на уточнении',true); laden(); return; }
+    if((b=e.target.closest('[data-akt]'))){ const v=(document.getElementById('v_akt_'+b.dataset.akt)||{}).value||''; const c=centAus(v); if(Number.isNaN(c))return msg('сумма не число'); const r=await P('/api/anfang/aktualisieren',{id:Number(b.dataset.akt),betrag_cent:c===''?null:c,grund:'уточнение'}); msg('Обновлено'+(r.delta_cent!=null?' (Δ '+EUR(r.delta_cent)+')':''),true); laden(); return; }
+    if((b=e.target.closest('[data-tilg]'))){ const v=(document.getElementById('v_tilg_'+b.dataset.tilg)||{}).value||''; const c=centAus(v); if(!c||c<=0)return msg('нужна сумма'); await P('/api/anfang/tilgung',{bestand_id:Number(b.dataset.tilg),betrag_cent:c,quelle_ref:'оплата 2026'}); msg('Погашение записано — остаток уменьшен',true); laden(); return; }
   }catch(err){ msg(err.message); if(b)b.disabled=false; }
 });
 document.getElementById('einst').addEventListener('click',async e=>{

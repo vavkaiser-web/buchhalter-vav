@@ -50,7 +50,7 @@ async function vorschlag(cl, bew) {
   const zweck = String(bew.verwendungszweck || '').toLowerCase();
   const rows = (await cl.query(
     "SELECT id, nummer, betrag_cent, empfaenger, kunde, kunde_key, faellig FROM ausgang_rechnung WHERE coalesce(kunde_key, '')=$1 OR lower(coalesce(kunde,empfaenger,''))=lower($2)",
-    [bew.gegenpartei_key || '\u0000', bew.gegenpartei || '\u0000'])).rows;
+    [bew.gegenpartei_key || '__NONE__', bew.gegenpartei || '__NONE__'])).rows;
   const out = [];
   for (const r of rows) {
     const st = await ausgangStand(cl, r.id); if (!st || st.rest <= 0) continue;
@@ -239,7 +239,7 @@ async function mahnWarnung(d) {
     const kkey = a.kunde_key || razn.schluessel(kundeVon(a));
     const st = await ausgangStand(cl, aid);
     const verwandte = (await cl.query(
-      "SELECT id, datum, betrag_cent, verwendungszweck, status FROM bank_bewegung WHERE richtung='eingang' AND NOT storniert AND status IN ('nicht_zugeordnet','teilweise') AND gegenpartei_key=$1 ORDER BY datum DESC", [kkey || '\u0000'])).rows
+      "SELECT id, datum, betrag_cent, verwendungszweck, status FROM bank_bewegung WHERE richtung='eingang' AND NOT storniert AND status IN ('nicht_zugeordnet','teilweise') AND gegenpartei_key=$1 ORDER BY datum DESC", [kkey || '__NONE__'])).rows
       .map(b => ({ id: b.id, datum: tag(b.datum), betrag_cent: Number(b.betrag_cent), verwendungszweck: b.verwendungszweck, status: b.status }));
     return { ok: true, ausgang: { id: aid, nummer: a.nummer, kunde: kundeVon(a), rest_cent: st ? st.rest : null, faellig: tag(a.faellig) },
       verwandte, warnung: verwandte.length ? 'есть непроверенные поступления этого клиента — сверьте перед напоминанием; долг без подтверждения не закрывать' : null };

@@ -48,7 +48,7 @@ async function belegStand(cl, belegId) {
 async function vorschlag(cl, bew) {
   const zweck = String(bew.verwendungszweck || '').toLowerCase();
   const rows = (await cl.query(
-    "SELECT id, lieferant, lieferant_key, rechnung_nr, betrag_cent, waehrung_ok FROM (SELECT b.*, true waehrung_ok FROM beleg b) x WHERE lieferant_key=$1 AND status<>'storniert'", [bew.gegenpartei_key || '\u0000'])).rows;
+    "SELECT id, lieferant, lieferant_key, rechnung_nr, betrag_cent, waehrung_ok FROM (SELECT b.*, true waehrung_ok FROM beleg b) x WHERE lieferant_key=$1 AND status<>'storniert'", [bew.gegenpartei_key || '__NONE__'])).rows;
   const out = [];
   for (const r of rows) {
     const st = await belegStand(cl, r.id); if (!st || st.rest <= 0) continue;

@@ -107,31 +107,66 @@ function zahlung(z){
   const st=ST[z.status]||[z.status,'chip'];
   const kl=z.status==='rueckbuchung_pruefen'?'rueck':(z.status==='zugeordnet'?'ok':'offen');
   let h='<div class="karte '+kl+'"><div class="k1"><h2>#'+z.id+' '+H(z.gegenpartei||'контрагент?')+' · '+EUR(z.betrag_cent)+(z.art==='lastschrift'?' · автосписание':'')+'</h2><span class="chip '+st[1]+'">'+st[0]+'</span></div>';
-  h+='<div class="meta"><span>дата: '+H(z.datum||'—')+'</span><span>назначение: '+H(z.verwendungszweck||'—')+'</span><span>распределено: '+EUR(z.verteilt)+' · остаток платежа: '+EUR(z.rest_zahlung)+'</span>'+(z.pruef_frist?'<span>срок: '+H(z.pruef_frist)+(z.ueberfaellig?' ⚠':'')+'</span>':'')+'</div>';
+  h+='<div class="meta"><span>дата: '+H(z.datum||'—')+'</span><span>назначение: '+H(z.verwendungszweck||'—')+'</span><span>распределено: '+EUR(z.verteilt)+' · остаток: '+EUR(z.rest_zahlung)+'</span>'+(z.pruef_frist?'<span>срок: '+H(z.pruef_frist)+(z.ueberfaellig?' ⚠':'')+'</span>':'')+'</div>';
+
   if(z.status==='nicht_zugeordnet'&&!z.vorschlag.length) h+='<div class="box warn">Основание не найдено — «Нераспределённый платёж». Задача бухгалтеру создана; расход не создаётся.</div>';
-  if(z.differenz) h+='<div class="box crit">Расхождение суммы: ожидалось '+EUR(z.differenz.erwartet_cent)+', пришло '+EUR(z.differenz.tatsaechlich_cent)+' (разница '+EUR(z.differenz.diff_cent)+'). Возможно: '+z.differenz.erklaerungen.join(', ')+'. До проверки счёт не закрываем. <button class="btn" data-diff="'+z.id+'">Зафиксировать объяснение</button></div>';
-  if(z.zuordnungen.length){ h+='<div class="box"><b>Распределено:</b>'+z.zuordnungen.map(u=>'<div>→ счёт #'+u.beleg_id+' '+H(u.lieferant||'')+' '+H(u.rechnung_nr||'')+': '+EUR(u.betrag_cent)+(u.skonto_cent?' + скидка '+EUR(u.skonto_cent):'')+' <button class="btn" data-storno="'+u.id+'">снять</button></div>').join('')+'</div>'; }
-  if(z.rest_zahlung>0 && z.vorschlag.length){ h+='<div class="box"><b>Предложения (подтвердите распределение):</b>'
-    +z.vorschlag.map(v=>'<div style="margin-top:4px">счёт #'+v.beleg_id+' '+H(v.lieferant||'')+' '+H(v.rechnung_nr||'')+' · остаток '+EUR(v.rest_cent)+' <span class="chip '+(v.staerke==='stark'?'ok':'warn')+'">'+v.gruende.join(', ')+'</span><br>'
-      +'сумма <input id="al'+z.id+'_'+v.beleg_id+'" style="width:90px" placeholder="'+((Math.min(v.rest_cent,z.rest_zahlung))/100).toFixed(2)+'"> скидка <input id="sk'+z.id+'_'+v.beleg_id+'" style="width:70px" placeholder="0"> основание <input id="gr'+z.id+'_'+v.beleg_id+'" style="width:150px" placeholder="для Skonto"> '
-      +'<button class="btn pri" data-zu="'+z.id+'" data-beleg="'+v.beleg_id+'">Распределить</button></div>').join('')+'</div>'; }
+  if(z.differenz) h+='<div class="box crit">Расхождение суммы: ожидалось '+EUR(z.differenz.erwartet_cent)+', пришло '+EUR(z.differenz.tatsaechlich_cent)+' (разница '+EUR(z.differenz.diff_cent)+'). Возможно: '+z.differenz.erklaerungen.join(', ')+'. <button class="btn" data-diff="'+z.id+'">Зафиксировать объяснение</button></div>';
+  if(z.zuordnungen.length){ h+='<div class="box"><b>Распределено:</b>'+z.zuordnungen.map(u=>'<div>→ счёт #'+u.beleg_id+' '+H(u.lieferant||'')+' '+H(u.rechnung_nr||'')+': '+EUR(u.betrag_cent)+(u.skonto_cent?' + скидка '+EUR(u.skonto_cent):'')+' <button class="btn" style="font-size:12px;padding:3px 8px" data-storno="'+u.id+'">снять</button></div>').join('')+'</div>'; }
+
+  if(z.rest_zahlung>0 && z.vorschlag.length){
+    // Авто-распределение: одно чёткое предложение точно на остаток → одна кнопка, без полей
+    const stark1=z.vorschlag.length===1&&z.vorschlag[0].staerke==='stark'&&z.vorschlag[0].rest_cent<=z.rest_zahlung;
+    if(stark1){
+      const v=z.vorschlag[0]; const sum=Math.min(v.rest_cent,z.rest_zahlung);
+      h+='<div class="box"><span class="chip ok">автоматически подобрано</span> счёт #'+v.beleg_id+' '+H(v.lieferant||'')+' '+H(v.rechnung_nr||'')+' · '+EUR(sum)
+        +' <button class="btn pri" style="margin-left:8px" data-zu="'+z.id+'" data-beleg="'+v.beleg_id+'" data-autosum="'+sum+'">Принять</button>'
+        +' <button class="btn" style="font-size:12px;padding:3px 8px" data-expand="'+z.id+'_'+v.beleg_id+'">изменить сумму ▾</button>'
+        +'<div id="exp'+z.id+'_'+v.beleg_id+'" style="display:none;margin-top:6px">'
+        +'сумма <input id="al'+z.id+'_'+v.beleg_id+'" style="width:90px" placeholder="'+(sum/100).toFixed(2)+'">'
+        +' скидка <input id="sk'+z.id+'_'+v.beleg_id+'" style="width:70px" placeholder="0">'
+        +' основание <input id="gr'+z.id+'_'+v.beleg_id+'" style="width:150px" placeholder="для Skonto">'
+        +' <button class="btn pri" data-zu="'+z.id+'" data-beleg="'+v.beleg_id+'">Распределить</button></div></div>';
+    } else {
+      h+='<div class="box"><b>Предложения:</b>'
+        +z.vorschlag.map(v=>'<div style="margin-top:6px">счёт #'+v.beleg_id+' '+H(v.lieferant||'')+' '+H(v.rechnung_nr||'')+' · остаток '+EUR(v.rest_cent)+' <span class="chip '+(v.staerke==='stark'?'ok':'warn')+'">'+v.gruende.join(', ')+'</span><br>'
+          +'сумма <input id="al'+z.id+'_'+v.beleg_id+'" style="width:90px" placeholder="'+((Math.min(v.rest_cent,z.rest_zahlung))/100).toFixed(2)+'">'
+          +' скидка <input id="sk'+z.id+'_'+v.beleg_id+'" style="width:70px" placeholder="0">'
+          +' основание <input id="gr'+z.id+'_'+v.beleg_id+'" style="width:150px" placeholder="для Skonto">'
+          +' <button class="btn pri" data-zu="'+z.id+'" data-beleg="'+v.beleg_id+'">Распределить</button></div>').join('')+'</div>';
+    }
+  }
+
   h+='<div class="aktion">';
-  if(z.rest_zahlung>0 && z.status!=='ueberzahlt') h+='<button class="btn" data-ueber="'+z.id+'" data-ent="rueckzahlung">Переплата: возврат</button><button class="btn" data-ueber="'+z.id+'" data-ent="verrechnung">Переплата: зачёт</button>';
-  if(z.status!=='rueckbuchung_pruefen'&&z.status!=='zurueckgebucht') h+='<button class="btn crit" data-rueck="'+z.id+'">Возврат/отмена</button>';
   if(z.status==='rueckbuchung_pruefen') h+='<button class="btn crit" data-rueckok="'+z.id+'">Подтвердить возврат</button>';
+  if(z.rest_zahlung>0 && z.status!=='ueberzahlt'){
+    h+='<select id="ue_'+z.id+'" style="font-size:12.5px"><option value="rueckzahlung">возврат клиенту</option><option value="verrechnung">зачёт в счёт будущего</option></select>'
+      +'<button class="btn" data-ueber="'+z.id+'">Переплата</button>';
+  }
+  if(z.status!=='rueckbuchung_pruefen'&&z.status!=='zurueckgebucht'){
+    h+='<details style="display:inline-block;font-size:13px"><summary style="cursor:pointer;color:var(--muted);list-style:none">⋯</summary>'
+      +'<button class="btn crit" data-rueck="'+z.id+'" style="margin-top:6px">Возврат / отмена</button></details>';
+  }
   h+='</div></div>';
   return h;
 }
 document.addEventListener('click',async e=>{
   const t=e.target.closest('button'); if(!t)return; const D=t.dataset;
+  // Раскрыть/скрыть поля ручного ввода для авто-предложения
+  if(D.expand){ const el=document.getElementById('exp'+D.expand); if(el)el.style.display=el.style.display==='none'?'block':'none'; return; }
   try{
-    if(D.zu){ const bel=D.beleg; const teile=[{beleg_id:+bel,betrag:g('al'+D.zu+'_'+bel)||'0',skonto:g('sk'+D.zu+'_'+bel)||'0',grund:g('gr'+D.zu+'_'+bel)}];
-      const skonto=(g('sk'+D.zu+'_'+bel)||'0'); const fn = (parseFloat(skonto.replace(',','.'))>0)?'/api/bank/skonto':'/api/bank/zuordnen';
-      if(fn==='/api/bank/skonto'){ await post('/api/bank/skonto',{bewegung_id:+D.zu,beleg_id:+bel,betrag:g('al'+D.zu+'_'+bel)||'0',skonto,grund:g('gr'+D.zu+'_'+bel)}); }
-      else { await post('/api/bank/zuordnen',{bewegung_id:+D.zu,teile}); }
+    if(D.zu){ const bel=D.beleg;
+      // Если autosum и поля ввода скрыты/пусты — использовать autosum
+      const manSumField=document.getElementById('al'+D.zu+'_'+bel);
+      const manSum=manSumField?manSumField.value.trim():'';
+      const betrag=manSum||D.autosum||'0';
+      const skonto=g('sk'+D.zu+'_'+bel)||'0';
+      const fn=(parseFloat(skonto.replace(',','.'))>0)?'/api/bank/skonto':'/api/bank/zuordnen';
+      if(fn==='/api/bank/skonto'){ await post('/api/bank/skonto',{bewegung_id:+D.zu,beleg_id:+bel,betrag,skonto,grund:g('gr'+D.zu+'_'+bel)}); }
+      else { await post('/api/bank/zuordnen',{bewegung_id:+D.zu,teile:[{beleg_id:+bel,betrag,skonto,grund:g('gr'+D.zu+'_'+bel)}]}); }
       msg('распределено',true); }
     else if(D.storno){ await post('/api/bank/storno',{id:+D.storno}); msg('распределение снято',true); }
-    else if(D.ueber){ await post('/api/bank/ueberzahlung',{bewegung_id:+D.ueber,entscheidung:D.ent,grund:'решение бухгалтера'}); msg('переплата отмечена за поставщиком',true); }
+    else if(D.ueber){ const sel=document.getElementById('ue_'+D.ueber); const ent=sel?sel.value:'rueckzahlung';
+      await post('/api/bank/ueberzahlung',{bewegung_id:+D.ueber,entscheidung:ent,grund:'решение бухгалтера'}); msg('переплата отмечена',true); }
     else if(D.rueck){ await post('/api/bank/rueckbuchung',{bewegung_id:+D.rueck}); msg('возврат отправлен на проверку',true); }
     else if(D.rueckok){ const r=await post('/api/bank/rueckbuchung-bestaetigen',{bewegung_id:+D.rueckok}); msg('возврат подтверждён'+(r.risiko_ueberfaellig&&r.risiko_ueberfaellig.length?' — есть риск просрочки':''),true); }
     else if(D.diff){ await post('/api/bank/differenz',{bewegung_id:+D.diff,erklaerung:'проверяется бухгалтером'}); msg('объяснение зафиксировано',true); }

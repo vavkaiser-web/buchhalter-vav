@@ -103,25 +103,52 @@ function eingang(z){
   const st=ST[z.status]||[z.status,'chip'];
   let h='<div class="karte '+(z.status==='zugeordnet'?'ok':'offen')+'"><div class="k1"><h2>#'+z.id+' '+H(z.gegenpartei||'плательщик?')+' · '+EUR(z.betrag_cent)+'</h2><span class="chip '+st[1]+'">'+st[0]+'</span></div>';
   h+='<div class="meta"><span>дата: '+H(z.datum||'—')+'</span><span>назначение: '+H(z.verwendungszweck||'—')+'</span><span>распределено: '+EUR(z.verteilt)+' · остаток: '+EUR(z.rest_zahlung)+'</span>'+(z.pruef_frist?'<span>срок: '+H(z.pruef_frist)+(z.ueberfaellig?' ⚠':'')+'</span>':'')+'</div>';
+
   if(z.status==='nicht_zugeordnet'&&!z.vorschlag.length) h+='<div class="box warn">Основание не найдено — «Нераспределённое поступление». Задача создана; доход/счёт не создаётся.</div>';
-  if(z.zuordnungen.length) h+='<div class="box"><b>Распределено:</b>'+z.zuordnungen.map(u=>'<div>→ счёт '+H(u.nummer||('#'+u.ausgang_id))+' '+H(u.kunde||'')+': '+EUR(u.betrag_cent)+' <button class="btn" data-storno="'+u.id+'">снять</button></div>').join('')+'</div>';
+  if(z.zuordnungen.length) h+='<div class="box"><b>Распределено:</b>'+z.zuordnungen.map(u=>'<div>→ счёт '+H(u.nummer||('#'+u.ausgang_id))+' '+H(u.kunde||'')+': '+EUR(u.betrag_cent)+' <button class="btn" style="font-size:12px;padding:3px 8px" data-storno="'+u.id+'">снять</button></div>').join('')+'</div>';
   if(z.kredit&&z.kredit.length) h+='<div class="box">Нераспределённое за клиентом: '+z.kredit.map(k=>EUR(k.betrag_cent)+' ('+H(k.art)+')').join(', ')+'</div>';
-  if(z.rest_zahlung>0 && z.vorschlag.length){ h+='<div class="box"><b>Предложения (подтвердите распределение):</b>'
-    +z.vorschlag.map(v=>'<div style="margin-top:4px">счёт '+H(v.nummer||('#'+v.ausgang_id))+' '+H(v.kunde||'')+' · остаток '+EUR(v.rest_cent)+' <span class="chip '+(v.staerke==='stark'?'ok':'warn')+'">'+v.gruende.join(', ')+'</span><br>'
-      +'сумма <input id="al'+z.id+'_'+v.ausgang_id+'" style="width:90px" placeholder="'+((Math.min(v.rest_cent,z.rest_zahlung))/100).toFixed(2)+'"> <label class="wer"><input type="checkbox" id="dr'+z.id+'_'+v.ausgang_id+'" style="width:auto"> третье лицо проверено</label> '
-      +'<button class="btn pri" data-zu="'+z.id+'" data-a="'+v.ausgang_id+'">Связать</button></div>').join('')+'</div>'; }
+
+  if(z.rest_zahlung>0 && z.vorschlag.length){
+    // Авто-связь: одно чёткое предложение на 100% → одна кнопка
+    const stark1=z.vorschlag.length===1&&z.vorschlag[0].staerke==='stark'&&z.vorschlag[0].rest_cent<=z.rest_zahlung;
+    if(stark1){
+      const v=z.vorschlag[0]; const sum=Math.min(v.rest_cent,z.rest_zahlung);
+      h+='<div class="box"><span class="chip ok">автоматически подобрано</span> счёт '+H(v.nummer||('#'+v.ausgang_id))+' '+H(v.kunde||'')+' · '+EUR(sum)
+        +' <button class="btn pri" style="margin-left:8px" data-zu="'+z.id+'" data-a="'+v.ausgang_id+'" data-autosum="'+sum+'">Принять</button>'
+        +' <button class="btn" style="font-size:12px;padding:3px 8px" data-expand="'+z.id+'_'+v.ausgang_id+'">изменить ▾</button>'
+        +'<div id="exp'+z.id+'_'+v.ausgang_id+'" style="display:none;margin-top:6px">'
+        +'сумма <input id="al'+z.id+'_'+v.ausgang_id+'" style="width:90px" placeholder="'+(sum/100).toFixed(2)+'">'
+        +' <label style="font-size:12.5px;color:var(--muted)"><input type="checkbox" id="dr'+z.id+'_'+v.ausgang_id+'" style="width:auto"> третье лицо проверено</label>'
+        +' <button class="btn pri" data-zu="'+z.id+'" data-a="'+v.ausgang_id+'">Связать</button></div></div>';
+    } else {
+      h+='<div class="box"><b>Предложения:</b>'
+        +z.vorschlag.map(v=>'<div style="margin-top:6px">счёт '+H(v.nummer||('#'+v.ausgang_id))+' '+H(v.kunde||'')+' · остаток '+EUR(v.rest_cent)+' <span class="chip '+(v.staerke==='stark'?'ok':'warn')+'">'+v.gruende.join(', ')+'</span><br>'
+          +'сумма <input id="al'+z.id+'_'+v.ausgang_id+'" style="width:90px" placeholder="'+((Math.min(v.rest_cent,z.rest_zahlung))/100).toFixed(2)+'">'
+          +' <label style="font-size:12.5px;color:var(--muted)"><input type="checkbox" id="dr'+z.id+'_'+v.ausgang_id+'" style="width:auto"> третье лицо проверено</label>'
+          +' <button class="btn pri" data-zu="'+z.id+'" data-a="'+v.ausgang_id+'">Связать</button></div>').join('')+'</div>';
+    }
+  }
+
   h+='<div class="aktion">';
-  if(z.rest_zahlung>0 && z.status!=='ueberzahlt'){ h+='<button class="btn" data-ueber="'+z.id+'" data-art="anzahlung">Переплата: аванс</button><button class="btn" data-ueber="'+z.id+'" data-art="fehler">Переплата: ошибка</button>'; }
+  if(z.rest_zahlung>0 && z.status!=='ueberzahlt'){
+    h+='<select id="uart_'+z.id+'" style="font-size:12.5px"><option value="anzahlung">аванс от клиента</option><option value="fehler">ошибка перевода</option></select>'
+      +'<button class="btn" data-ueber="'+z.id+'">Переплата</button>';
+  }
   h+='</div></div>';
   return h;
 }
 document.addEventListener('click',async e=>{
   const t=e.target.closest('button'); if(!t)return; const D=t.dataset;
+  if(D.expand){ const el=document.getElementById('exp'+D.expand); if(el)el.style.display=el.style.display==='none'?'block':'none'; return; }
   try{
-    if(D.zu){ const a=D.a; const dr=document.getElementById('dr'+D.zu+'_'+a).checked;
-      await post('/api/debitor/zuordnen',{bewegung_id:+D.zu,teile:[{ausgang_id:+a,betrag:g('al'+D.zu+'_'+a)||'0'}],dritter_geprueft:dr,dritter_grund:dr?'проверено бухгалтером':''}); msg('связано',true); }
+    if(D.zu){ const a=D.a;
+      const manField=document.getElementById('al'+D.zu+'_'+a);
+      const betrag=manField&&manField.value.trim()?manField.value.trim():(D.autosum?(+D.autosum/100).toFixed(2):'0');
+      const drEl=document.getElementById('dr'+D.zu+'_'+a); const dr=drEl?drEl.checked:false;
+      await post('/api/debitor/zuordnen',{bewegung_id:+D.zu,teile:[{ausgang_id:+a,betrag}],dritter_geprueft:dr,dritter_grund:dr?'проверено бухгалтером':''}); msg('связано',true); }
     else if(D.storno){ await post('/api/debitor/storno',{id:+D.storno}); msg('снято',true); }
-    else if(D.ueber){ await post('/api/debitor/ueberzahlung',{bewegung_id:+D.ueber,art:D.art,grund:'решение бухгалтера'}); msg('переплата за клиентом',true); }
+    else if(D.ueber){ const sel=document.getElementById('uart_'+D.ueber); const art=sel?sel.value:'anzahlung';
+      await post('/api/debitor/ueberzahlung',{bewegung_id:+D.ueber,art,grund:'решение бухгалтера'}); msg('переплата за клиентом',true); }
     else if(D.ehok){ await post('/api/debitor/einbehalt-bestaetigen',{id:+D.ehok}); msg('основание подтверждено',true); }
     else if(D.warn){ const w=await J('/api/debitor/mahnwarnung?ausgang_id='+D.warn); msg(w.warnung?('⚠ '+w.warnung+' (поступлений: '+w.verwandte.length+')'):'непроверенных поступлений клиента нет — можно готовить напоминание', !w.warnung); return; }
     else return;
