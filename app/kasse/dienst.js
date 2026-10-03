@@ -910,7 +910,17 @@ async function lage(n, benutzerListe, jetzt) {
   jetzt = jetzt || Date.now();
   darf(ROLLEN_KASSE.includes(n.rolle), 'У этой роли нет доступа к кассе');
   return lesen(async q => {
-    const demo = ((await q(`SELECT wert FROM vav_kern.einstellung WHERE schluessel = 'buch_demo'`).catch(() => []))[0] || {}).wert === 'ja';
+    const demo = await (async () => {
+      try {
+        await q('SAVEPOINT sp_demo');
+        const r = await q(`SELECT wert FROM vav_kern.einstellung WHERE schluessel = 'buch_demo'`);
+        await q('RELEASE SAVEPOINT sp_demo');
+        return ((r[0] || {}).wert === 'ja');
+      } catch (e) {
+        await q('ROLLBACK TO SAVEPOINT sp_demo').catch(() => {});
+        return false;
+      }
+    })();
     if (buero(n)) await halterAlle(q, benutzerListe);
     else if (istDisp(n)) await halterFuer(q, n);
     const ich = { login: n.login, name: n.name || n.login, rolle: n.rolle, kurz: n.kurz || initialen(n.name || n.login),
@@ -936,7 +946,7 @@ async function lage(n, benutzerListe, jetzt) {
     const bewegungen = bew.map(m => ({ id: Number(m.id), art: m.art, von_konto: m.von_konto, an_konto: m.an_konto, von_name: m.von_name,
       an_name: m.an_name, betrag: Number(m.betrag_cent), status: m.status, quelle_id: m.quelle_id && Number(m.quelle_id),
       quittung_id: m.quittung_id && Number(m.quittung_id), beleg_id: m.beleg_id && Number(m.beleg_id), datum: iso(m.datum),
-      angelegt: m.angelegt, von: m.von, bestaetigt_von: m.bestaetigt_von, finmap_op: m.finmap_op,
+      angelegt: m.angelegt, von: m.von, bestaetigt_von: m.bestaetigt_von, finmap_op: m.finmap_op, notiz: m.notiz,
       bestaetigen_darf: m.status === 'gemeldet' && m.von !== n.login &&
         ((m.an_art === 'hauptkasse' && istBuch(n)) || (m.an_art === 'halter' && m.an_login === n.login)) }));
 
@@ -1010,12 +1020,33 @@ async function lage(n, benutzerListe, jetzt) {
       });
     }
 
-    const personen = (buero(n) || istDisp(n)) ? await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
-      FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
-      WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`) : [];
-    const objekte = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE firma = 'VAVK' AND COALESCE(status,'') <> 'zu' ORDER BY nummer DESC LIMIT 300`);
-    const fahrzeuge = await q(`SELECT id::text AS id, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
-      FROM vavapp_prod.vehicles WHERE active ORDER BY plate LIMIT 200`);
+    const personen = (buero(n) || istDisp(n)) ? await (async () => {
+      try {
+        await q('SAVEPOINT sp_personen');
+        const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
+          FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
+          WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`);
+        await q('RELEASE SAVEPOINT sp_personen');
+        return r;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_personen').catch(() => {}); return []; }
+    })() : [];
+    const objekte = await (async () => {
+      try {
+        await q('SAVEPOINT sp_objekte');
+        const r = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE firma = 'VAVK' AND COALESCE(status,'') <> 'zu' ORDER BY nummer DESC LIMIT 300`);
+        await q('RELEASE SAVEPOINT sp_objekte');
+        return r;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_objekte').catch(() => {}); return []; }
+    })();
+    const fahrzeuge = await (async () => {
+      try {
+        await q('SAVEPOINT sp_fahrzeuge');
+        const r = await q(`SELECT id::text AS id, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
+          FROM vavapp_prod.vehicles WHERE active ORDER BY plate LIMIT 200`);
+        await q('RELEASE SAVEPOINT sp_fahrzeuge');
+        return r;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_fahrzeuge').catch(() => {}); return []; }
+    })();
 
     // Имена для подписей («Андрей снял», «Передано Олегу»). Только отображаемые поля.
     const namen = {};

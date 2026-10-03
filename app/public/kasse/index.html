@@ -188,8 +188,19 @@ body{margin:0;background:var(--v-bg)}
 const euro = n => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format((n||0)/100);
 const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon = n => `<i data-lucide="${n}" aria-hidden="true"></i>`;
-const keys = rows => rows.map(([k,v])=>`<div class="v-keyvalue"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('');
+const keys = rows => rows.filter(r=>r&&r[0]).map(([k,v])=>`<div class="v-keyvalue"><span>${esc(k)}</span><span>${v}</span></div>`).join('');
 const btn = (txt,act,cls='',extra='') => `<button type="button" class="v-button ${cls}" data-action="${act}" ${extra}>${txt}</button>`;
+
+const BEW_ART = {abhebung:'Снятие в банке',uebergabe:'Передача наличных',rueckgabe:'Возврат',ausgabe:'Расход из кассы',verbrauch:'Расход'};
+function bewArt(art){ return BEW_ART[art]||art; }
+function bewDatum(b){ return b.datum ? new Date(b.datum+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}) : '—'; }
+function bewDokInfo(b){
+  const bl = S.lage?.bank_links||[];
+  const bankLink = bl.find(l=>l.ziel_art==='abhebung'&&l.ziel_id===String(b.id)&&l.status==='abgeglichen');
+  const hasBank = bankLink || b.finmap_op;
+  const hasBeleg = b.beleg_id || b.quittung_id;
+  return { bankLink, hasBank:!!hasBank, hasBeleg:!!hasBeleg, ok: !!(hasBank||hasBeleg) };
+}
 
 /* ---------- Адаптер данных API → UI ---------- */
 function adaptLage(raw) {
@@ -641,16 +652,25 @@ function renderKasse() {
   <div class="v-panelhead"><h2>Журнал движений</h2></div>
   <div class="v-ledger">
     ${(l.bewegungen||[]).slice().reverse().map(b=>{
-      const schonVerteilt = (l.bewegungen||[]).some(m=>m.quelle_id===b.id);
-      const kannVerteilen = istGf && b.art==='abhebung' && !schonVerteilt;
-      return `<div class="v-event">
+      const dok = bewDokInfo(b);
+      const needDok = ['abhebung','uebergabe','ausgabe','verbrauch'].includes(b.art);
+      const dokBadge = dok.ok
+        ? `<span title="Документ прикреплён" style="color:var(--v-ok,#2e7d32)">${icon('paperclip')}</span>`
+        : (needDok ? `<span title="Нет документа" style="color:var(--v-warn,#e65100)">${icon('alert-circle')}</span>` : '');
+      return `<button class="v-row cursor-interaction" data-action="bewegungDetail" data-bew-id="${b.id}" style="width:100%;text-align:left">
         ${icon('arrow-right-left')}
-        <span>
-          <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
-          <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
+        <span class="v-rowmain" style="flex:1;min-width:0">
+          <span class="v-rowline">
+            <span class="v-rowtitle">${esc(bewArt(b.art))}</span>
+            <span class="v-num">${euro(b.betrag)}</span>
+          </span>
+          <span class="v-small" style="display:block">${bewDatum(b)} · ${esc(b.von_name||'—')} → ${esc(b.an_name||'—')}</span>
         </span>
-        <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}${kannVerteilen ? `&nbsp;<button class="v-button small" data-action="inKasse" data-bew-id="${b.id}" data-bew-betrag="${b.betrag_cent}">→ В кассу</button>` : ''}</span>
-      </div>`;
+        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+          ${statusTag(b.status)}
+          ${dokBadge}
+        </span>
+      </button>`;
     }).join('')||'<div class="v-stateempty">Движений нет</div>'}
   </div>
 </div>`;
@@ -755,14 +775,14 @@ function renderModal(mod) {
     title = 'Журнал наличных';
     const bew = (S.lage?.bewegungen||[]).slice().reverse();
     body = bew.length ? `<div class="v-ledger">
-      ${bew.map(b=>`<div class="v-event">
+      ${bew.map(b=>`<button class="v-event cursor-interaction" data-action="bewegungDetail" data-bew-id="${b.id}" style="width:100%;text-align:left">
         ${icon('arrow-right-left')}
         <span style="flex:1">
-          <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
-          <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
+          <span class="v-rowtitle">${esc(bewArt(b.art))}</span>
+          <span class="v-small" style="display:block">${bewDatum(b)} · ${esc(b.von_name||'—')} → ${esc(b.an_name||'—')}</span>
         </span>
-        <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}</span>
-      </div>`).join('')}
+        <span class="v-num">${euro(b.betrag)} ${statusTag(b.status)}</span>
+      </button>`).join('')}
     </div>` : '<div class="v-stateempty">Движений нет</div>';
   } else if (mod==='metrikReserviert') {
     title = 'Зарезервировано';
@@ -808,6 +828,50 @@ function renderModal(mod) {
         <div class="v-event">${icon('corner-up-left')}<span style="flex:1">Всего возвращено</span><span class="v-num">${euro(h.zurueck)}</span></div>
       </div>`;
     } else {
+      body = '<div class="v-stateempty">Данные не найдены</div>';
+    }
+  } else if (mod==='bewegungDetail') {
+    const b = (S.lage?.bewegungen||[]).find(x=>String(x.id)===String(S.modalData));
+    if (b) {
+      title = bewArt(b.art);
+      const dok = bewDokInfo(b);
+      let dokSection;
+      if (b.art==='abhebung') {
+        if (dok.bankLink) {
+          dokSection = keys([
+            ['Банковская транзакция', dok.bankLink.finmap_op ? `<span style="color:var(--v-ok,#2e7d32)">${icon('check-circle')} Привязана (${esc(dok.bankLink.finmap_op)})</span>` : `<span style="color:var(--v-ok,#2e7d32)">${icon('check-circle')} Привязана</span>`],
+            ['Сумма в банке', dok.bankLink.op_betrag_cent != null ? euro(dok.bankLink.op_betrag_cent) : '—'],
+            ['Статус', esc(dok.bankLink.status||'—')],
+          ]);
+        } else if (b.finmap_op) {
+          dokSection = keys([['Код транзакции', `<span style="color:var(--v-ok,#2e7d32)">${icon('check-circle')} ${esc(b.finmap_op)}</span>`]]);
+        } else {
+          dokSection = `<div class="v-note" style="color:var(--v-warn,#e65100)">${icon('alert-circle')} Банковская транзакция не привязана</div>`;
+        }
+      } else {
+        if (dok.hasBeleg) {
+          dokSection = `<div class="v-note" style="color:var(--v-ok,#2e7d32)">${icon('paperclip')} Документ прикреплён</div>`;
+        } else {
+          dokSection = `<div class="v-note" style="color:var(--v-warn,#e65100)">${icon('alert-circle')} Документ не прикреплён</div>`;
+        }
+      }
+      body = `<div class="v-ledger">
+        ${keys([
+          ['Тип', esc(bewArt(b.art))],
+          ['Дата', bewDatum(b)],
+          ['Сумма', euro(b.betrag)],
+          ['Откуда', b.von_name ? esc(b.von_name) : null],
+          ['Куда', b.an_name ? esc(b.an_name) : null],
+          ['Статус', statusTag(b.status)],
+          b.notiz ? ['Примечание', esc(b.notiz)] : null,
+        ])}
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
+        <div class="v-small" style="font-weight:600;margin-bottom:6px">Документ</div>
+        ${dokSection}
+      </div>`;
+    } else {
+      title = 'Движение';
       body = '<div class="v-stateempty">Данные не найдены</div>';
     }
   } else if (mod==='zaehlen') {
@@ -1118,6 +1182,14 @@ document.getElementById('app').addEventListener('click', async e => {
         await lageLaden(); toast('Деньги записаны в кассу'); renderApp();
       } catch(e) { toast(e.message,'err'); }
     }
+    return;
+  }
+
+  if (act==='bewegungDetail') {
+    S.modalData = b.dataset.bewId || null;
+    S.modal = 'bewegungDetail';
+    renderApp();
+    document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
     return;
   }
 
