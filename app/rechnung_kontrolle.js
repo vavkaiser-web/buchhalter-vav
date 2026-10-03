@@ -63,11 +63,20 @@ async function pruefung(beleg_id, bestellung_id, login) {
     if (best) {
       const lKey = beleg.lieferant_key;
       const bLief = String(best.lieferant || '');
-      // Простое сравнение: ключ из beleg должен содержать ключ из заказа (или совпадать)
-      // Детальная дедупликация — kern_dubletten.js; здесь флаг для бухгалтера.
-      const liefOk = lKey && bLief && (
-        bLief.toLowerCase().includes((lKey || '').toLowerCase().slice(0, 6)) ||
-        (lKey || '').toLowerCase().includes(bLief.toLowerCase().slice(0, 6))
+      // Нормализация: убираем умлауты, спецсимволы, юридические суффиксы
+      function norm(s) {
+        return String(s || '').toLowerCase()
+          .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+          .replace(/\b(gmbh|kg|ag|ug|ltd|llc|gmbh\s*&\s*co\.?\s*kg|e\.?\s*k\.?|e\.?\s*v\.?|mbh)\b/g,'')
+          .replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
+      }
+      const nKey  = norm(lKey);
+      const nLief = norm(bLief);
+      // Детальная дедупликация — kern_dubletten.js; здесь быстрый флаг для бухгалтера.
+      const liefOk = nKey && nLief && (
+        nKey === nLief ||
+        nLief.includes(nKey.slice(0, Math.max(4, nKey.length - 4))) ||
+        nKey.includes(nLief.slice(0, Math.max(4, nLief.length - 4)))
       );
       items.push({
         art: 'lieferant',

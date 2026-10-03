@@ -871,7 +871,15 @@ http.createServer(async (req, res) => {
         const n = wer(req);
         if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
         if (!['gf', 'buchhaltung'].includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа' });
-        try { return jsonAntwort(res, 200, await dublette[marsch[p]](await koerper(req), n)); }
+        try {
+          const b = await koerper(req);
+          const ergebnis = await dublette[marsch[p]](b, n);
+          // Хук: после markieren с bezahlt=true → задача по документам
+          if (marsch[p] === 'markieren' && b.bezahlt === true && b.id) {
+            rk.nachZahlungPruefen(Number(b.id)).catch(e => console.error('nachZahlungPruefen:', e.message));
+          }
+          return jsonAntwort(res, 200, ergebnis);
+        }
         catch (e) { return jsonAntwort(res, 400, { fehler: e.message }); }
       }
     }
