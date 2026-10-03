@@ -188,7 +188,7 @@ body{margin:0;background:var(--v-bg)}
 const euro = n => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format((n||0)/100);
 const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon = n => `<i data-lucide="${n}" aria-hidden="true"></i>`;
-const keys = rows => rows.filter(r=>r&&r[0]).map(([k,v])=>`<div class="v-keyvalue"><span>${esc(k)}</span><span>${v}</span></div>`).join('');
+const keys = rows => rows.filter(r=>r&&r[0]&&r[1]!=null).map(([k,v])=>`<div class="v-keyvalue"><span>${esc(k)}</span><span>${v}</span></div>`).join('');
 const btn = (txt,act,cls='',extra='') => `<button type="button" class="v-button ${cls}" data-action="${act}" ${extra}>${txt}</button>`;
 
 const BEW_ART = {abhebung:'Снятие в банке',uebergabe:'Передача наличных',rueckgabe:'Возврат',ausgabe:'Расход из кассы',verbrauch:'Расход'};
