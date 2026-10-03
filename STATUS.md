@@ -69,9 +69,11 @@ HTTP-маршруты (все требуют роль `gf` или `buchhaltung`)
 
 - [x] **Правило 10 — bestellung gate** (`app/bestellung_gate.js`): порог 3.000 €, нарезка (≥2 заказа тому же поставщику за 60 дней >порога), Олег ≤3k, Олег+Андрей >3k/нет бюджета, без делегирования при отсутствии Андрея. `genehmigt` без гейт-записей → пропускается (backward compat). 5 маршрутов `/api/bestellung/gate/*`. 17/17 тестов в `test-bestellung-gate.cjs`. Итого: 62 ✓ 0 ✗.
 
+- [x] **belegGeaendert** (`app/server.js` + `rechnung-kontrolle.html`): маршрут `POST /api/rechnung/beleg-geaendert` + кнопка «Файл заменён» в форме. Сбрасывает активные исключения с устаревшим `beleg_hash`; возвращает число сброшенных. Коммит `6682e0d`.
+
 ## Что НЕ сделано (следующие этапы)
 
-- [ ] `belegGeaendertPruefen` — UI-кнопка при замене файла счёта; маршрут `POST /api/rechnung/beleg-geaendert` уже есть
+*Этап 1 завершён полностью.*
 
 ---
 
