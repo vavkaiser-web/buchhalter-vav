@@ -3,7 +3,7 @@
    Окончательная выдача денег и проверка остатков — только при соединении с сервером.
    При выходе из аккаунта — очередь передаётся для ручного решения, не удаляется молча.
 */
-const CACHE = 'kasse-vav-v10';
+const CACHE = 'kasse-vav-v11';
 const OFFLINE_ASSETS = ['/kasse/', '/kasse/index.html', '/icon-192.png', '/vendor/lucide.min.js'];
 
 self.addEventListener('install', e => {
@@ -25,6 +25,8 @@ self.addEventListener('fetch', e => {
 
   // API-запросы: только сеть, никакого кэша.
   if (url.pathname.startsWith('/api/')) return;
+  // Invite-ссылки и API не кэшируем — всегда сеть.
+  if (url.pathname.startsWith('/kasse/invite/') || url.pathname.startsWith('/api/invite/')) return;
   if (url.pathname.startsWith('/kasse/') || url.pathname === '/') {
     e.respondWith(
       caches.match(e.request).then(hit => {
