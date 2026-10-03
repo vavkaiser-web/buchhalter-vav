@@ -114,9 +114,18 @@ HTTP-маршруты (все требуют роль `gf` или `buchhaltung`)
 
 **Итого тестов: 154 ✓ 0 ✗** (32 + 13 + 17 + 31 + 24 + 37)
 
-## Что НЕ сделано (следующие этапы)
+## Этап 5 — Debitor (завершён)
 
-- [ ] Этап 5 — `debitor` (дебиторы/поступления)
+- [x] **`test-debitor.cjs`** — 7 сценариев, 32/32 ✓ (коммит `4260a0a`):
+  1. eingangImport: идемпотентность по extern_id; задача при нераспределённом
+  2. vorschlag + zuordnen: полная оплата нашего счёта → zugeordnet
+  3. zuordnen: нельзя распределить больше суммы поступления → ошибка
+  4. zuordnungStorno: снятие распределения → nicht_zugeordnet; идемпотентность
+  5. ueberzahlungKunde: переплата 200 € → kredit (anzahlung), статус ueberzahlt
+  6. unterzahlung + einbehaltErfassen (с датой → bestaetigt) + ereignis_abhaengig (без срока)
+  7. mahnWarnung: нераспределённое поступление от клиента → warnung перед напоминанием
+
+**Итого тестов: 186 ✓ 0 ✗** (32 + 13 + 17 + 31 + 24 + 37 + 32)
 
 ---
 
