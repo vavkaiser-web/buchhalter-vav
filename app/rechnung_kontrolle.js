@@ -372,7 +372,7 @@ async function belegGeaendertPruefen(beleg_id) {
     const neuHash = b.datei_hash;
 
     const aus = (await cl.query(
-      'SELECT id, beleg_hash FROM rechnung_ausnahme WHERE beleg_id=$1 AND aktiv', [beleg_id])).rows;
+      'SELECT id, beleg_hash, prueflauf_id FROM rechnung_ausnahme WHERE beleg_id=$1 AND aktiv', [beleg_id])).rows;
 
     let deaktiviert = 0;
     for (const a of aus) {
