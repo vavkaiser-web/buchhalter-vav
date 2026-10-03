@@ -341,6 +341,10 @@ http.createServer(async (req, res) => {
       return void await kasse.handle(req, res, u, n ? { ...n, rollenname: n.rechte.name } : null, { benutzer: nutzerLesen() });
     }
     // Задачи (этап 2) — доступны всем ролям, права проверяются внутри модуля.
+    if (p === '/api/ich' && req.method === 'GET') {
+      const n = wer(req); if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
+      return jsonAntwort(res, 200, { login: n.login, name: n.name, rolle: n.rolle });
+    }
     if (p === '/api/aufgaben' && req.method === 'GET') {
       const n = wer(req);
       if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
@@ -411,6 +415,10 @@ http.createServer(async (req, res) => {
     if (p === '/bank') {
       if (!wer(req)) { res.writeHead(302, { Location: '/login?next=/bank' }); return res.end(); }
       return dateiAntwort(res, path.join(OEFF, 'bank-abgleich.html'));
+    }
+    if (p === '/rechnung') {
+      if (!wer(req)) { res.writeHead(302, { Location: '/login?next=/rechnung' }); return res.end(); }
+      return dateiAntwort(res, path.join(OEFF, 'rechnung-kontrolle.html'));
     }
     if (p === '/debitor') {
       if (!wer(req)) { res.writeHead(302, { Location: '/login?next=/debitor' }); return res.end(); }
