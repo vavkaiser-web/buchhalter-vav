@@ -78,7 +78,10 @@ details summary{cursor:pointer;font-size:13px;color:var(--muted);padding:4px 0}
       </div>
       <div class="aktion">
         <button class="btn pri" id="btn-pruefen">Запустить проверку</button>
-        <button class="btn" id="btn-geaendert" title="Файл счёта заменён — сбросить исключения с устаревшим хэшем">Файл заменён</button>
+        <details style="display:inline-block">
+          <summary style="cursor:pointer;font-size:12px;color:var(--muted);list-style:none;padding:6px 4px">⋯</summary>
+          <button class="btn" id="btn-geaendert" title="Файл счёта заменён — сбросить исключения с устаревшим хэшем" style="margin-top:4px">Файл заменён</button>
+        </details>
       </div>
     </div>
     <div id="ergebnis-wrap"></div>
@@ -443,4 +446,5 @@ async function init() {
 }
 init();
 </script>
+<script src="/rolle.js"></script>
 </body></html>

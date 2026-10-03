@@ -96,18 +96,34 @@ function op(o){
     if(s.ergebnis==='nicht_abgeschlossen') h+='<div class="box warn">«Поиск не завершён» по неподключённым источникам. Причина добавлена к задаче по платежу (тот же срок).</div>';
   }
   h+='<div class="aktion"><button class="btn" data-pr="'+o.id+'">Проверить документ</button>'
-    +'<input placeholder="связать с док. #" style="width:150px" id="lk'+o.id+'"><button class="btn" data-late="'+o.id+'">Документ пришёл позже</button>'
-    +'<button class="btn" data-ent="'+o.id+'">Черновик запроса</button></div>';
+    +'<button class="btn" data-exlate="'+o.id+'">пришёл позже ▾</button>'
+    +'<button class="btn" data-ent="'+o.id+'">Черновик</button></div>'
+    +'<div id="late_'+o.id+'" style="display:none;margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:9px;border:1px solid var(--line)">'
+    +'<label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Документ пришёл позже — укажите номер</label>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    +'<input placeholder="# документа" style="width:140px" id="lk'+o.id+'">'
+    +'<button class="btn" data-late="'+o.id+'">Связать</button>'
+    +'<button class="btn" data-closelate="'+o.id+'">Отмена</button>'
+    +'</div></div>'
+    +'<div id="ent_'+o.id+'" style="display:none;margin-top:8px;padding:10px;background:var(--surface2);border-radius:9px;border:1px solid var(--line)">'
+    +'<div id="et_'+o.id+'" style="font-size:12.5px;white-space:pre-wrap;margin-bottom:8px"></div>'
+    +'<button class="btn" data-copyent="'+o.id+'">Скопировать</button>'
+    +'<button class="btn" data-closeent="'+o.id+'" style="margin-left:6px">Закрыть</button>'
+    +'</div>';
   h+='</div>';
   return h;
 }
 document.addEventListener('click',async e=>{
   const t=e.target.closest('button'); if(!t)return; const D=t.dataset;
+  if(D.exlate){ const el=document.getElementById('late_'+D.exlate); el.style.display=el.style.display==='none'?'block':'none'; return; }
+  if(D.closelate){ document.getElementById('late_'+D.closelate).style.display='none'; return; }
+  if(D.closeent){ document.getElementById('ent_'+D.closeent).style.display='none'; return; }
+  if(D.copyent){ const tx=document.getElementById('et_'+D.copyent); if(tx) navigator.clipboard.writeText(tx.textContent).catch(()=>{}); return; }
   try{
     if(D.pr){ const r=await post('/api/dok/pruefung',{bewegung_id:+D.pr}); msg('поиск: '+(ERG[r.ergebnis]?ERG[r.ergebnis][0]:r.ergebnis),true); }
     else if(D.vk){ await post('/api/dok/verknuepfen',{bewegung_id:+D.vk,beleg_id:+D.bl}); msg('связь подтверждена — задача не закрыта, проверьте полноту',true); }
     else if(D.late){ const bl=g('lk'+D.late); if(!bl){msg('укажите # документа');return;} await post('/api/dok/spaeter',{bewegung_id:+D.late,beleg_id:+bl}); msg('поздний документ связан (без дубля)',true); }
-    else if(D.ent){ const r=await J('/api/dok/eins?id='+D.ent); alert(r.entwurf); return; }
+    else if(D.ent){ const r=await J('/api/dok/eins?id='+D.ent); const el=document.getElementById('ent_'+D.ent); el.style.display='block'; document.getElementById('et_'+D.ent).textContent=r.entwurf; return; }
     else if(D.merl){ await post('/api/dok/mangel-erledigt',{id:+D.merl}); msg('пропуск устранён',true); }
     else if(D.abs){ await post('/api/dok/abschluss',{beleg_id:+D.abs}); msg('проверка завершена',true); }
     else return;
