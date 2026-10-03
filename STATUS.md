@@ -65,9 +65,10 @@ HTTP-маршруты (все требуют роль `gf` или `buchhaltung`)
 - [x] **Kasse-заглушка** `app/kasse/api.js` — GET возвращает 200 с пустой структурой (zentrum/rolle.js загружается без 503)
 - [x] **32/32 тестов** — `test-dop-rechnung.cjs` (13 сценариев)
 
+- [x] **UTA-интеграция** — `dublette.js`: `kandidaten()` перекрёстно матчит `quelle='uta'` vs не-UTA по дате+сумме → `moeglicher_dubup`; 5 сценариев в `test-uta-dublette.cjs` (13/13 ✓). Флоу разрешения: `verknuepfen(art='operation')` + `entscheiden('separate')`.
+
 ## Что НЕ сделано (следующие этапы)
 
-- [ ] Интеграция с UTA (исключить двойной расход: чек + UTA) — через `dublette.js`
 - [ ] Правило 10 (нарезка заказа против порога) — bestellung gate (`dop_bestellung_gate.sql`)
 - [ ] `belegGeaendertPruefen` — вызов при замене файла счёта; маршрут `POST /api/rechnung/beleg-geaendert` есть, UI-кнопка не добавлена
 
