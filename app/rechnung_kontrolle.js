@@ -61,7 +61,8 @@ async function pruefung(beleg_id, bestellung_id, login) {
 
     // ── Проверка 1: подрядчик совпадает ──────────────────────────────────────
     if (best) {
-      const lKey = beleg.lieferant_key;
+      const lKey  = beleg.lieferant_key;
+      const lFull = String(beleg.lieferant || '');
       const bLief = String(best.lieferant || '');
       // Нормализация: убираем умлауты, спецсимволы, юридические суффиксы
       function norm(s) {
@@ -70,14 +71,19 @@ async function pruefung(beleg_id, bestellung_id, login) {
           .replace(/\b(gmbh|kg|ag|ug|ltd|llc|gmbh\s*&\s*co\.?\s*kg|e\.?\s*k\.?|e\.?\s*v\.?|mbh)\b/g,'')
           .replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
       }
+      function prefixMatch(a, b) {
+        return a && b && (
+          a === b ||
+          b.includes(a.slice(0, Math.max(4, a.length - 4))) ||
+          a.includes(b.slice(0, Math.max(4, b.length - 4)))
+        );
+      }
       const nKey  = norm(lKey);
+      const nFull = norm(lFull);
       const nLief = norm(bLief);
+      // Сначала полное название, потом ключ — lieferant_key может быть без умлаутов.
       // Детальная дедупликация — kern_dubletten.js; здесь быстрый флаг для бухгалтера.
-      const liefOk = nKey && nLief && (
-        nKey === nLief ||
-        nLief.includes(nKey.slice(0, Math.max(4, nKey.length - 4))) ||
-        nKey.includes(nLief.slice(0, Math.max(4, nLief.length - 4)))
-      );
+      const liefOk = nLief && (prefixMatch(nFull, nLief) || prefixMatch(nKey, nLief));
       items.push({
         art: 'lieferant',
         status: liefOk ? 'ok' : 'hinweis',
