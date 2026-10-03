@@ -252,8 +252,17 @@ function bestellungHtml(){
       +((aktiv && bo.genehmigung!=='genehmigt' && canOleg && !bo.oleg_am)?'<button class="btn pri" data-b-ok="'+bo.id+'">Утвердить (Олег)</button>':'')
       +((aktiv && bo.genehmigung!=='genehmigt' && canGf && !bo.gf_am)?'<button class="btn pri" data-b-ok="'+bo.id+'">Утвердить (Андрей)</button>':'')
       +((aktiv && bo.genehmigung!=='abgelehnt' && (canOleg||canGf))?'<button class="btn crit" data-b-nein="'+bo.id+'">Отклонить</button>':'')
-      +(aktiv?'<button class="btn" data-b-storno="'+bo.id+'">Сторно</button>':'<button class="btn" data-b-react="'+bo.id+'">Вернуть</button>')
-      +'<button class="btn crit" data-b-del="'+bo.id+'">✕</button></span></div>';
+      +'<details style="display:block"><summary style="cursor:pointer;font-size:12px;color:var(--muted);list-style:none;padding:4px 2px">⋯</summary>'
+      +(aktiv?'<button class="btn" data-b-storno="'+bo.id+'" style="margin-top:4px;display:block">Сторно</button>':'<button class="btn" data-b-react="'+bo.id+'" style="margin-top:4px;display:block">Вернуть</button>')
+      +'<button class="btn crit" data-b-del="'+bo.id+'" style="margin-top:4px;display:block">✕ Удалить</button></details>'
+      +'</span></div>';
+    x+='<div id="reject_'+bo.id+'" style="display:none;margin:4px 0 10px;padding:8px 10px;background:var(--surface2);border-radius:9px;border:1px solid var(--line)">'
+      +'<label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Причина отклонения закупки</label>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+      +'<input id="rej_grund_'+bo.id+'" placeholder="укажите причину" style="flex:1;min-width:200px">'
+      +'<button class="btn crit" data-b-nein-ok="'+bo.id+'">Отклонить</button>'
+      +'<button class="btn" data-b-nein-close="'+bo.id+'">Отмена</button>'
+      +'</div></div>';
     x+='<div id="br-form-'+bo.id+'" style="display:none;margin:4px 0 10px" class="grid">'
       +'<label>Сумма счёта (€)<input id="br-betrag-'+bo.id+'" type="number" step="0.01"></label>'
       +'<label>Вид<select id="br-art-'+bo.id+'"><option value="teilrechnung">частичный</option><option value="schlussrechnung">финальный</option><option value="korrektur">корректура (может быть −)</option></select></label>'
@@ -579,7 +588,9 @@ document.getElementById('app').addEventListener('click',async (e)=>{
       melde('Счёт привязан',true); await neu(); }catch(err){melde(err.message);} return; }
   const brd=t.closest('a[data-br-del]'); if(brd){ if(!confirm('Удалить привязку счёта?'))return; try{ await post('/api/objekt/bestellung/rechnung',{id:+brd.dataset.brDel,loeschen:true}); melde('Счёт удалён',true); await neu(); }catch(err){melde(err.message);} return; }
   const bok=t.closest('button[data-b-ok]'); if(bok){ try{ const r=await post('/api/objekt/bestellung/genehmigen',{id:+bok.dataset.bOk}); melde(r.genehmigung==='wartet_andrej'?'Одобрено Олегом — ждёт решения Андрея':'Закупка утверждена',true); await neu(); }catch(err){melde(err.message);} return; }
-  const bno=t.closest('button[data-b-nein]'); if(bno){ const g=prompt('Причина отклонения закупки:'); if(g===null)return; try{ await post('/api/objekt/bestellung/genehmigen',{id:+bno.dataset.bNein,entscheidung:'ablehnen',grund:g}); melde('Закупка отклонена',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bno=t.closest('button[data-b-nein]'); if(bno){ const el=document.getElementById('reject_'+bno.dataset.bNein); if(el){el.style.display='block';const inp=document.getElementById('rej_grund_'+bno.dataset.bNein);if(inp)inp.focus();} return; }
+  const bnok=t.closest('button[data-b-nein-ok]'); if(bnok){ const id=bnok.dataset.bNeinOk; const g=document.getElementById('rej_grund_'+id).value.trim(); if(!g){melde('Укажите причину отклонения');return;} try{ await post('/api/objekt/bestellung/genehmigen',{id:+id,entscheidung:'ablehnen',grund:g}); melde('Закупка отклонена',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bnclose=t.closest('button[data-b-nein-close]'); if(bnclose){ const el=document.getElementById('reject_'+bnclose.dataset.bNeinClose); if(el)el.style.display='none'; return; }
   const bst=t.closest('button[data-b-storno]'); if(bst){ try{ await post('/api/objekt/bestellung/status',{id:+bst.dataset.bStorno,status:'storniert'}); melde('Заказ сторнирован',true); await neu(); }catch(err){melde(err.message);} return; }
   const bre=t.closest('button[data-b-react]'); if(bre){ try{ await post('/api/objekt/bestellung/status',{id:+bre.dataset.bReact,status:'reaktivieren'}); melde('Заказ возвращён',true); await neu(); }catch(err){melde(err.message);} return; }
   const bde=t.closest('button[data-b-del]'); if(bde){ if(!confirm('Удалить заказ и его счета?'))return; try{ await post('/api/objekt/bestellung/status',{id:+bde.dataset.bDel,loeschen:true}); melde('Заказ удалён',true); await neu(); }catch(err){melde(err.message);} return; }
