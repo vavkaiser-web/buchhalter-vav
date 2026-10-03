@@ -195,9 +195,11 @@ const btn = (txt,act,cls='',extra='') => `<button type="button" class="v-button 
 function adaptLage(raw) {
   if (!raw) return null;
   const konten = raw.konten || [];
-  const hauptkasse = konten.find(k=>k.art==='hauptkasse')?.saldo ?? null;
+  const hk = konten.find(k=>k.art==='hauptkasse');
+  const hauptkasse = hk?.saldo ?? null;
   const halter = konten.filter(k=>k.art==='halter').map(k=>({
     id: k.id, login: k.login, name: k.name, kurzname: k.name, saldo: k.saldo||0,
+    reserviert: k.reserviert||0, frei: k.frei ?? k.saldo ?? 0,
     erhalten: k.erhalten||0, ausgaben: k.ausgaben||0, zurueck: k.zurueck||0,
   }));
   const firma = raw.firma || 'VAV Kaiser GmbH';
@@ -239,12 +241,17 @@ function adaptLage(raw) {
     erstellt_ts: e.id,
     erledigt: !!e.verarbeitet_am,
   }));
-  const eingang_anzahl = belege_queue.length + plaene_offen.length + eingaenge.filter(e=>!e.erledigt).length;
+  // Квитанции: готовы к выдаче (план одобрен, кассир назначен)
+  const quittungenVorbereitet = (raw.quittungen||[]).filter(q => q.status === 'vorbereitet' && q.plan_status === 'genehmigt');
+  // Квитанции: выдано, оригинал ещё не получен бухгалтером
+  const quittungenOriginalFehlt = (raw.quittungen||[]).filter(q => q.status === 'ausgegeben' && !q.original_am);
+  const eingang_anzahl = belege_queue.length + plaene_offen.length + eingaenge.filter(e=>!e.erledigt).length + quittungenVorbereitet.length;
   // Объекты и машины для форм
   const objekte = (raw.objekte||[]).map(o=>({id: o.nummer, name: o.bez||o.nummer}));
   const fahrzeuge = (raw.fahrzeuge||[]).map(f=>({id: f.id, kennzeichen: f.text||f.id}));
-  return { ...raw, kasse: { hauptkasse }, halter, firma, bewegungen, belege_queue, meine_belege,
-    plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge, eingaenge };
+  return { ...raw, kasse: { hauptkasse, reserviert: hk?.reserviert||0, frei: hk?.frei ?? hauptkasse }, halter, firma, bewegungen, belege_queue, meine_belege,
+    plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge, eingaenge,
+    quittungenVorbereitet, quittungenOriginalFehlt };
 }
 
 /* ---------- Состояние приложения ---------- */
@@ -350,7 +357,7 @@ function renderLage() {
 <div class="v-panel">
   <div class="v-panelhead"><h2>Последние движения</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
   <div class="v-ledger">
-    ${(l.bewegungen||[]).slice(0,8).map(b=>`
+    ${(l.bewegungen||[]).slice(0,8).reverse().map(b=>`
     <div class="v-event">
       ${icon('arrow-right-left')}
       <span>
@@ -368,6 +375,11 @@ function renderEingang() {
   const plaene = (S.lage?.plaene_offen||[]);
   const ea = (S.lage?.eingaenge||[]).filter(e => !e.erledigt);
   const alle = [...belege, ...plaene].sort((a,b)=>(b.erstellt_ts||0)-(a.erstellt_ts||0));
+  const myLogin = S.ich?.login;
+  const isDisp = S.ich?.rolle === 'disponent';
+  const quittVorb = (S.lage?.quittungenVorbereitet||[]).filter(q =>
+    !isDisp || q.von_konto === 'halter:' + myLogin
+  );
   return `
 <div class="v-head">
   <div>
@@ -379,6 +391,20 @@ function renderEingang() {
 </div>
 <div class="v-work">
   <div>
+    ${quittVorb.length ? `<div class="v-panel" style="margin-bottom:12px">
+      <div class="v-panelhead"><h2>Ожидают выдачи</h2><span class="v-small">${quittVorb.length} квитанций</span></div>
+      ${quittVorb.map(q=>`<div class="v-event" style="gap:8px">
+        ${icon('banknote')}
+        <span style="flex:1;min-width:0">
+          <span class="v-rowtitle">${esc(q.empfaenger||'—')}</span>
+          <span class="v-small" style="display:block">${esc(q.nr||'')} · ${esc(q.plan_nr||'')}</span>
+        </span>
+        <span class="v-num" style="white-space:nowrap">${euro(q.betrag)}&nbsp;
+          <button class="v-button small primary" data-action="quittungAusgeben" data-qt-id="${q.id}">Выдать</button>
+          <button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">Печать</button>
+        </span>
+      </div>`).join('')}
+    </div>` : ''}
     ${ea.length ? `<div class="v-panel" style="margin-bottom:12px">
       <div class="v-panelhead"><h2>От VAV App</h2><span class="v-small">${ea.length} позиций</span></div>
       ${ea.map(r => itemZeile(r, 'ea')).join('')}
@@ -459,18 +485,47 @@ function detailPanel(r) {
 function renderMeinBereich() {
   const meine = (S.lage?.meine_belege||[]).concat(S.lage?.meine_plaene||[])
     .sort((a,b)=>(b.erstellt_ts||0)-(a.erstellt_ts||0));
+  const isBuch = ['gf','buchhaltung'].includes(S.ich?.rolle);
+  const isMa = S.ich?.rolle === 'mitarbeiter';
+  const qtMeine = (S.lage?.quittungen||[]).filter(q => q.status === 'ausgegeben' && q.empfaenger_ref === S.lage?.ich?.person);
+  const qtOrigFehlt = isBuch ? (S.lage?.quittungenOriginalFehlt||[]) : [];
   return `
 <div class="v-head">
   <div>
     <div class="v-label">Мой кабинет</div>
     <h1>Мои документы</h1>
   </div>
-  ${btn(icon('camera')+' Добавить чек','neuerBeleg','primary')}
+  ${!isBuch ? btn(icon('camera')+' Добавить чек','neuerBeleg','primary') : ''}
 </div>
-<button class="v-upload" data-action="neuerBeleg">
+${!isBuch ? `<button class="v-upload" data-action="neuerBeleg">
   ${icon('scan-line')}<strong>Добавить чек или заявку</strong>
   <span class="v-small">Бензин, материалы или аванс</span>
-</button>
+</button>` : ''}
+${qtMeine.length ? `<div class="v-panel">
+  <div class="v-panelhead"><h2>Полученные авансы</h2></div>
+  ${qtMeine.map(q=>`<div class="v-event">
+    ${icon('banknote')}
+    <span>
+      <span class="v-rowtitle">${esc(q.nr||'—')}</span>
+      <span class="v-small" style="display:block">${q.ausgegeben_am ? new Date(q.ausgegeben_am).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}) : ''}</span>
+    </span>
+    <span class="v-num">${euro(q.betrag)}&nbsp;<span class="v-tag good">Выдано</span></span>
+  </div>`).join('')}
+</div>` : ''}
+${qtOrigFehlt.length ? `<div class="v-panel">
+  <div class="v-panelhead"><h2>Нужен оригинал</h2><span class="v-small">${qtOrigFehlt.length} шт.</span></div>
+  ${qtOrigFehlt.map(q=>`<div class="v-event">
+    ${icon('file-check')}
+    <span style="flex:1;min-width:0">
+      <span class="v-rowtitle">${esc(q.nr||'—')}: ${esc(q.empfaenger||'')}</span>
+      <span class="v-small" style="display:block">${euro(q.betrag)} · ${q.ausgegeben_am ? new Date(q.ausgegeben_am).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : ''}</span>
+    </span>
+    <span class="v-num" style="white-space:nowrap">
+      <button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">Печать</button>
+      <button class="v-button small primary" data-action="quittungOriginalOk" data-qt-id="${q.id}">Оригинал получен</button>
+    </span>
+  </div>`).join('')}
+</div>` : ''}
 <div class="v-panel">
   <div class="v-panelhead"><h2>Мои документы</h2></div>
   ${meine.length ? meine.map(r=>itemZeile(r)).join('') : '<div class="v-stateempty">Документов нет</div>'}
@@ -523,19 +578,19 @@ function renderKasse() {
   <div class="v-metric">
     <span>Основная касса</span>
     <strong class="v-num">${euro(l.kasse?.hauptkasse)}</strong>
-    <span>Бухгалтер</span>
+    <span>Свободно: ${euro(l.kasse?.frei)}</span>
   </div>
   ${(l.halter||[]).map(h=>`
   <div class="v-metric">
     <span>У ${esc(h.kurzname||h.name||h.login)}</span>
     <strong class="v-num">${euro(h.saldo)}</strong>
-    <span>Расчётный остаток</span>
+    <span>Свободно: ${euro(h.frei)}</span>
   </div>`).join('')}
 </div>
 <div class="v-panel">
   <div class="v-panelhead"><h2>Журнал движений</h2></div>
   <div class="v-ledger">
-    ${(l.bewegungen||[]).map(b=>{
+    ${(l.bewegungen||[]).slice().reverse().map(b=>{
       const schonVerteilt = (l.bewegungen||[]).some(m=>m.quelle_id===b.id);
       const kannVerteilen = istGf && b.art==='abhebung' && !schonVerteilt;
       return `<div class="v-event">
@@ -633,6 +688,17 @@ function renderModal(mod) {
     body = `<form id="ablehnen-form" class="v-form">
       <label>Причина<textarea name="grund" rows="3" required></textarea></label>
       <button type="submit" class="v-button primary full" style="background:var(--v-red);color:var(--v-on);border-color:var(--v-red)">Отклонить</button>
+    </form>`;
+  } else if (mod==='genehmigen') {
+    title = 'Одобрить заявку';
+    const halter = S.lage?.halter || [];
+    body = `<form id="genehmigen-form" class="v-form">
+      <div class="v-note">Выберите, кто будет выдавать деньги сотруднику.</div>
+      <label>Кассир<select name="konto">
+        <option value="hauptkasse">Основная касса (Бухгалтер · ${euro(S.lage?.kasse?.frei ?? S.lage?.kasse?.hauptkasse)} свободно)</option>
+        ${halter.map(h=>`<option value="${esc(h.id)}">${esc(h.name||h.login)} (${euro(h.frei)} свободно)</option>`).join('')}
+      </select></label>
+      <button type="submit" class="v-button primary full">Одобрить и назначить кассира</button>
     </form>`;
   }
   return `<section class="v-modal">
@@ -750,6 +816,13 @@ async function formAbsenden(form) {
         await api('POST', pfad, {aktion:'ablehnen', grund: d.grund});
         toast('Документ отклонён');
       }
+    } else if (form.id==='genehmigen-form') {
+      const r = S.ausgewaehlt;
+      if (r) {
+        await api('POST', `plan/${r.id}/entscheiden`, {konto: d.konto});
+        toast('Заявка одобрена. Кассир назначен.');
+        S.ausgewaehlt = null;
+      }
     }
     S.modal = null;
     await lageLaden();
@@ -820,11 +893,28 @@ document.getElementById('app').addEventListener('click', async e => {
     return;
   }
   if (act==='planBewilligen') {
-    const r = S.ausgewaehlt;
-    if (r) {
-      try { await api('POST',`plan/${r.id}/entscheiden`,{aktion:'bewilligen'}); await lageLaden(); toast('Заявка одобрена'); S.ausgewaehlt = null; renderApp(); }
-      catch(e) { toast(e.message,'err'); }
-    }
+    S.modal = 'genehmigen';
+    renderApp();
+    document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+    return;
+  }
+  if (act==='quittungDrucken') {
+    const qtId = b.dataset.qtId;
+    if (qtId) window.open('/api/k/quittung/'+qtId+'/druck', '_blank');
+    return;
+  }
+  if (act==='quittungAusgeben') {
+    const qtId = b.dataset.qtId;
+    if (!qtId) return;
+    try { await api('POST',`quittung/${qtId}/ausgeben`,{}); await lageLaden(); toast('Деньги выданы. Квитанция оформлена.'); renderApp(); }
+    catch(e) { toast(e.message,'err'); }
+    return;
+  }
+  if (act==='quittungOriginalOk') {
+    const qtId = b.dataset.qtId;
+    if (!qtId) return;
+    try { await api('POST',`quittung/${qtId}/original`,{}); await lageLaden(); toast('Оригинал получен.'); renderApp(); }
+    catch(e) { toast(e.message,'err'); }
     return;
   }
   if (act==='eingangBewilligen') {

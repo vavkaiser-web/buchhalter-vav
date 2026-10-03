@@ -67,7 +67,7 @@ async function halterFuer(q, n) {
 
 /** Расчётный остаток счёта. Уход считается сразу (gemeldet или bestaetigt),
     приход — только после подтверждения получателем. */
-async function saldo(q, konto) {
+async function saldo(q, konto, excludeQtId) {
   const r = await q(`SELECT
       COALESCE(SUM(betrag_cent) FILTER (WHERE an_konto = $1 AND status = 'bestaetigt'), 0)::bigint AS erhalten,
       COALESCE(SUM(betrag_cent) FILTER (WHERE von_konto = $1 AND art IN ('ausgabe','verbrauch','uebergabe') AND status IN ('gemeldet','bestaetigt')), 0)::bigint AS ausgaben,
@@ -79,6 +79,14 @@ async function saldo(q, konto) {
   const o = { erhalten: Number(x.erhalten), ausgaben: Number(x.ausgaben), zurueck: Number(x.zurueck),
     unterwegs: Number(x.unterwegs), eingehend: Number(x.eingehend) };
   o.saldo = o.erhalten - o.ausgaben - o.zurueck;
+  const rq = await q(
+    `SELECT COALESCE(SUM(qt.betrag_cent),0)::bigint AS reserviert
+     FROM ${S}buch_quittung qt JOIN ${S}buch_geldplan p ON p.id = qt.plan_id
+     WHERE qt.von_konto = $1 AND qt.status = 'vorbereitet' AND p.status = 'genehmigt'`
+    + (excludeQtId ? ' AND qt.id <> $2' : ''),
+    excludeQtId ? [konto, excludeQtId] : [konto]);
+  o.reserviert = Number(rq[0].reserviert);
+  o.frei = o.saldo - o.reserviert;
   return o;
 }
 
@@ -233,7 +241,13 @@ async function planEntscheiden(n, id, b) {
     if (p.status === neu) return { ok: true, wiederholt: true };
     pruefe(p.status === 'eingereicht', 'Утверждается только поданная заявка', 409);
     await q(`UPDATE ${S}buch_geldplan SET status = $2, entschieden_am = now(), entschieden_von = $3 WHERE id = $1`, [p.id, neu, n.login]);
-    await log(q, n, 'plan_' + neu, 'plan:' + p.id, { notiz: txt(b && b.notiz) });
+    if (neu === 'genehmigt' && b && b.konto) {
+      const konto = String(b.konto);
+      const k = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [konto]))[0];
+      pruefe(k && (k.art === 'hauptkasse' || k.art === 'halter'), 'Неизвестный счёт кассира', 400);
+      await q(`UPDATE ${S}buch_quittung SET von_konto = $2 WHERE plan_id = $1 AND status = 'vorbereitet'`, [p.id, konto]);
+    }
+    await log(q, n, 'plan_' + neu, 'plan:' + p.id, { notiz: txt(b && b.notiz), konto: b && b.konto });
     return { ok: true, status: neu };
   });
 }
@@ -241,13 +255,19 @@ async function planEntscheiden(n, id, b) {
 /** Выдача по квитанции: только здесь уходят деньги. */
 async function ausgeben(q, n, qt) {
   let konto;
-  if (istDisp(n)) konto = await halterFuer(q, n);
+  if (qt.von_konto) {
+    konto = qt.von_konto;
+    const k = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [konto]))[0];
+    pruefe(k, 'Счёт кассира не найден', 404);
+    const darfKonto = (k.art === 'hauptkasse' && (istBuch(n) || istGf(n))) || (k.art === 'halter' && k.login === n.login);
+    darf(darfKonto, 'Выдачу с этого счёта выполняет другой ответственный');
+  } else if (istDisp(n)) konto = await halterFuer(q, n);
   else if (istBuch(n) || istGf(n)) konto = 'hauptkasse';
   else darf(false, 'Выдаёт ответственный за наличные или бухгалтерия');
   await sperreKonto(q, konto);
-  const s = await saldo(q, konto);
-  pruefe(Number(qt.betrag_cent) <= s.saldo,
-    `Сумма превышает доступный остаток (${euro(s.saldo)})`, 409);
+  const s = await saldo(q, konto, qt.id);
+  pruefe(Number(qt.betrag_cent) <= s.frei,
+    `Сумма превышает свободный остаток (${euro(s.frei)})`, 409);
   let an = null;
   if (qt.zweck === 'vorschuss' && qt.empfaenger_ref) {
     an = vorschussKonto(qt.empfaenger_ref);
