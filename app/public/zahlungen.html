@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Платежи · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;
+ --akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--ok-bg:#e9f4ee;--warn-bg:#fbf4e3;--krit-bg:#fbeeea;--info-bg:#e6f0f4;
+ --r:13px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 22px rgba(20,30,40,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;
+ --ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;
+ --ok-bg:#182a22;--warn-bg:#292417;--krit-bg:#2a1c19;--info-bg:#182731}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:16px 16px 90px}
+.zahl{font-variant-numeric:tabular-nums}
+h1{font-size:19px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 10px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1}
+.nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:4px 2px 4px}
+.wer{font-size:13px;color:var(--muted)}
+.lead{font-size:12.5px;color:var(--muted);margin:2px 2px 12px}
+.live{font-size:12.5px;background:var(--info-bg);color:var(--akz);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin:2px 0 14px}
+.steuer{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 12px}
+.steuer select,.steuer button{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:7px 11px;cursor:pointer}
+.steuer .sp{flex:1}
+.kacheln{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}
+.kachel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--schatten)}
+.kachel .l{font-size:12.5px;color:var(--muted)} .kachel .v{font-size:20px;font-weight:700;margin-top:3px}
+.kachel .u{font-size:11.5px;color:var(--muted);margin-top:2px}
+.filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.filter button{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:5px 12px;cursor:pointer}
+.filter button.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.tab{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--schatten);overflow:hidden}
+.row{display:grid;grid-template-columns:88px 96px 120px 1fr 150px;gap:10px;align-items:center;padding:10px 13px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row.kopfz{background:var(--surface2);font-size:12px;color:var(--muted);font-weight:600}
+.d{font-size:13px;color:var(--muted)}
+.betr{text-align:right;font-weight:700}
+.betr.ein{color:var(--ok)} .betr.aus{color:var(--crit)} .betr.um{color:var(--muted)}
+.pt{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pt small{color:var(--muted)}
+.chip{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ein{color:var(--ok);background:var(--ok-bg)} .chip.aus{color:var(--crit);background:var(--krit-bg)} .chip.um{color:var(--muted)}
+.kt{font-size:12.5px;color:var(--muted)}
+.leer{color:var(--muted);font-size:14px;padding:22px 2px;text-align:center}
+@media(max-width:640px){.row{grid-template-columns:1fr auto;grid-auto-rows:min-content}.row .kt,.row.kopfz{display:none}.row .betr{grid-column:2;grid-row:1}}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/dokumente">Документы</a>
+    <a href="/zahlungen" class="akt">Платежи</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/arbeit">Касса</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><h1>Платежи по счетам</h1><div class="wer" id="stand"></div></div>
+  <div class="live">🟢 Живой режим из почты Qonto включится после одного разрешения Google. Сейчас источник — <b>FinMap</b> (реальные операции банков и кассы, обновляется с задержкой ~1–2 дня).</div>
+  <div class="steuer">
+    <select id="monat"></select>
+    <span class="sp"></span>
+    <button id="refresh">Обновить</button>
+  </div>
+  <div id="tiles"></div>
+  <div class="filter" id="fkonto"></div>
+  <div class="filter" id="ftyp"></div>
+  <div id="app"><div class="leer">Загрузка… (первый заход тянет банк за период, ~10–15 c)</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const T=(iso)=>{ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?String(iso):d.toLocaleDateString('de-DE'); };
+const TYP={income:['ein','поступление'],expense:['aus','платёж'],transfer:['um','перевод']};
+let DATA=[], FKONTO='', FTYP='';
+
+function monateFuellen(){
+  const s=document.getElementById('monat');
+  // Помесячно с января 2026 (от текущего месяца назад), плюс "последние 30 дней" в конце.
+  const opt=[];
+  const start=new Date(2026,0,1), now=new Date();
+  const monate=[]; let d=new Date(start);
+  while(d<=now){ monate.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); d=new Date(d.getFullYear(),d.getMonth()+1,1); }
+  monate.reverse().forEach((m,i)=>{ const dt=new Date(m+'-01T00:00:00');
+    opt.push('<option value="'+m+'"'+(i===0?' selected':'')+'>'+dt.toLocaleDateString('de-DE',{month:'long',year:'numeric'})+'</option>'); });
+  opt.push('<option value="">Последние 30 дней</option>');
+  s.innerHTML=opt.join('');
+}
+async function J(u){ const r=await fetch(u,{credentials:'same-origin'});
+  if(r.status===401){location.href='/login?next=/zahlungen';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+
+function tiles(list){
+  const s={income:0,expense:0,transfer:0}, c={income:0,expense:0,transfer:0};
+  list.forEach(o=>{ const t=o.typ in s?o.typ:'expense'; s[t]+=Math.abs(Number(o.betrag)||0); c[t]++; });
+  document.getElementById('tiles').innerHTML='<div class="kacheln">'
+    +'<div class="kachel"><div class="l">Поступления</div><div class="v zahl" style="color:var(--ok)">'+EUR(s.income)+'</div><div class="u">'+c.income+' шт</div></div>'
+    +'<div class="kachel"><div class="l">Платежи</div><div class="v zahl" style="color:var(--crit)">'+EUR(s.expense)+'</div><div class="u">'+c.expense+' шт</div></div>'
+    +'<div class="kachel"><div class="l">Переводы между счетами</div><div class="v zahl">'+EUR(s.transfer)+'</div><div class="u">'+c.transfer+' шт</div></div>'
+    +'</div>';
+}
+function kontoFilter(list){
+  const konten=[...new Set(list.map(o=>o.konto).filter(Boolean))];
+  const b=['<button data-k="" class="'+(FKONTO===''?'akt':'')+'">Все счета</button>']
+    .concat(konten.map(k=>'<button data-k="'+H(k)+'" class="'+(FKONTO===k?'akt':'')+'">'+H(k)+'</button>'));
+  document.getElementById('fkonto').innerHTML=b.join('');
+}
+function typFilter(){
+  const opt=[['','Все'],['income','Поступления'],['expense','Платежи'],['transfer','Переводы'],['snat','Снятия']];
+  document.getElementById('ftyp').innerHTML=opt.map(o=>'<button data-t="'+o[0]+'" class="'+(FTYP===o[0]?'akt':'')+'">'+o[1]+'</button>').join('');
+}
+const istSnat=o=>/снят|bargeld|abhebung|geldautomat|atm|auszahlung|cash/i.test((o.partner||'')+' '+(o.kommentar||'')+' '+(o.fm_kategorie||''));
+function anwenden(){
+  let l=DATA.slice();
+  if(FKONTO) l=l.filter(o=>o.konto===FKONTO);
+  if(FTYP==='snat') l=l.filter(istSnat);
+  else if(FTYP) l=l.filter(o=>(o.typ||'expense')===FTYP);
+  tiles(l); kontoFilter(DATA); typFilter();
+  const app=document.getElementById('app');
+  if(!l.length){ app.innerHTML='<div class="leer">Операций нет.</div>'; return; }
+  l.sort((a,b)=>String(b.datum||'').localeCompare(String(a.datum||'')));
+  let h='<div class="tab"><div class="row kopfz"><span>Дата</span><span>Тип</span><span class="betr">Сумма</span><span>Контрагент</span><span class="kt">Категория / объект</span></div>';
+  h+=l.map(o=>{ const t=TYP[o.typ]||['aus','платёж'];
+    return '<div class="row">'
+      +'<span class="d zahl">'+H(T(o.datum))+'</span>'
+      +'<span><span class="chip '+t[0]+'">'+t[1]+(istSnat(o)&&o.typ!=='income'?' · снятие':'')+'</span></span>'
+      +'<span class="betr '+t[0]+' zahl">'+(t[0]==='aus'?'−':t[0]==='ein'?'+':'')+EUR(Math.abs(Number(o.betrag)||0))+'</span>'
+      +'<span class="pt">'+H(o.partner||'—')+(o.kommentar?'<br><small>'+H(String(o.kommentar).slice(0,80))+'</small>':'')+'</span>'
+      +'<span class="kt">'+H(o.fm_kategorie||'—')+(o.fm_projekt?'<br><small>'+H(o.fm_projekt)+'</small>':'')+'</span>'
+      +'</div>'; }).join('');
+  h+='</div>';
+  app.innerHTML=h;
+}
+async function laden(){
+  document.getElementById('app').innerHTML='<div class="leer">Загрузка… (тяну банк за период, ~10–15 c)</div>';
+  try{
+    const m=document.getElementById('monat').value;
+    const d=await J('/api/zahlungen'+(m?('?monat='+encodeURIComponent(m)):'?tage=30'));
+    DATA=d.ops||[];
+    document.getElementById('stand').textContent='источник: '+(d.quelle||'FinMap')+' · '+DATA.length+' операций';
+    anwenden();
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+document.getElementById('fkonto').addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(!b)return;FKONTO=b.dataset.k;anwenden();});
+document.getElementById('ftyp').addEventListener('click',e=>{const b=e.target.closest('button[data-t]');if(!b)return;FTYP=b.dataset.t;anwenden();});
+document.getElementById('monat').addEventListener('change',laden);
+document.getElementById('refresh').addEventListener('click',laden);
+monateFuellen(); laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Сверка банка · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:940px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;box-shadow:var(--schatten);margin-bottom:12px;border-left:3px solid var(--muted)}
+.karte.offen{border-left-color:var(--warn)} .karte.rueck{border-left-color:var(--crit)} .karte.ok{border-left-color:var(--ok)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.akz{color:var(--akz);background:var(--ok-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 12px}
+.box{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13px}
+.box.warn{background:var(--warn-bg);border-color:transparent} .box.crit{background:var(--krit-bg);border-color:transparent}
+.aktion{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:6px 11px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{background:var(--krit-bg);border-color:var(--crit);color:var(--crit)} .btn:disabled{opacity:.45}
+input,select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink)}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.saldo{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin:2px 0 10px}
+.saldo .z{font-size:20px;font-weight:700}
+details summary{cursor:pointer;font-size:13px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+td,th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)} th{color:var(--muted);font-weight:600}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/bank" class="akt">Сверка банка</a>
+    <a href="/zahlungen">Платежи</a>
+    <a href="/dubletten">Дубли</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><div><h1>Сверка банковских платежей со счетами</h1><div class="wer" id="wer"></div></div></div>
+  <div id="frisch"></div>
+  <div class="saldo"><div><div class="wer">Остаток банка (по движениям)</div><div class="z" id="saldo">—</div></div>
+    <div><div class="wer">Ожидается автосписанием</div><div class="z" id="auto_sum">—</div></div></div>
+  <div class="hinweis">Распределение платежа подтверждает бухгалтер (не по одной сумме). Нельзя распределить одну сумму дважды и закрыть счёт сверх долга.
+    Частичная оплата сохраняет срок остатка. Переплата — отдельно за поставщиком. Возврат восстанавливает остаток и связь. Нераспределённый платёж — в остатке банка, но с задачей и без расхода.
+    Автосписание: «Оплачен» только после сопоставления. При отсутствии списания сначала проверяется свежесть банковских данных. Разницу и Skonto бухгалтер решает вручную; реальные переводы не выполняются.</div>
+  <div class="msg" id="msg"></div>
+
+  <details class="karte"><summary>Импорт банковского движения (демо: проверить сценарии)</summary>
+    <div class="grid" style="margin-top:10px">
+      <input id="i_ext" placeholder="extern_id (повтор)">
+      <input id="i_gp" placeholder="контрагент">
+      <input id="i_betrag" placeholder="сумма € (напр. 160,00)">
+      <input id="i_zweck" placeholder="назначение (номера счетов)">
+      <input id="i_iban" placeholder="IBAN">
+      <input id="i_datum" type="date">
+      <select id="i_art"><option value="ueberweisung">перевод</option><option value="lastschrift">автосписание</option></select>
+    </div>
+    <div class="aktion"><button class="btn pri" id="i_add">Импортировать</button>
+      <button class="btn" id="i_autopr">Проверить ожидаемые автосписания</button></div>
+  </details>
+
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>c==null?'—':((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const ST={nicht_zugeordnet:['не распределён','warn'],teilweise:['частично','warn'],zugeordnet:['распределён','ok'],ueberzahlt:['переплата','warn'],rueckbuchung_pruefen:['возврат — проверить','crit'],zurueckgebucht:['возвращён','crit']};
+let ICH=null;
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>{m.className='msg';},4800);}
+async function J(u,o){o=Object.assign({credentials:'same-origin'},o||{});const r=await fetch(u,o);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.fehler||('ошибка '+r.status));return d;}
+async function post(u,b){return J(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});}
+const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+
+async function laden(){
+  let d; try{ d=await J('/api/bank'); }catch(e){ document.getElementById('app').innerHTML='<div class="leer">'+H(e.message)+'</div>'; return; }
+  ICH=d.ich; document.getElementById('wer').textContent=(ICH?ICH.login+' · '+ICH.rolle:'')+' · на '+H(d.stand);
+  document.getElementById('saldo').textContent=EUR(d.saldo_cent);
+  document.getElementById('auto_sum').textContent=EUR(d.prognose&&d.prognose.erwartet_autolastschrift_cent);
+  const f=d.frisch||{};
+  document.getElementById('frisch').innerHTML = f.vorlaeufig
+    ? '<div class="box crit">⚠ Банковские данные предварительны/устарели'+(f.stand?' (последние: '+H(String(f.stand).slice(0,10))+')':'')+' — вывод «списания не было» делать нельзя, сначала обновить синхронизацию.</div>'
+    : (f.bekannt?'<div class="box ok" style="background:var(--ok-bg)">Банковские данные актуальны.</div>':'');
+  let h='';
+  h+='<h2 style="margin:14px 2px 4px">Платежи на разбор ('+d.zahlungen.length+')</h2>';
+  h+= d.zahlungen.length? d.zahlungen.map(zahlung).join('') : '<div class="leer">Нет платежей на разбор.</div>';
+  if(d.erwartet_auto.length){ h+='<h2 style="margin:14px 2px 4px">Ожидается автосписанием</h2>'
+    +'<div class="karte"><table><tr><th>Счёт</th><th>Поставщик</th><th>Остаток</th><th>Ожидается</th></tr>'
+    +d.erwartet_auto.map(a=>'<tr><td>#'+a.beleg_id+' '+H(a.rechnung_nr||'')+'</td><td>'+H(a.lieferant||'')+'</td><td>'+EUR(a.rest_cent)+'</td><td>'+H(a.auto_faellig||'—')+(a.ueberfaellig?' ⚠':'')+'</td></tr>').join('')+'</table></div>'; }
+  if(d.manuell.length){ h+='<h2 style="margin:14px 2px 4px">Ручные переводы (открытые счета без автосписания)</h2>'
+    +'<div class="karte"><table><tr><th>Счёт</th><th>Поставщик</th><th>Остаток</th><th>Срок</th><th>Статус</th></tr>'
+    +d.manuell.map(a=>'<tr><td>#'+a.beleg_id+' '+H(a.rechnung_nr||'')+'</td><td>'+H(a.lieferant||'')+'</td><td>'+EUR(a.rest_cent)+'</td><td>'+H(a.faellig||'—')+'</td><td>'+H(a.status)+'</td></tr>').join('')+'</table></div>'; }
+  document.getElementById('app').innerHTML=h;
+}
+function zahlung(z){
+  const st=ST[z.status]||[z.status,'chip'];
+  const kl=z.status==='rueckbuchung_pruefen'?'rueck':(z.status==='zugeordnet'?'ok':'offen');
+  let h='<div class="karte '+kl+'"><div class="k1"><h2>#'+z.id+' '+H(z.gegenpartei||'контрагент?')+' · '+EUR(z.betrag_cent)+(z.art==='lastschrift'?' · автосписание':'')+'</h2><span class="chip '+st[1]+'">'+st[0]+'</span></div>';
+  h+='<div class="meta"><span>дата: '+H(z.datum||'—')+'</span><span>назначение: '+H(z.verwendungszweck||'—')+'</span><span>распределено: '+EUR(z.verteilt)+' · остаток платежа: '+EUR(z.rest_zahlung)+'</span>'+(z.pruef_frist?'<span>срок: '+H(z.pruef_frist)+(z.ueberfaellig?' ⚠':'')+'</span>':'')+'</div>';
+  if(z.status==='nicht_zugeordnet'&&!z.vorschlag.length) h+='<div class="box warn">Основание не найдено — «Нераспределённый платёж». Задача бухгалтеру создана; расход не создаётся.</div>';
+  if(z.differenz) h+='<div class="box crit">Расхождение суммы: ожидалось '+EUR(z.differenz.erwartet_cent)+', пришло '+EUR(z.differenz.tatsaechlich_cent)+' (разница '+EUR(z.differenz.diff_cent)+'). Возможно: '+z.differenz.erklaerungen.join(', ')+'. До проверки счёт не закрываем. <button class="btn" data-diff="'+z.id+'">Зафиксировать объяснение</button></div>';
+  if(z.zuordnungen.length){ h+='<div class="box"><b>Распределено:</b>'+z.zuordnungen.map(u=>'<div>→ счёт #'+u.beleg_id+' '+H(u.lieferant||'')+' '+H(u.rechnung_nr||'')+': '+EUR(u.betrag_cent)+(u.skonto_cent?' + скидка '+EUR(u.skonto_cent):'')+' <button class="btn" data-storno="'+u.id+'">снять</button></div>').join('')+'</div>'; }
+  if(z.rest_zahlung>0 && z.vorschlag.length){ h+='<div class="box"><b>Предложения (подтвердите распределение):</b>'
+    +z.vorschlag.map(v=>'<div style="margin-top:4px">счёт #'+v.beleg_id+' '+H(v.lieferant||'')+' '+H(v.rechnung_nr||'')+' · остаток '+EUR(v.rest_cent)+' <span class="chip '+(v.staerke==='stark'?'ok':'warn')+'">'+v.gruende.join(', ')+'</span><br>'
+      +'сумма <input id="al'+z.id+'_'+v.beleg_id+'" style="width:90px" placeholder="'+((Math.min(v.rest_cent,z.rest_zahlung))/100).toFixed(2)+'"> скидка <input id="sk'+z.id+'_'+v.beleg_id+'" style="width:70px" placeholder="0"> основание <input id="gr'+z.id+'_'+v.beleg_id+'" style="width:150px" placeholder="для Skonto"> '
+      +'<button class="btn pri" data-zu="'+z.id+'" data-beleg="'+v.beleg_id+'">Распределить</button></div>').join('')+'</div>'; }
+  h+='<div class="aktion">';
+  if(z.rest_zahlung>0 && z.status!=='ueberzahlt') h+='<button class="btn" data-ueber="'+z.id+'" data-ent="rueckzahlung">Переплата: возврат</button><button class="btn" data-ueber="'+z.id+'" data-ent="verrechnung">Переплата: зачёт</button>';
+  if(z.status!=='rueckbuchung_pruefen'&&z.status!=='zurueckgebucht') h+='<button class="btn crit" data-rueck="'+z.id+'">Возврат/отмена</button>';
+  if(z.status==='rueckbuchung_pruefen') h+='<button class="btn crit" data-rueckok="'+z.id+'">Подтвердить возврат</button>';
+  h+='</div></div>';
+  return h;
+}
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('button'); if(!t)return; const D=t.dataset;
+  try{
+    if(D.zu){ const bel=D.beleg; const teile=[{beleg_id:+bel,betrag:g('al'+D.zu+'_'+bel)||'0',skonto:g('sk'+D.zu+'_'+bel)||'0',grund:g('gr'+D.zu+'_'+bel)}];
+      const skonto=(g('sk'+D.zu+'_'+bel)||'0'); const fn = (parseFloat(skonto.replace(',','.'))>0)?'/api/bank/skonto':'/api/bank/zuordnen';
+      if(fn==='/api/bank/skonto'){ await post('/api/bank/skonto',{bewegung_id:+D.zu,beleg_id:+bel,betrag:g('al'+D.zu+'_'+bel)||'0',skonto,grund:g('gr'+D.zu+'_'+bel)}); }
+      else { await post('/api/bank/zuordnen',{bewegung_id:+D.zu,teile}); }
+      msg('распределено',true); }
+    else if(D.storno){ await post('/api/bank/storno',{id:+D.storno}); msg('распределение снято',true); }
+    else if(D.ueber){ await post('/api/bank/ueberzahlung',{bewegung_id:+D.ueber,entscheidung:D.ent,grund:'решение бухгалтера'}); msg('переплата отмечена за поставщиком',true); }
+    else if(D.rueck){ await post('/api/bank/rueckbuchung',{bewegung_id:+D.rueck}); msg('возврат отправлен на проверку',true); }
+    else if(D.rueckok){ const r=await post('/api/bank/rueckbuchung-bestaetigen',{bewegung_id:+D.rueckok}); msg('возврат подтверждён'+(r.risiko_ueberfaellig&&r.risiko_ueberfaellig.length?' — есть риск просрочки':''),true); }
+    else if(D.diff){ await post('/api/bank/differenz',{bewegung_id:+D.diff,erklaerung:'проверяется бухгалтером'}); msg('объяснение зафиксировано',true); }
+    else return;
+    laden();
+  }catch(err){ msg(err.message); }
+});
+document.getElementById('i_add').addEventListener('click',async()=>{
+  try{ const r=await post('/api/bank/import',{extern_id:g('i_ext'),gegenpartei:g('i_gp'),betrag:g('i_betrag'),verwendungszweck:g('i_zweck'),iban:g('i_iban'),datum:g('i_datum'),art:g('i_art')});
+    msg(r.wiederholung?'повторный импорт — движение уже есть':('импортировано #'+r.id+(r.ohne_grund?' — основание не найдено':(' · предложений: '+(r.vorschlag?r.vorschlag.length:0)))),true); laden();
+  }catch(err){ msg(err.message); }
+});
+document.getElementById('i_autopr').addEventListener('click',async()=>{
+  try{ const r=await post('/api/bank/auto-pruefung',{}); msg(r.daten_veraltet?'данные банка устарели — обновить синхронизацию (вывод об отсутствии списания делать нельзя)':(r.aufgaben&&r.aufgaben.length?('созданы задачи по '+r.aufgaben.length+' счетам'):'просроченных ожиданий нет'),true); laden();
+  }catch(err){ msg(err.message); }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

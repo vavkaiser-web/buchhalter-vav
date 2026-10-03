@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Проверка месяцев · VAV Kaiser</title>
+<style>
+:root{
+  --bg:#f2efe9; --surface:#ffffff; --surface2:#faf8f4; --ink:#1b2530; --muted:#5c6773;
+  --line:#e6e1d7; --akz:#14586e; --akz-w:#0e4356; --ok:#2e7d5b; --warn:#b07d16; --crit:#b23f2b;
+  --krit-bg:#fbeeea; --warn-bg:#fbf4e3; --ok-bg:#e9f4ee;
+  --r:14px; --schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1a2129; --surface2:#161c23; --ink:#e9edf1; --muted:#95a1ad;
+  --line:#2a333d; --akz:#5bb4cf; --akz-w:#8fd0e4; --ok:#5fc48f; --warn:#d9b154; --crit:#e2856f;
+  --krit-bg:#2a1c19; --warn-bg:#292417; --ok-bg:#182a22;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0}
+h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1}
+.nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 14px}
+.wer{font-size:13px;color:var(--muted)}
+.demo{display:inline-block;font-size:11.5px;font-weight:600;color:var(--warn);background:var(--warn-bg);
+  border:1px solid var(--line);border-radius:999px;padding:2px 9px;margin-left:8px}
+.jahr{display:flex;gap:8px;align-items:center;margin:2px 0 14px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);
+  border-radius:9px;padding:7px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.firma{margin-top:16px}
+.firma>h2{margin:0 2px 8px}
+.monate{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.m{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 11px;box-shadow:var(--schatten);
+  cursor:pointer;border-left:3px solid var(--muted)}
+.m:hover{background:var(--surface2)}
+.m.s_geprueft{border-left-color:var(--warn)}
+.m.s_natalia_geprueft{border-left-color:var(--ok)}
+.m.s_paket_uebergeben{border-left-color:var(--akz)}
+.m.s_erklaerung_eingereicht{border-left-color:var(--akz)}
+.m.s_jahr_zu{border-left-color:var(--ok)}
+.m.wv{box-shadow:inset 0 0 0 2px var(--warn-bg),var(--schatten)}
+.m .mn{font-weight:700}
+.m .ms{font-size:12px;color:var(--muted);margin-top:3px}
+.m .flag{display:inline-block;font-size:11px;color:var(--warn);background:var(--warn-bg);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-top:6px}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;box-shadow:var(--schatten)}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin-top:10px}
+/* модальная панель */
+.ov{position:fixed;inset:0;background:rgba(10,15,20,.45);display:none;align-items:flex-start;justify-content:center;padding:24px 14px;z-index:9;overflow:auto}
+.ov.an{display:flex}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);max-width:560px;width:100%;padding:18px 18px 20px;box-shadow:var(--schatten)}
+.panel h2{margin-bottom:4px}
+.reihe{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.stufen{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.stufe{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface2)}
+.stufe.jetzt{border-color:var(--akz);box-shadow:inset 0 0 0 1px var(--akz)}
+.stufe .st{flex:1}
+.stufe .num{width:22px;height:22px;border-radius:50%;background:var(--muted);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.stufe.erreicht .num{background:var(--ok)}
+.verlauf{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.vz{font-size:12.5px;color:var(--muted);padding:4px 0;border-top:1px dashed var(--line)}
+.vz:first-child{border-top:0}
+label.lb{font-size:12.5px;color:var(--muted);display:block;margin:10px 0 3px}
+textarea,input,select{font:inherit;font-size:14px;width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface2);color:var(--ink)}
+.err{color:var(--crit);font-size:12.5px;margin-top:8px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/objekt">Объекты</a>
+    <a href="/monat" class="akt">Проверка месяцев</a>
+    <a href="/korrektur">Исправления</a>
+    <a href="/benachrichtigung">Уведомления</a>
+    <a href="/paket">Комплекты</a>
+    <a href="/fragen">Вопросы</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/arbeit">Касса</a>
+    <a href="/integrationen">Интеграции</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf">
+    <div><h1>Проверка месяцев</h1>
+      <div class="wer" id="wer"></div></div>
+  </div>
+  <div class="jahr">
+    <button class="btn" id="prev">‹</button>
+    <strong id="jahrT" style="font-size:17px">—</strong>
+    <button class="btn" id="next">›</button>
+    <span class="sp" style="flex:1"></span>
+    <button class="btn" id="verantw" hidden>Ответственный бухгалтер</button>
+  </div>
+  <div class="hinweis">«Месяц проверен Натальей» — внутренняя отметка приложения. Она не заменяет
+    подачу отчётности и не является годовым закрытием — это отдельные состояния. Отметку ставит
+    ответственный бухгалтер; учётной записи Натальи нет.</div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+
+<div class="ov" id="ov"><div class="panel" id="panel"></div></div>
+<div class="ov" id="ovV"><div class="panel" id="panelV"></div></div>
+
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MON=['','январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+function tag(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+async function J(u,opt){ const r=await fetch(u,Object.assign({credentials:'same-origin'},opt||{}));
+  if(r.status===401){location.href='/login?next=/monat';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+async function P(u,body){ return J(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); }
+
+let JAHR=new Date().getFullYear();
+let ICH={}, KAT=[];
+
+async function laden(){
+  try{
+    const d=await J('/api/monat?jahr='+JAHR);
+    JAHR=d.jahr; ICH=d.ich||{}; KAT=d.status_katalog||[];
+    document.getElementById('jahrT').textContent=JAHR;
+    document.getElementById('wer').textContent=(ICH.name||ICH.login||'')+' · '+(ICH.rolle==='gf'?'владелец':'бухгалтерия')+(ICH.verantwortlich?' · ответственный бухгалтер':'');
+    document.getElementById('verantw').hidden = ICH.rolle!=='gf';
+    document.getElementById('app').innerHTML=d.firmen.map(firmaHtml).join('');
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function firmaHtml(f){
+  return '<div class="firma"><h2>'+H(f.name)+'</h2><div class="monate">'
+    +f.monate.map(m=>{
+      return '<div class="m s_'+H(m.status)+(m.wiedervorlage?' wv':'')+'" data-firma="'+H(f.firma)+'" data-monat="'+m.monat+'">'
+        +'<div class="mn">'+H(MON[m.monat])+'</div>'
+        +'<div class="ms">'+H(m.status_text)+'</div>'
+        +(m.wiedervorlage?'<div class="flag">требует повторной проверки</div>':'')
+        +'</div>';
+    }).join('')
+    +'</div></div>';
+}
+
+/* ---- панель месяца ---- */
+async function oeffne(firma,monat){
+  const ov=document.getElementById('ov'), panel=document.getElementById('panel');
+  panel.innerHTML='<div class="leer">Загрузка…</div>'; ov.classList.add('an');
+  try{
+    const m=await J('/api/monat/eins?firma='+encodeURIComponent(firma)+'&jahr='+JAHR+'&monat='+monat);
+    panel.innerHTML=panelHtml(m);
+  }catch(e){ panel.innerHTML='<div class="err">'+H(e.message)+'</div><div class="reihe"><button class="btn" onclick="zu()">Закрыть</button></div>'; }
+}
+function darfStufe(k){
+  const rang=KAT.findIndex(s=>s.k===k);
+  const natRang=KAT.findIndex(s=>s.k==='natalia_geprueft');
+  if(rang>=natRang) return ICH.verantwortlich===true; // Наталья/владелец
+  return ICH.rolle==='gf'||ICH.rolle==='buchhaltung';
+}
+function panelHtml(m){
+  const jetzt=KAT.findIndex(s=>s.k===m.status);
+  let h='<h2>'+H(m.firma_name)+' · '+H(MON[m.monat])+' '+m.jahr+'</h2>';
+  h+='<div class="wer">Текущее состояние: <strong>'+H(m.status_text)+'</strong></div>';
+  if(m.status==='natalia_geprueft'||jetzt>KAT.findIndex(s=>s.k==='natalia_geprueft'))
+    h+='<div style="margin-top:6px"><span class="chip ok">проверил: '+H(m.natalia_von||'—')+(m.natalia_am?' · '+tag(m.natalia_am):'')+'</span></div>';
+  if(m.wiedervorlage) h+='<div style="margin-top:6px"><span class="chip warn">есть изменения, требующие повторной проверки</span></div>';
+
+  // Ф3: затронувшие месяц исправления — что именно перепроверить
+  if(m.korrekturen&&m.korrekturen.length){
+    h+='<div style="margin-top:10px"><div class="wer">Затронутые исправления</div>'
+      +m.korrekturen.map(k=>'<div class="vz" style="border-top:1px dashed var(--line);padding:5px 0">'
+        +'#'+k.id+' · '+H(k.art_text)+' · '+H(k.bezug)+(k.objekt_nr?' · объект '+H(k.objekt_nr):'')
+        +' <span class="chip '+(k.status==='angewandt'?'ok':'')+'">'+H(k.status_text)+'</span>'
+        +(k.auswirkung?'<div style="color:var(--muted);font-size:12px;margin-top:2px">влияние: '+H(k.auswirkung)+'</div>':'')
+        +'</div>').join('')+'</div>';
+  }
+  // Ф3: повторная приёмка обновлённых итогов (снимает метку повторной проверки)
+  if(m.wiedervorlage && darfStufe('natalia_geprueft')){
+    h+='<div class="reihe"><button class="btn pri" data-set="natalia_geprueft">Подтвердить повторную проверку</button></div>';
+  }
+
+  h+='<div class="stufen">'+KAT.map((s,i)=>{
+    const erreicht=i<=jetzt;
+    const kann=darfStufe(s.k) && i!==jetzt;
+    return '<div class="stufe'+(i===jetzt?' jetzt':'')+(erreicht?' erreicht':'')+'">'
+      +'<span class="num">'+(i+1)+'</span><span class="st">'+H(s.t)+'</span>'
+      +(kann?'<button class="btn'+(i===jetzt+1?' pri':'')+'" data-set="'+H(s.k)+'">'+(i>jetzt?'перейти':'вернуть')+'</button>':'')
+      +'</div>';
+  }).join('')+'</div>';
+
+  // Ф3: пометка «требует повторной проверки»
+  h+='<div class="reihe">';
+  if(darfStufe('geprueft')){
+    if(m.wiedervorlage) h+='<button class="btn" data-wv="0">Снять «требует повторной проверки»</button>';
+    else h+='<button class="btn" data-wv="1">Пометить «требует повторной проверки»</button>';
+  }
+  h+='<button class="btn" onclick="zu()">Закрыть</button></div>';
+
+  h+='<div class="hinweis">Отметку «Месяц проверен Натальей» и выше ставит только ответственный бухгалтер (или владелец). «Проверка месяца» ≠ подача отчётности ≠ годовое закрытие.</div>';
+
+  if(m.verlauf&&m.verlauf.length){
+    h+='<div class="verlauf"><div class="wer">История</div>'+m.verlauf.map(v=>
+      '<div class="vz">'+H(tag(v.wann))+' · '+H(v.autor||'—')+' · '
+      +(v.ereignis==='statuswechsel'?('статус: '+H(statusT(v.von))+' → '+H(statusT(v.nach))):
+        v.ereignis==='wiedervorlage_an'?'помечен «требует повторной проверки»':
+        v.ereignis==='wiedervorlage_ab'?'снята пометка повторной проверки':H(v.ereignis))
+      +(v.notiz?' · '+H(v.notiz):'')+'</div>').join('')+'</div>';
+  }
+  h+='<div class="cur" data-firma="'+H(m.firma)+'" data-monat="'+m.monat+'" hidden></div>';
+  return h;
+}
+function statusT(k){ const s=KAT.find(x=>x.k===k); return s?s.t:(k||''); }
+function zu(){ document.getElementById('ov').classList.remove('an'); }
+function zuV(){ document.getElementById('ovV').classList.remove('an'); }
+
+/* ---- ответственный бухгалтер (только владелец) ---- */
+async function oeffneV(){
+  const ov=document.getElementById('ovV'), panel=document.getElementById('panelV');
+  panel.innerHTML='<div class="leer">Загрузка…</div>'; ov.classList.add('an');
+  try{
+    const d=await J('/api/monat/verantwortliche');
+    let h='<h2>Ответственный бухгалтер</h2><div class="wer">Наталья отмечает проверку месяцев. Учётная запись не создаётся — это возможность на роли «бухгалтерия», назначает владелец.</div>';
+    if(!d.buchhalter.length) h+='<div class="leer">Нет пользователей с ролью «бухгалтерия».</div>';
+    else h+='<div class="stufen">'+d.buchhalter.map(b=>
+      '<div class="stufe"><span class="st">'+H(b.name)+' <span class="wer">('+H(b.login)+')</span></span>'
+      +(b.verantwortlich?'<span class="chip ok">ответственный</span><button class="btn" data-v="'+H(b.login)+'" data-an="0">снять</button>'
+        :'<button class="btn pri" data-v="'+H(b.login)+'" data-an="1">назначить</button>')
+      +'</div>').join('')+'</div>';
+    h+='<div class="reihe"><button class="btn" onclick="zuV()">Закрыть</button></div>';
+    panel.innerHTML=h;
+  }catch(e){ panel.innerHTML='<div class="err">'+H(e.message)+'</div><div class="reihe"><button class="btn" onclick="zuV()">Закрыть</button></div>'; }
+}
+
+/* ---- события ---- */
+document.getElementById('app').addEventListener('click',e=>{
+  const m=e.target.closest('.m'); if(m) oeffne(m.dataset.firma, Number(m.dataset.monat));
+});
+document.getElementById('prev').onclick=()=>{JAHR--;laden();};
+document.getElementById('next').onclick=()=>{JAHR++;laden();};
+document.getElementById('verantw').onclick=oeffneV;
+document.getElementById('ov').addEventListener('click',e=>{ if(e.target.id==='ov') zu(); });
+document.getElementById('ovV').addEventListener('click',e=>{ if(e.target.id==='ovV') zuV(); });
+
+document.getElementById('panel').addEventListener('click',async e=>{
+  const cur=document.querySelector('#panel .cur'); if(!cur) return;
+  const firma=cur.dataset.firma, monat=Number(cur.dataset.monat);
+  const b=e.target.closest('[data-set]');
+  if(b){ b.disabled=true; try{ await P('/api/monat/status',{firma,jahr:JAHR,monat,status:b.dataset.set}); await oeffne(firma,monat); laden(); }
+    catch(err){ alert(err.message); b.disabled=false; } return; }
+  const w=e.target.closest('[data-wv]');
+  if(w){ w.disabled=true; try{ await P('/api/monat/wiedervorlage',{firma,jahr:JAHR,monat,an:w.dataset.wv==='1'}); await oeffne(firma,monat); laden(); }
+    catch(err){ alert(err.message); w.disabled=false; } return; }
+});
+document.getElementById('panelV').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-v]'); if(!b) return;
+  b.disabled=true; try{ await P('/api/monat/verantwortlich',{login:b.dataset.v,verantwortlich:b.dataset.an==='1'}); await oeffneV(); laden(); }
+  catch(err){ alert(err.message); b.disabled=false; }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мои чеки · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:16px 16px 90px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:14px 0 6px}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 4px}.wer{font-size:13px;color:var(--muted)}
+.netz{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin:6px 0 12px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok)} .dot.off{background:var(--crit)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;box-shadow:var(--schatten);margin-bottom:12px}
+label.lb{font-size:12.5px;color:var(--muted);display:block;margin:8px 0 3px}
+input,select{font:inherit;font-size:14px;width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface2);color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:8px 12px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn:disabled{opacity:.45}
+.item{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-top:8px;border-left:3px solid var(--muted)}
+.item.lokal{border-left-color:var(--muted)} .item.wartet{border-left-color:var(--warn)} .item.sendet{border-left-color:var(--akz)} .item.fehler{border-left-color:var(--crit)} .item.gesendet{border-left-color:var(--ok)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)} .chip.akz{color:var(--akz);background:var(--ok-bg)}
+.meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:2px 10px}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.toggle{display:flex;align-items:center;gap:8px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/arbeit">Касса</a>
+    <a href="/offline" class="akt">Мои чеки</a>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><h1>Мои чеки</h1><div class="wer" id="wer"></div></div>
+  <div class="netz"><span class="dot" id="dot"></span><span id="netz"></span>
+    <span class="sp" style="flex:1"></span>
+    <label class="toggle"><input type="checkbox" id="offsim" style="width:auto"> режим офлайн (демо)</label></div>
+  <div class="msg" id="msg"></div>
+
+  <div class="karte">
+    <h2 style="margin-top:0">Новый чек</h2>
+    <div class="grid2">
+      <div><label class="lb">Сумма, €</label><input id="f_betrag" inputmode="decimal" placeholder="0,00"></div>
+      <div><label class="lb">Назначение</label><select id="f_zweck"><option value="material">материал</option><option value="transport">транспорт</option><option value="werkzeug">инструмент</option><option value="sonstiges">прочее</option></select></div>
+    </div>
+    <label class="lb">Объект (номер)</label><input id="f_objekt" placeholder="VK-26-…">
+    <label class="lb">Фото чека</label><input id="f_foto" type="file" accept="image/*">
+    <div style="margin-top:10px"><button class="btn pri" id="save">Сохранить чек</button></div>
+    <div class="hinweis">Чек сначала сохраняется на телефоне. Пока сервер не подтвердил — статус «Ещё не отправлено».
+      Локальная очередь не очищается до подтверждения сервером. Нажатие кнопки — ещё не успешная отправка.</div>
+  </div>
+
+  <div class="karte">
+    <div class="k1"><h2 style="margin:0">Очередь на телефоне</h2><button class="btn" id="sync">Отправить сейчас</button></div>
+    <div id="liste"><div class="leer">Загрузка…</div></div>
+  </div>
+
+  <div class="hinweis"><strong>iPhone и фоновая работа (честно):</strong> когда приложение закрыто и связи нет,
+    автоматическая фоновая отправка на iPhone не гарантируется. Очередь сохраняется на устройстве и
+    возобновляется при следующем открытии и доступной связи. Статус всегда виден. Данные в браузере
+    (очистка данных сайта, удаление приложения) могут быть удалены — тогда несинхронизированные чеки
+    пропадут; о таком риске предупреждаем.</div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const tagz=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleString('de-DE');};
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>{m.className='msg';},4500);}
+function centAus(v){const x=Math.round(parseFloat(String(v).replace(',','.'))*100);return Number.isFinite(x)?x:NaN;}
+const STAT={lokal:'Сохранено на устройстве',wartet:'Ещё не отправлено',sendet:'Отправляется…',fehler:'Ошибка, будет повтор',gesendet:'Отправлено'};
+
+/* ---------- IndexedDB (локальная очередь) ---------- */
+let DBH=null;
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('vav_belege',1);
+  r.onupgradeneeded=e=>{ const db=e.target.result; if(!db.objectStoreNames.contains('q')) db.createObjectStore('q',{keyPath:'operation_id'}); };
+  r.onsuccess=e=>res(e.target.result); r.onerror=e=>rej(r.error||new Error('IndexedDB недоступен')); }); }
+async function idbAll(){ const db=DBH||(DBH=await idb()); return new Promise((res,rej)=>{ const t=db.transaction('q','readonly').objectStore('q').getAll(); t.onsuccess=()=>res(t.result||[]); t.onerror=()=>rej(t.error); }); }
+async function idbPut(x){ const db=DBH||(DBH=await idb()); return new Promise((res,rej)=>{ const t=db.transaction('q','readwrite').objectStore('q').put(x); t.onsuccess=()=>res(true); t.onerror=()=>rej(t.error); }); }
+
+let ICH={};
+function online(){ return navigator.onLine && !document.getElementById('offsim').checked; }
+function netzAnzeige(){ const on=online(); document.getElementById('dot').className='dot'+(on?'':' off'); document.getElementById('netz').textContent=on?'связь есть':'нет связи — чеки в очереди'; }
+
+async function laden(){
+  try{ const d=await fetch('/api/offline/meine',{credentials:'same-origin'}).then(r=>r.json()); ICH=d.ich||{}; document.getElementById('wer').textContent=(ICH.name||ICH.login||''); }catch(e){}
+  netzAnzeige(); render();
+}
+async function render(){
+  let items=[];
+  try{ items=await idbAll(); }
+  catch(e){ document.getElementById('liste').innerHTML='<div class="leer">Локальное хранилище недоступно: '+H(e.message)+'. Чеки нельзя сохранить на этом устройстве.</div>'; return; }
+  items.sort((a,b)=>String(b.gespeichert_lokal).localeCompare(String(a.gespeichert_lokal)));
+  if(!items.length){ document.getElementById('liste').innerHTML='<div class="leer">Очередь пуста.</div>'; return; }
+  document.getElementById('liste').innerHTML=items.map(x=>{
+    const cls={lokal:'',wartet:'warn',sendet:'akz',fehler:'crit',gesendet:'ok'}[x.status]||'';
+    return '<div class="item '+x.status+'"><div class="k1"><strong>'+EUR(x.betrag_cent)+' · '+H(x.zweck||'')+'</strong>'
+      +'<span class="chip '+cls+'">'+H(STAT[x.status]||x.status)+'</span></div>'
+      +'<div class="meta">'+(x.objekt_nr?'объект '+H(x.objekt_nr):'без объекта')+(x.datei_name?'<span>· '+H(x.datei_name)+'</span>':'')
+      +'<span>· снято '+tagz(x.aufnahme_datum)+'</span>'+(x.server_id?'<span>· №'+x.server_id+'</span>':'')+'</div>'
+      +(x.konflikt?'<div class="meta"><span class="chip crit">конфликт привязки — на проверке</span></div>':'')
+      +(x.fehler&&x.status==='fehler'?'<div class="meta">'+H(x.fehler)+'</div>':'')
+      +(x.status!=='gesendet'?'<div style="margin-top:8px"><button class="btn" data-retry="'+H(x.operation_id)+'">Повторить</button></div>':'')
+      +'</div>';
+  }).join('');
+}
+
+async function speichern(){
+  const c=centAus(document.getElementById('f_betrag').value);
+  if(!Number.isFinite(c)||c<=0) return msg('Введите сумму');
+  const foto=document.getElementById('f_foto').files[0];
+  const rec={ operation_id:(crypto.randomUUID?crypto.randomUUID():'op-'+Date.now()+'-'+Math.random().toString(36).slice(2)),
+    betrag_cent:c, zweck:document.getElementById('f_zweck').value, objekt_nr:document.getElementById('f_objekt').value.trim()||null,
+    datei_name:foto?foto.name:null, aufnahme_datum:new Date().toISOString(), gespeichert_lokal:new Date().toISOString(),
+    status:'lokal', versuche:0 };
+  try{ await idbPut(rec); }
+  catch(e){ return msg('Не удалось сохранить на устройстве (нет места или запрещено хранилище): '+e.message); }
+  // проверяем, что реально сохранилось, прежде чем говорить «сохранено»
+  let ok=false; try{ ok=(await idbAll()).some(x=>x.operation_id===rec.operation_id); }catch(e){}
+  if(!ok) return msg('Сохранение не подтвердилось — попробуйте ещё раз');
+  rec.status='wartet'; try{ await idbPut(rec); }catch(e){}
+  document.getElementById('f_betrag').value=''; document.getElementById('f_objekt').value=''; document.getElementById('f_foto').value='';
+  msg('Сохранено на устройстве. '+(online()?'Отправляю…':'Отправится при связи.'),true);
+  render(); if(online()) syncAll();
+}
+
+async function sendeEinen(x){
+  if(x.status==='gesendet') return;
+  x.status='sendet'; await idbPut(x); render();
+  try{
+    const r=await fetch('/api/offline/beleg',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},
+      body:JSON.stringify({operation_id:x.operation_id,betrag_cent:x.betrag_cent,zweck:x.zweck,objekt_nr:x.objekt_nr,
+        aufnahme_datum:x.aufnahme_datum,gespeichert_lokal:x.gespeichert_lokal,datei_ref:x.datei_name})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status));
+    // сервер подтвердил (в т.ч. повтор после потерянного ответа → duplikat, не копия)
+    x.status='gesendet'; x.server_id=j.id; x.konflikt=j.konflikt||false; x.fehler=null;
+    await idbPut(x);
+  }catch(e){
+    x.status='fehler'; x.versuche=(x.versuche||0)+1; x.fehler=e.message; await idbPut(x);
+  }
+  render();
+}
+let laeuft=false;
+async function syncAll(){
+  if(laeuft) return; laeuft=true;
+  try{
+    if(!online()){ return; }
+    const items=(await idbAll()).filter(x=>x.status==='wartet'||x.status==='fehler');
+    for(const x of items){ if(!online()) break; await sendeEinen(x); }
+  }catch(e){} finally{ laeuft=false; }
+}
+
+document.getElementById('save').onclick=speichern;
+document.getElementById('sync').onclick=()=>{ if(!online()) return msg('Нет связи — отправлю при подключении'); syncAll(); };
+document.getElementById('offsim').onchange=()=>{ netzAnzeige(); if(online()) syncAll(); };
+document.getElementById('liste').addEventListener('click',async e=>{ const b=e.target.closest('[data-retry]'); if(!b) return;
+  if(!online()) return msg('Нет связи — повтор при подключении');
+  const items=await idbAll(); const x=items.find(i=>i.operation_id===b.dataset.retry); if(x) sendeEinen(x); });
+window.addEventListener('online',()=>{ netzAnzeige(); syncAll(); });
+window.addEventListener('offline',netzAnzeige);
+laden().then(()=>{ if(online()) syncAll(); });
+</script>
+<script src="/rolle.js"></script>
+</body></html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Неотправленные чеки · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;box-shadow:var(--schatten);margin-bottom:12px;border-left:3px solid var(--muted)}
+.karte.mitarbeiter{border-left-color:var(--warn)} .karte.buchhaltung{border-left-color:var(--akz)} .karte.oleg{border-left-color:var(--crit)} .karte.erledigt{border-left-color:var(--ok);opacity:.7}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.akz{color:var(--akz);background:var(--ok-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 12px}
+.aktion{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:6px 11px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn:disabled{opacity:.45}
+input,select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink)}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.vz{font-size:12px;color:var(--muted);padding:2px 0}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/pflichten" class="akt">Неотправленные чеки</a>
+    <a href="/offline">Мои чеки</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><div><h1>Неотправленные чеки — напоминания и эскалация</h1><div class="wer" id="wer"></div></div></div>
+  <div class="hinweis">Напоминание в 18:00 по времени Германии (Europe/Berlin), в т.ч. в выходной, если сотрудник
+    в этот день работал. Цепочка: сотрудник → через 2 рабочих дня бухгалтер → ещё через 1 рабочий день Олег.
+    Андрей в эту цепочку не включён. Повторные напоминания не обнуляют срок. Отправка ≠ бухгалтерская проверка.
+    Живой канал уведомления сотруднику подключается отдельным согласованным шагом.</div>
+  <div class="msg" id="msg"></div>
+  <div class="karte" id="admin" style="border-left-color:var(--akz)" hidden>
+    <h2>Управление (демо)</h2>
+    <div class="aktion">
+      <input id="p_person" placeholder="логин сотрудника" style="width:150px">
+      <input id="p_was" placeholder="что сдать" style="width:200px">
+      <input id="p_objekt" placeholder="объект" style="width:100px">
+      <button class="btn pri" id="p_add">Завести обязанность</button>
+    </div>
+    <div class="aktion" style="margin-top:10px">
+      <label class="wer">Прогон «18:00»:</label>
+      <input id="r_jetzt" type="datetime-local">
+      <label class="wer"><input type="checkbox" id="r_force" style="width:auto"> игнорировать окно 18:00</label>
+      <button class="btn" id="r_lauf">Прогнать напоминания</button>
+    </div>
+  </div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const STUFE={mitarbeiter:'у сотрудника',buchhaltung:'у бухгалтера',oleg:'у Олега'};
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>{m.className='msg';},4500);}
+async function J(u){const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login?next=/pflichten';throw new Error('нет сессии');}const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+async function P(u,b){const r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+let ICH={};
+async function laden(){
+  try{
+    const d=await J('/api/pflicht'); ICH=d.ich||{};
+    document.getElementById('wer').textContent=(ICH.name||ICH.login||'')+' · '+(ICH.rolle==='gf'?'владелец':ICH.rolle==='buchhaltung'?'бухгалтерия':ICH.rolle);
+    document.getElementById('admin').hidden=!['gf','buchhaltung'].includes(ICH.rolle);
+    const list=d.pflichten||[];
+    document.getElementById('app').innerHTML=list.length?list.map(karte).join(''):'<div class="leer">Обязанностей нет.</div>';
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function karte(p){
+  const cls=p.erledigt?'erledigt':p.stufe;
+  return '<div class="karte '+cls+'"><div class="k1"><strong>'+H(p.person)+' · '+H(p.was)+'</strong>'
+    +(p.erledigt?'<span class="chip ok">сдан</span>':'<span class="chip '+(p.stufe==='oleg'?'crit':p.stufe==='buchhaltung'?'akz':'warn')+'">эскалация: '+H(STUFE[p.stufe]||p.stufe)+'</span>')+'</div>'
+    +'<div class="meta">'+(p.objekt_nr?'объект '+H(p.objekt_nr):'')+(p.betrag_cent?'<span>· '+EUR(p.betrag_cent)+'</span>':'')
+    +(p.erste_erinnerung?'<span>· первое напоминание '+H(p.erste_erinnerung)+'</span>':'<span>· напоминаний ещё не было</span>')+'</div>'
+    +(p.verlauf&&p.verlauf.length?'<div style="margin-top:6px">'+p.verlauf.slice(0,6).map(v=>'<div class="vz">'+H(v.tag)+' · '+H(STUFE[v.stufe]||v.stufe||'')+' · '+H(v.ereignis)+'</div>').join('')+'</div>':'')
+    +(!p.erledigt?'<div class="aktion"><button class="btn" data-erledigt="'+p.id+'">Отметить: чек сдан</button></div>':'')
+    +'</div>';
+}
+document.getElementById('p_add').onclick=async()=>{
+  const g=id=>document.getElementById(id).value.trim();
+  try{ await P('/api/pflicht',{person:g('p_person'),was:g('p_was'),objekt_nr:g('p_objekt')||undefined}); msg('Обязанность заведена',true); ['p_person','p_was','p_objekt'].forEach(i=>document.getElementById(i).value=''); laden(); }
+  catch(e){ msg(e.message); }
+};
+document.getElementById('r_lauf').onclick=async()=>{
+  const j=document.getElementById('r_jetzt').value;
+  try{ const r=await P('/api/erinnerung/lauf',{jetzt:j?new Date(j).toISOString():undefined,force:document.getElementById('r_force').checked});
+    msg('Прогон '+r.tag+(r.fenster?'':' (вне окна 18:00 — напоминания не создаются)')+': напомнили '+r.erinnert.length+', эскалаций '+r.eskaliert.length,true); laden(); }
+  catch(e){ msg(e.message); }
+};
+document.getElementById('app').addEventListener('click',async e=>{ const b=e.target.closest('[data-erledigt]'); if(!b) return;
+  b.disabled=true; try{ await P('/api/pflicht/erledigt',{id:Number(b.dataset.erledigt)}); msg('Отмечено: чек сдан. Напоминания сняты. Бухгалтерская проверка — отдельно.',true); laden(); }catch(err){ msg(err.message); b.disabled=false; } });
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

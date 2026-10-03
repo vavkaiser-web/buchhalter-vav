@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Центр · VAV Kaiser</title>
+<style>
+:root{
+  --bg:#f2efe9; --surface:#ffffff; --surface2:#faf8f4; --ink:#1b2530; --muted:#5c6773;
+  --line:#e6e1d7; --akz:#14586e; --akz-w:#0e4356; --ok:#2e7d5b; --warn:#b07d16; --crit:#b23f2b;
+  --krit-bg:#fbeeea; --warn-bg:#fbf4e3; --ok-bg:#e9f4ee;
+  --r:14px; --schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1a2129; --surface2:#161c23; --ink:#e9edf1; --muted:#95a1ad;
+  --line:#2a333d; --akz:#5bb4cf; --akz-w:#8fd0e4; --ok:#5fc48f; --warn:#d9b154; --crit:#e2856f;
+  --krit-bg:#2a1c19; --warn-bg:#292417; --ok-bg:#182a22;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:16px 16px 80px}
+.zahl{font-variant-numeric:tabular-nums}
+h1{font-size:19px;margin:0}
+h2{font-size:15px;margin:0;letter-spacing:.01em}
+a{color:inherit}
+.kopf{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 14px}
+.kopf .wer{font-size:13px;color:var(--muted)}
+.demo{display:inline-block;font-size:11.5px;font-weight:600;color:var(--warn);background:var(--warn-bg);
+  border:1px solid var(--line);border-radius:999px;padding:2px 9px;margin-left:8px;vertical-align:middle}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1}
+.nav a.aus{color:var(--muted);border-color:var(--line)}
+.block{margin-top:18px}
+.block>.bt{display:flex;align-items:baseline;gap:10px;margin:0 2px 8px}
+.block>.bt .z{margin-left:auto;font-size:13px;color:var(--muted)}
+.zeichen{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block}
+.zeichen.krit{background:var(--crit)} .zeichen.warn{background:var(--warn)} .zeichen.ok{background:var(--ok)}
+.karten{display:grid;gap:10px}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;box-shadow:var(--schatten)}
+.karte.krit{border-left:3px solid var(--crit)} .karte.warn{border-left:3px solid var(--warn)}
+.k1{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.titel{font-weight:600}
+.sum{font-size:18px;font-weight:700}
+.meta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.grund{font-size:13px;margin-top:7px;background:var(--surface2);border-radius:9px;padding:7px 9px}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.krit{color:var(--crit);background:var(--krit-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.ok{color:var(--ok);background:var(--ok-bg)}
+.aktion{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);
+  border-radius:9px;padding:7px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.kacheln{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kachel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;box-shadow:var(--schatten)}
+.kachel .l{font-size:12.5px;color:var(--muted)} .kachel .v{font-size:20px;font-weight:700;margin-top:4px}
+.kachel .u{font-size:11.5px;color:var(--muted);margin-top:3px}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px}
+.nichtan{border-style:dashed;opacity:.9}
+.person{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}
+.person:first-child{border-top:0}
+.pn{font-weight:600;min-width:120px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum" class="akt">Центр</a>
+    <a href="/objekt">Объекты</a>
+    <a href="/monat">Проверка месяцев</a>
+    <a href="/dubletten">Проверка дублей</a>
+    <a href="/bank">Сверка банка</a>
+    <a href="/debitor">Дебиторка</a>
+    <a href="/dokument">Полнота документов</a>
+    <a href="/anfang">Начальные остатки</a>
+    <a href="/korrektur">Исправления</a>
+    <a href="/benachrichtigung">Уведомления</a>
+    <a href="/paket">Комплекты</a>
+    <a href="/fragen">Вопросы SB</a>
+    <a href="/kostenverteilung">Распределение</a>
+    <a href="/dokumente">Документы</a>
+    <a href="/zahlungen">Платежи</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/arbeit">Касса</a>
+    <a href="/kassepruefung">Проверка кассы</a>
+    <a href="/pflichten">Неотправленные чеки</a>
+    <a href="/integrationen">Интеграции</a>
+    <a href="/zugang">Доступ и журнал</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf">
+    <div><h1>Центр управления<span class="demo" id="demo" hidden>демо</span></h1>
+      <div class="wer" id="wer">VAV Kaiser GmbH</div></div>
+    <div class="wer" id="stand"></div>
+  </div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const T=(s,n)=>n===1?s[0]:(n>=2&&n<=4?s[1]:s[2]);
+function tag(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE'); }
+const STUFE={mitarbeiter:'у сотрудника',disponent:'у Олега',gf:'у вас'};
+const stufeText=s=>'эскалация: '+(STUFE[s]||s||'—');
+async function J(u){ const r=await fetch(u,{credentials:'same-origin'}); if(r.status===401){location.href='/login?next=/zentrum';throw new Error('нет сессии');} if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
+
+function blockKopf(t, zeichen, zahl){
+  return '<div class="bt"><span class="zeichen '+(zeichen||'')+'"></span><h2>'+H(t)+'</h2>'
+    +(zahl!=null?'<span class="z">'+H(zahl)+'</span>':'')+'</div>';
+}
+function karte(inner, kl){ return '<div class="karte'+(kl?' '+kl:'')+'">'+inner+'</div>'; }
+function offenBtn(){ return '<a class="btn" href="/arbeit">Открыть в кассе</a>'; }
+
+/* ---------- 1. Требует решения ---------- */
+function vEntscheidung(d){
+  const items=[];
+  (d.pakete||[]).filter(p=>p.status==='an_gf').forEach(p=>items.push({
+    kl:'krit', titel:'Счёт к оплате: '+(p.lieferant||'без поставщика'),
+    sum:EUR(p.zu_zahlen), meta:['№ '+(p.rechnung_nr||'—'), p.datum?('дата '+tag(p.datum)):'', p.oleg_status==='bestaetigt'?'работы подтверждены Олегом':'работы Олегом не подтверждены'],
+    grund:'Бухгалтер передал счёт вам. Полная сумма '+EUR(p.brutto)+(p.verrechnet?', зачтено выдачами '+EUR(p.verrechnet):'')+', к оплате '+EUR(p.zu_zahlen)+'. Перевод выполняете вы в банке.' }));
+  (d.plaene||[]).filter(p=>p.status==='eingereicht').forEach(p=>items.push({
+    kl:'warn', titel:'Заявка на наличные: '+(p.titel||p.nr),
+    sum:p.summe!=null?EUR(p.summe):'', meta:['инициатор '+(p.initiator||'—'), p.nr],
+    grund:'Заявка ждёт вашего утверждения. Утверждение не выдаёт деньги — выдача проходит отдельным шагом с квитанцией.' }));
+  (d.rueckfragen||[]).filter(r=>r.status==='offen' && r.stufe==='gf' && !r.verlust).forEach(r=>items.push({
+    kl:'krit', titel:'Вопрос дошёл до вас: '+(r.titel||r.nr),
+    sum:r.betrag?EUR(r.betrag):'', meta:[r.person?('по '+r.person):'', r.frist?('срок '+tag(r.frist)):'', stufeText(r.stufe)],
+    grund:(r.verlust?'Заявлен потерянный документ. ':'')+ (r.text||'') }));
+  let h=blockKopf('Требует решения', items.length?'krit':'ok', items.length||'нет');
+  if(!items.length) return h+'<div class="leer">Сейчас ничего не ждёт вашего решения.</div>';
+  h+='<div class="karten">'+items.map(x=>karte(
+    '<div class="k1"><span class="titel">'+H(x.titel)+'</span>'+(x.sum?'<span class="sum zahl">'+x.sum+'</span>':'')+'</div>'
+    +'<div class="meta">'+x.meta.filter(Boolean).map(H).join('<span>·</span>')+'</div>'
+    +(x.grund?'<div class="grund">'+H(x.grund)+'</div>':'')
+    +'<div class="aktion">'+offenBtn()+'</div>', x.kl)).join('')+'</div>';
+  return h;
+}
+
+/* ---------- 2. Счета к оплате ---------- */
+function vZahlung(d){
+  const p=(d.pakete||[]).filter(x=>x.status!=='storniert' && !x.bezahlt_gemeldet_am);
+  const bereit=x=>x.oleg_status==='bestaetigt' && x.geprueft_am;
+  const summe=p.reduce((a,x)=>a+(x.zu_zahlen||0),0);
+  let h=blockKopf('Счета к оплате', p.length?'warn':'ok', p.length?EUR(summe):'нет');
+  if(!p.length) return h+'<div class="leer">Открытых счетов к оплате нет.</div>';
+  const reihe=x=>karte(
+    '<div class="k1"><span class="titel">'+H(x.lieferant||'—')+'</span><span class="sum zahl">'+EUR(x.zu_zahlen)+'</span></div>'
+    +'<div class="meta">№ '+H(x.rechnung_nr||'—')+(x.datum?'<span>·</span>дата '+tag(x.datum):'')
+      +'<span>·</span>полная '+EUR(x.brutto)+(x.verrechnet?'<span>·</span>зачтено '+EUR(x.verrechnet):'')+'</div>'
+    +'<div class="aktion">'
+      +(bereit(x)?'<span class="chip ok">готов к оплате</span>':'<span class="chip warn">на проверке</span>')
+      +(x.oleg_status==='bestaetigt'?'<span class="chip ok">работы Олег ✓</span>':'<span class="chip">работы не подтв.</span>')
+      +(x.bank_op?'<span class="chip ok">банк сверен</span>':(x.bank_abweichung?'<span class="chip krit">расхождение банка</span>':'<span class="chip">перевод не подтв.</span>'))
+    +'</div>', bereit(x)?'':'warn');
+  const rdy=p.filter(bereit), rest=p.filter(x=>!bereit(x));
+  if(rdy.length) h+='<div class="karten">'+rdy.map(reihe).join('')+'</div>';
+  if(rest.length) h+='<div class="hinweis" style="margin:10px 0 6px">Непроверенные счета рядом — их нельзя оплачивать, пока не подтверждены работы и документ:</div><div class="karten">'+rest.map(reihe).join('')+'</div>';
+  return h;
+}
+
+/* ---------- 3. Риски ---------- */
+function vRisiko(d){
+  const items=[];
+  (d.rueckfragen||[]).filter(r=>r.status==='offen').forEach(r=>items.push({kl:(r.stufe==='gf'||r.stufe==='disponent'||r.verlust)?'krit':'warn',
+    t:'Открытый вопрос: '+(r.titel||r.nr), m:[r.person||'', r.frist?('срок '+tag(r.frist)):'', stufeText(r.stufe)]}));
+  (d.belege||[]).filter(b=>b.dublette).forEach(b=>items.push({kl:'warn',t:'Возможный дубль чека: '+(b.titel||b.nr),m:[b.person||'',EUR(b.betrag)]}));
+  (d.belege||[]).filter(b=>b.geld_ohne_beleg).forEach(b=>items.push({kl:'krit',t:'Деньги выданы, чек отклонён: '+(b.nr),m:[b.person||'',EUR(b.betrag)]}));
+  (d.pakete||[]).filter(p=>p.bank_abweichung).forEach(p=>items.push({kl:'krit',t:'Расхождение с банком: '+(p.lieferant||p.nr),m:[EUR(p.zu_zahlen)]}));
+  let h=blockKopf('Риски', items.length?'krit':'ok', items.length||'нет');
+  if(!items.length) return h+'<div class="leer">Активных рисков не видно.</div>';
+  return h+'<div class="karten">'+items.map(x=>karte(
+    '<div class="k1"><span class="titel">'+H(x.t)+'</span></div><div class="meta">'+x.m.filter(Boolean).map(H).join('<span>·</span>')+'</div>', x.kl)).join('')+'</div>';
+}
+
+/* ---------- 4. Задачи и сотрудники ---------- */
+function vAufgaben(af){
+  const u=af&&af.uebersicht;
+  let h=blockKopf('Задачи и состояние сотрудников', (u&&u.eskaliert)?'krit':((u&&u.wartet_abnahme)?'warn':'ok'), u?u.offen:null);
+  if(!af){ return h+'<div class="leer">Не удалось загрузить задачи.</div>'; }
+  h+='<div class="karte">';
+  h+='<div class="k1" style="margin-bottom:8px"><span></span>'
+    +'<a class="btn pri" href="/aufgaben">Открыть задачи</a></div>';
+  if(!u || !u.ziele || !u.ziele.length){
+    h+='<div class="leer">Открытых задач нет. Нажмите «Открыть задачи», чтобы поставить первую.</div></div>';
+    return h;
+  }
+  h+='<div style="margin:2px 0 10px">'
+    +'<span class="chip">открытых: '+u.offen+'</span> '
+    +(u.wartet_abnahme?'<span class="chip warn">ждут вашей приёмки: '+u.wartet_abnahme+'</span> ':'')
+    +(u.eskaliert?'<span class="chip krit">эскалаций: '+u.eskaliert+'</span>':'')+'</div>';
+  h+=u.ziele.map(z=>'<div class="person"><span class="pn">'+H(z.name)+'</span>'
+    +(z.neu?'<span class="chip">назначено: '+z.neu+'</span>':'')
+    +(z.in_arbeit?'<span class="chip warn">в работе: '+z.in_arbeit+'</span>':'')
+    +(z.eingereicht?'<span class="chip info" style="color:var(--akz);background:var(--ok-bg)">сдано: '+z.eingereicht+'</span>':'')
+    +(z.eskaliert?'<span class="chip krit">эскалация: '+z.eskaliert+'</span>':'')+'</div>').join('');
+  h+='</div>';
+  return h;
+}
+
+/* ---------- 5. Финансовая аналитика ---------- */
+function vAnalytik(d){
+  const k=d.konten||[];
+  const summe=art=>k.filter(x=>x.art===art).reduce((a,x)=>a+(x.saldo||0),0);
+  const unterwegs=k.reduce((a,x)=>a+(x.unterwegs||0),0);
+  let h=blockKopf('Финансовая аналитика', 'ok', null);
+  h+='<div class="kacheln">'
+    +'<div class="kachel"><div class="l">Основная касса</div><div class="v zahl">'+EUR(summe('hauptkasse'))+'</div><div class="u">наличные, подтверждено</div></div>'
+    +'<div class="kachel"><div class="l">У ответственных (Олег)</div><div class="v zahl">'+EUR(summe('halter'))+'</div><div class="u">выдано под отчёт</div></div>'
+    +'<div class="kachel"><div class="l">В пути</div><div class="v zahl">'+EUR(unterwegs)+'</div><div class="u">передано, не подтверждено</div></div>'
+    +'<div class="kachel nichtan"><div class="l">Прибыль за месяц</div><div class="v" style="color:var(--muted)">—</div><div class="u">источник не подключён (этап 3)</div></div>'
+    +'<div class="kachel nichtan"><div class="l">Налоги (USt/VSt)</div><div class="v" style="color:var(--muted)">—</div><div class="u">источник не подключён (этап 4)</div></div>'
+    +'<div class="kachel nichtan"><div class="l">Прогноз на 14 дней</div><div class="v" style="color:var(--muted)">—</div><div class="u">источник не подключён (этап 3)</div></div>'
+    +'</div>';
+  h+='<div class="hinweis" style="margin-top:10px">Уведомления: '+H((d.offen&&d.offen.benachrichtigungen)||'канал не согласован')+'. Прибыль, налоги и прогноз считаются по данным периода — банк и касса сами их не доказывают, поэтому пока показаны как неподключённые.</div>';
+  return h;
+}
+
+/* ---------- Платежи · сегодня (FinMap, живой после разрешения Qonto) ---------- */
+function vZahlungenHeute(zz){
+  let h=blockKopf('Платежи · банк', 'ok', null);
+  if(!zz || !Array.isArray(zz.ops)){
+    return h+'<div class="leer">Платежи сейчас недоступны.</div>';
+  }
+  const ops=zz.ops.slice();
+  if(!ops.length){
+    return h+'<div class="karte"><div class="leer" style="padding:6px 2px">За последние дни движений по банку нет.</div>'
+      +'<div class="aktion"><a class="btn" href="/zahlungen">Открыть платежи</a></div></div>';
+  }
+  // самый свежий день с данными
+  const tage=ops.map(o=>String(o.datum||'')).filter(Boolean).sort();
+  const letzter=tage[tage.length-1];
+  const heuteIso=new Date().toISOString().slice(0,10);
+  const label=letzter===heuteIso?'сегодня':('за '+tag(letzter));
+  const heute=ops.filter(o=>o.datum===letzter);
+  const abs=n=>Math.abs(Number(n)||0);
+  const sum=t=>heute.filter(o=>(o.typ||'expense')===t).reduce((a,o)=>a+abs(o.betrag),0);
+  const ein=sum('income'), aus=sum('expense');
+  const snat=heute.filter(o=>/снят|abhebung|bargeld|auszahlung|cash|atm/i.test((o.partner||'')+' '+(o.kommentar||'')+' '+(o.fm_kategorie||'')) && (o.typ||'')!=='income');
+  h+='<div class="karte">';
+  h+='<div class="k1" style="margin-bottom:6px"><span class="titel">Движение '+H(label)+'</span>'
+    +'<a class="btn" href="/zahlungen">Все платежи</a></div>';
+  h+='<div class="meta" style="gap:6px 14px;margin-bottom:6px">'
+    +'<span class="chip ok">поступления +'+EUR(ein*100)+'</span>'
+    +'<span class="chip krit">платежи −'+EUR(aus*100)+'</span>'
+    +(snat.length?'<span class="chip warn">снятия: '+snat.length+'</span>':'')
+    +'<span class="chip">операций: '+heute.length+'</span></div>';
+  heute.sort((a,b)=>abs(b.betrag)-abs(a.betrag));
+  h+=heute.slice(0,5).map(o=>{const isEin=(o.typ||'')==='income';
+    return '<div class="person"><span class="pn" style="min-width:0;flex:1">'+H(o.partner||o.fm_kategorie||'—')
+      +' <span class="muted" style="color:var(--muted);font-size:12px">'+H(o.konto||'')+'</span></span>'
+      +'<span class="zahl" style="font-weight:700;color:'+(isEin?'var(--ok)':'var(--crit)')+'">'
+      +(isEin?'+':'−')+EUR(abs(o.betrag)*100)+'</span></div>';}).join('');
+  if(heute.length>5) h+='<div class="hinweis" style="margin-top:8px">…и ещё '+(heute.length-5)+' — на вкладке «Платежи».</div>';
+  h+='<div class="hinweis" style="margin-top:8px">Источник: FinMap (с задержкой ~1–2 дня). Живой режим Qonto — после одного разрешения.</div>';
+  h+='</div>';
+  return h;
+}
+
+async function laden(){
+  try{
+    const [d,af]=await Promise.all([
+      J('/api/k/lage'),
+      J('/api/aufgaben').catch(()=>null),
+    ]);
+    document.getElementById('wer').textContent=(d.ich&&d.ich.name?d.ich.name+' · ':'')+'VAV Kaiser GmbH';
+    document.getElementById('stand').textContent='данные: '+((d.quelle&&d.quelle.text)||'—')+' · '+tag(d.jetzt);
+    document.getElementById('demo').hidden=!d.demo;
+    document.getElementById('app').innerHTML=
+      '<div class="block">'+vEntscheidung(d)+'</div>'
+      +'<div class="block">'+vZahlung(d)+'</div>'
+      +'<div class="block">'+vRisiko(d)+'</div>'
+      +'<div class="block">'+vAufgaben(af)+'</div>'
+      +'<div class="block">'+vAnalytik(d)+'</div>';
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

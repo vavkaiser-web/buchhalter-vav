@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Уведомления · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)} .nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.filter{display:flex;gap:6px;margin:6px 0 14px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:7px 12px;cursor:pointer}
+.btn.akt{background:var(--akz);border-color:var(--akz);color:#fff} .btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.karten{display:grid;gap:10px}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;box-shadow:var(--schatten);border-left:3px solid var(--akz)}
+.karte.vorl{border-left-color:var(--warn)} .karte.gesehen{opacity:.6}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)}
+.aend{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0}
+.aend .z{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:6px 10px}
+.aend .l{font-size:11px;color:var(--muted);text-transform:uppercase}
+.aend .v{font-variant-numeric:tabular-nums;font-weight:700}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 12px}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/monat">Проверка месяцев</a>
+    <a href="/korrektur">Исправления</a>
+    <a href="/benachrichtigung" class="akt">Уведомления</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><h1>Уведомления владельцу</h1><div class="wer" id="wer"></div></div>
+  <div class="hinweis">Здесь показаны изменения ранее показанных прибыли, налога и задолженности: что
+    изменилось, прежняя и новая сумма, причина, кто подтвердил и основание. Предварительное влияние
+    запроса и уже применённое исправление помечены отдельно. Канал доставки (push/почта) и окно
+    времени согласовываются отдельно — здесь готовится содержимое.</div>
+  <div class="filter" id="filter"></div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MON=['','январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+function tag(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+async function J(u,opt){ const r=await fetch(u,Object.assign({credentials:'same-origin'},opt||{}));
+  if(r.status===401){location.href='/login?next=/benachrichtigung';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+async function P(u,body){ return J(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); }
+let FILTER='offen';
+const F=[['offen','новые'],['','все']];
+async function laden(){
+  try{
+    const d=await J('/api/benachrichtigung'+(FILTER?'?status='+FILTER:''));
+    document.getElementById('filter').innerHTML=F.map(f=>'<button class="btn'+(FILTER===f[0]?' akt':'')+'" data-f="'+f[0]+'">'+H(f[1])+'</button>').join('');
+    const list=d.benachrichtigungen||[];
+    document.getElementById('app').innerHTML=list.length?'<div class="karten">'+list.map(karte).join('')+'</div>':'<div class="leer">Уведомлений нет.</div>';
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function periode(b){ let t=[]; if(b.firma) t.push(b.firma==='kaiser'?'VAV Kaiser GmbH':b.firma==='trockenbau'?'VAV Kaiser Trockenbau GmbH':b.firma); if(b.monat) t.push(MON[b.monat]+(b.jahr?' '+b.jahr:'')); else if(b.jahr) t.push(b.jahr); if(b.objekt_nr) t.push('объект '+b.objekt_nr); return t.join(' · '); }
+function karte(b){
+  const p=periode(b);
+  return '<div class="karte'+(b.vorlaeufig?' vorl':'')+(b.status==='gesehen'?' gesehen':'')+'" data-id="'+b.id+'">'
+    +'<div class="k1"><strong>Изменение показателей'+(p?' · '+H(p):'')+'</strong>'
+      +'<span class="chip '+(b.vorlaeufig?'warn':'ok')+'">'+(b.vorlaeufig?'предварительно':'применено')+'</span></div>'
+    +'<div class="aend">'+b.aenderungen.map(a=>'<div class="z"><div class="l">'+H(a.art_text)+'</div>'
+      +'<div class="v">'+H(a.alt||'—')+' → '+H(a.neu||'—')+'</div></div>').join('')+'</div>'
+    +(b.grund?'<div style="font-size:13.5px">причина: '+H(b.grund)+'</div>':'')
+    +'<div class="meta">'+(b.wer_bestaetigt?'подтвердил '+H(b.wer_bestaetigt):'')
+      +(b.basis?'<span>·</span>основание: '+H(b.basis):'')+'<span>·</span>'+H(tag(b.angelegt))+'</div>'
+    +(b.status!=='gesehen'?'<div style="margin-top:9px"><button class="btn" data-seen="'+b.id+'">Прочитано</button></div>':'<div class="meta">прочитано '+H(tag(b.gesehen_am))+'</div>')
+    +'</div>';
+}
+document.getElementById('filter').addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(!b)return;FILTER=b.dataset.f;laden();});
+document.getElementById('app').addEventListener('click',async e=>{const b=e.target.closest('[data-seen]');if(!b)return;b.disabled=true;try{await P('/api/benachrichtigung/gesehen',{id:Number(b.dataset.seen)});laden();}catch(err){alert(err.message);b.disabled=false;}});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

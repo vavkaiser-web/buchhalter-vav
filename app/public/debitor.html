@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дебиторка · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;box-shadow:var(--schatten);margin-bottom:12px;border-left:3px solid var(--muted)}
+.karte.offen{border-left-color:var(--warn)} .karte.ok{border-left-color:var(--ok)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.akz{color:var(--akz);background:var(--ok-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 12px}
+.box{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13px}
+.box.warn{background:var(--warn-bg);border-color:transparent} .box.crit{background:var(--krit-bg);border-color:transparent}
+.aktion{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:6px 11px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{background:var(--krit-bg);border-color:var(--crit);color:var(--crit)}
+input,select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink)}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.saldo{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin:2px 0 10px}.saldo .z{font-size:20px;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+td,th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)} th{color:var(--muted);font-weight:600}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/debitor" class="akt">Дебиторка</a>
+    <a href="/bank">Сверка банка</a>
+    <a href="/zahlungen">Платежи</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><div><h1>Поступления от заказчиков и дебиторка</h1><div class="wer" id="wer"></div></div></div>
+  <div id="frisch"></div>
+  <div class="saldo"><div><div class="wer">Остаток банка</div><div class="z" id="saldo">—</div></div>
+    <div><div class="wer">Задолженность клиентов (остаток)</div><div class="z" id="ford">—</div></div></div>
+  <div class="hinweis">Поступление сопоставляет со счётом бухгалтер (обещание оплаты ≠ оплата). Частичная оплата сохраняет срок остатка. Спорную недоплату не списываем — фиксируем причину.
+    Гарантийное удержание — отдельно, но остаётся под контролем; до проверки — неподтверждённая недоплата; за месяц до возврата — задача; событийный срок = «Срок не определён» без выдуманной даты в прогнозе.
+    Переплата — за клиентом (аванс/ошибка), без авто-дохода/счёта/возврата. Третье лицо связываем после проверки. Реальные переводы и сообщения клиентам не выполняются.</div>
+  <div class="msg" id="msg"></div>
+
+  <details class="karte"><summary>Импорт поступления (демо: проверить сценарии)</summary>
+    <div class="grid" style="margin-top:10px">
+      <input id="i_ext" placeholder="extern_id (повтор)">
+      <input id="i_gp" placeholder="плательщик">
+      <input id="i_betrag" placeholder="сумма € (напр. 120,00)">
+      <input id="i_zweck" placeholder="назначение (номера счетов)">
+      <input id="i_datum" type="date">
+    </div>
+    <div class="aktion"><button class="btn pri" id="i_add">Импортировать</button>
+      <button class="btn" id="i_ehpr">Проверить сроки удержаний</button></div>
+  </details>
+
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>c==null?'—':((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const ST={nicht_zugeordnet:['не распределён','warn'],teilweise:['частично','warn'],zugeordnet:['распределён','ok'],ueberzahlt:['переплата','warn']};
+let ICH=null;
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>{m.className='msg';},4800);}
+async function J(u,o){o=Object.assign({credentials:'same-origin'},o||{});const r=await fetch(u,o);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.fehler||('ошибка '+r.status));return d;}
+async function post(u,b){return J(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});}
+const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+
+async function laden(){
+  let d; try{ d=await J('/api/debitor'); }catch(e){ document.getElementById('app').innerHTML='<div class="leer">'+H(e.message)+'</div>'; return; }
+  ICH=d.ich; document.getElementById('wer').textContent=(ICH?ICH.login+' · '+ICH.rolle:'')+' · на '+H(d.stand);
+  document.getElementById('saldo').textContent=EUR(d.saldo_cent);
+  document.getElementById('ford').textContent=EUR(d.forderung_summe_cent);
+  const f=d.frisch||{};
+  document.getElementById('frisch').innerHTML=f.vorlaeufig?'<div class="box crit">⚠ Банковские данные предварительны/устарели — прогноз ориентировочный.</div>':'';
+  let h='';
+  h+='<h2 style="margin:14px 2px 4px">Поступления на разбор ('+d.eingaenge.length+')</h2>';
+  h+= d.eingaenge.length? d.eingaenge.map(eingang).join('') : '<div class="leer">Нет поступлений на разбор.</div>';
+  h+='<h2 style="margin:16px 2px 4px">Задолженность клиентов ('+d.forderungen.length+')</h2>';
+  h+= d.forderungen.length? '<div class="karte"><table><tr><th>Счёт</th><th>Клиент</th><th>Сумма</th><th>Оплачено</th><th>Остаток</th><th>Удержание</th><th>Срок</th><th></th></tr>'
+    +d.forderungen.map(a=>'<tr><td>'+H(a.nummer||('#'+a.ausgang_id))+'</td><td>'+H(a.kunde||'')+'</td><td>'+EUR(a.betrag_cent)+'</td><td>'+EUR(a.bezahlt_cent)+'</td><td>'+EUR(a.rest_cent)+'</td><td>'+(a.einbehalt_cent?EUR(a.einbehalt_cent):'—')+'</td><td>'+H(a.faellig||'—')+(a.ueberfaellig?' ⚠':'')+'</td><td><button class="btn" data-warn="'+a.ausgang_id+'">перед напоминанием</button></td></tr>').join('')+'</table></div>'
+    : '<div class="leer">Открытой задолженности нет.</div>';
+  if(d.einbehalte.length){ h+='<h2 style="margin:16px 2px 4px">Гарантийные удержания</h2><div class="karte"><table><tr><th>Клиент</th><th>Объект</th><th>Сумма</th><th>Основание</th><th>Срок возврата</th><th>Статус</th><th></th></tr>'
+    +d.einbehalte.map(e=>'<tr><td>'+H(e.kunde||'')+'</td><td>'+H(e.objekt_nr||'')+'</td><td>'+EUR(e.betrag_cent)+'</td><td>'+H(e.grundlage||'')+'</td><td>'+(e.srok_offen?'<span class="chip warn">срок не определён</span>':(H(e.rueckgabe)+(e.bald?' ⚠ скоро':'')))+'</td><td>'+H(e.status)+(e.status==='unbestaetigt'?' <button class="btn" data-ehok="'+e.id+'">подтвердить основание</button>':'')+'</td><td></td></tr>').join('')+'</table></div>'; }
+  if(d.kredite.length){ h+='<h2 style="margin:16px 2px 4px">Нераспределённое за клиентами</h2><div class="karte"><table><tr><th>Клиент</th><th>Сумма</th><th>Вид</th><th>Статус</th></tr>'
+    +d.kredite.map(k=>'<tr><td>'+H(k.kunde||'')+'</td><td>'+EUR(k.betrag_cent)+'</td><td>'+H(k.art)+'</td><td>'+H(k.status)+'</td></tr>').join('')+'</table></div>'; }
+  document.getElementById('app').innerHTML=h;
+}
+function eingang(z){
+  const st=ST[z.status]||[z.status,'chip'];
+  let h='<div class="karte '+(z.status==='zugeordnet'?'ok':'offen')+'"><div class="k1"><h2>#'+z.id+' '+H(z.gegenpartei||'плательщик?')+' · '+EUR(z.betrag_cent)+'</h2><span class="chip '+st[1]+'">'+st[0]+'</span></div>';
+  h+='<div class="meta"><span>дата: '+H(z.datum||'—')+'</span><span>назначение: '+H(z.verwendungszweck||'—')+'</span><span>распределено: '+EUR(z.verteilt)+' · остаток: '+EUR(z.rest_zahlung)+'</span>'+(z.pruef_frist?'<span>срок: '+H(z.pruef_frist)+(z.ueberfaellig?' ⚠':'')+'</span>':'')+'</div>';
+  if(z.status==='nicht_zugeordnet'&&!z.vorschlag.length) h+='<div class="box warn">Основание не найдено — «Нераспределённое поступление». Задача создана; доход/счёт не создаётся.</div>';
+  if(z.zuordnungen.length) h+='<div class="box"><b>Распределено:</b>'+z.zuordnungen.map(u=>'<div>→ счёт '+H(u.nummer||('#'+u.ausgang_id))+' '+H(u.kunde||'')+': '+EUR(u.betrag_cent)+' <button class="btn" data-storno="'+u.id+'">снять</button></div>').join('')+'</div>';
+  if(z.kredit&&z.kredit.length) h+='<div class="box">Нераспределённое за клиентом: '+z.kredit.map(k=>EUR(k.betrag_cent)+' ('+H(k.art)+')').join(', ')+'</div>';
+  if(z.rest_zahlung>0 && z.vorschlag.length){ h+='<div class="box"><b>Предложения (подтвердите распределение):</b>'
+    +z.vorschlag.map(v=>'<div style="margin-top:4px">счёт '+H(v.nummer||('#'+v.ausgang_id))+' '+H(v.kunde||'')+' · остаток '+EUR(v.rest_cent)+' <span class="chip '+(v.staerke==='stark'?'ok':'warn')+'">'+v.gruende.join(', ')+'</span><br>'
+      +'сумма <input id="al'+z.id+'_'+v.ausgang_id+'" style="width:90px" placeholder="'+((Math.min(v.rest_cent,z.rest_zahlung))/100).toFixed(2)+'"> <label class="wer"><input type="checkbox" id="dr'+z.id+'_'+v.ausgang_id+'" style="width:auto"> третье лицо проверено</label> '
+      +'<button class="btn pri" data-zu="'+z.id+'" data-a="'+v.ausgang_id+'">Связать</button></div>').join('')+'</div>'; }
+  h+='<div class="aktion">';
+  if(z.rest_zahlung>0 && z.status!=='ueberzahlt'){ h+='<button class="btn" data-ueber="'+z.id+'" data-art="anzahlung">Переплата: аванс</button><button class="btn" data-ueber="'+z.id+'" data-art="fehler">Переплата: ошибка</button>'; }
+  h+='</div></div>';
+  return h;
+}
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('button'); if(!t)return; const D=t.dataset;
+  try{
+    if(D.zu){ const a=D.a; const dr=document.getElementById('dr'+D.zu+'_'+a).checked;
+      await post('/api/debitor/zuordnen',{bewegung_id:+D.zu,teile:[{ausgang_id:+a,betrag:g('al'+D.zu+'_'+a)||'0'}],dritter_geprueft:dr,dritter_grund:dr?'проверено бухгалтером':''}); msg('связано',true); }
+    else if(D.storno){ await post('/api/debitor/storno',{id:+D.storno}); msg('снято',true); }
+    else if(D.ueber){ await post('/api/debitor/ueberzahlung',{bewegung_id:+D.ueber,art:D.art,grund:'решение бухгалтера'}); msg('переплата за клиентом',true); }
+    else if(D.ehok){ await post('/api/debitor/einbehalt-bestaetigen',{id:+D.ehok}); msg('основание подтверждено',true); }
+    else if(D.warn){ const w=await J('/api/debitor/mahnwarnung?ausgang_id='+D.warn); msg(w.warnung?('⚠ '+w.warnung+' (поступлений: '+w.verwandte.length+')'):'непроверенных поступлений клиента нет — можно готовить напоминание', !w.warnung); return; }
+    else return;
+    laden();
+  }catch(err){ msg(err.message); }
+});
+document.getElementById('i_add').addEventListener('click',async()=>{
+  try{ const r=await post('/api/debitor/import',{extern_id:g('i_ext'),gegenpartei:g('i_gp'),betrag:g('i_betrag'),verwendungszweck:g('i_zweck'),datum:g('i_datum')});
+    msg(r.wiederholung?'повторный импорт — поступление уже есть':('импортировано #'+r.id+(r.ohne_grund?' — основание не найдено':(' · предложений: '+(r.vorschlag?r.vorschlag.length:0)))),true); laden();
+  }catch(err){ msg(err.message); }
+});
+document.getElementById('i_ehpr').addEventListener('click',async()=>{
+  try{ const r=await post('/api/debitor/einbehalt-pruefung',{}); msg('к возврату в течение месяца: '+r.faellig.length+', срок не определён: '+r.ohne_datum.length,true); laden(); }catch(err){ msg(err.message); }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

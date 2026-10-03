@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Вопросы Steuerberater · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)} .nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.filter{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:7px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{color:var(--crit)} .btn.akt{background:var(--akz);border-color:var(--akz);color:#fff} .btn:disabled{opacity:.45}
+.karten{display:grid;gap:10px}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;box-shadow:var(--schatten);border-left:3px solid var(--muted)}
+.karte.offen,.karte.zugewiesen{border-left-color:var(--warn)} .karte.natalia_geprueft,.karte.im_paket,.karte.uebergeben,.karte.erledigt{border-left-color:var(--ok)} .karte.nachfrage{border-left-color:var(--crit)}
+.karte.ueb{box-shadow:inset 0 0 0 2px var(--krit-bg),var(--schatten)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 12px}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+label.lb{font-size:12.5px;color:var(--muted);display:block;margin:9px 0 3px}
+textarea,input,select{font:inherit;font-size:14px;width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface2);color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.antwort{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin-top:8px;font-size:13.5px}
+.aktion{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.ov{position:fixed;inset:0;background:rgba(10,15,20,.45);display:none;align-items:flex-start;justify-content:center;padding:24px 14px;z-index:9;overflow:auto}
+.ov.an{display:flex}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);max-width:620px;width:100%;padding:18px;box-shadow:var(--schatten)}
+.err{color:var(--crit);font-size:12.5px;margin-top:8px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/monat">Проверка месяцев</a>
+    <a href="/korrektur">Исправления</a>
+    <a href="/paket">Комплекты</a>
+    <a href="/fragen" class="akt">Вопросы</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><div><h1>Вопросы от Steuerberater</h1><div class="wer" id="wer"></div></div>
+    <button class="btn pri" id="neu" hidden>Новый вопрос</button></div>
+  <div class="hinweis">Срок ставит ответственный бухгалтер с учётом срока Steuerberater — не универсальные
+    1/2/5 дней. Если срок неизвестен — показывается «нужно уточнить». Ответ готовит исполнитель, проверяет
+    Наталья, затем он включается в комплект ответов. Электронный канал не подключается.</div>
+  <div class="filter" id="filter"></div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<div class="ov" id="ov"><div class="panel" id="panel"></div></div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MON=['','январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+function tag(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE'); }
+function tagz(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+async function J(u,opt){ const r=await fetch(u,Object.assign({credentials:'same-origin'},opt||{}));
+  if(r.status===401){location.href='/login?next=/fragen';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+async function P(u,body){ return J(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); }
+let ICH={}, USERS=[], FIRMEN={}, FILTER='';
+const ST=[['','все'],['offen','новые'],['antwort_vorbereitet','на проверке'],['natalia_geprueft','проверены'],['im_paket','в комплекте'],['nachfrage','уточнение']];
+async function laden(){
+  try{
+    const d=await J('/api/frage'+(FILTER?'?status='+FILTER:''));
+    ICH=d.ich||{}; USERS=d.benutzer||[]; FIRMEN=d.firmen||{};
+    document.getElementById('wer').textContent=(ICH.name||ICH.login||'')+(ICH.verantwortlich?' · ответственный бухгалтер':(d.nur_eigene?' · исполнитель':''));
+    document.getElementById('neu').hidden=!ICH.verantwortlich;
+    document.getElementById('filter').innerHTML=d.nur_eigene?'':ST.map(s=>'<button class="btn'+(FILTER===s[0]?' akt':'')+'" data-f="'+s[0]+'">'+H(s[1])+'</button>').join('');
+    const list=d.fragen||[];
+    document.getElementById('app').innerHTML=list.length?'<div class="karten">'+list.map(karte).join('')+'</div>':'<div class="leer">Вопросов нет.</div>';
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function fristChip(f){
+  if(f.frist_unbekannt) return '<span class="chip warn">нужно уточнить срок</span>';
+  if(f.ueberfaellig) return '<span class="chip crit">просрочено'+(f.tage!=null?' на '+(-f.tage)+' дн.':'')+'</span>';
+  if(f.bald) return '<span class="chip warn">срок через '+f.tage+' дн.</span>';
+  if(f.frist_intern||f.frist_steuerberater) return '<span class="chip">срок '+tag(f.frist_intern||f.frist_steuerberater)+'</span>';
+  return '';
+}
+function karte(f){
+  return '<div class="karte '+H(f.status)+(f.an_gf?' ueb':'')+'" data-id="'+f.id+'">'
+    +'<div class="k1"><strong>#'+f.id+' '+H(f.inhalt.slice(0,80))+(f.inhalt.length>80?'…':'')+'</strong>'
+      +'<span class="chip '+(f.status==='nachfrage'?'crit':['natalia_geprueft','im_paket','uebergeben','erledigt'].includes(f.status)?'ok':'warn')+'">'+H(f.status_text)+'</span></div>'
+    +'<div class="meta">'+(f.quelle?H(f.quelle):'')+(f.bearbeiter?'<span>·</span>исполнитель '+H(f.bearbeiter):'<span>·</span>не назначен')+fristChipMeta(f)+'</div>'
+    +(f.an_gf?'<div style="margin-top:6px"><span class="chip crit">нерешённое и просрочено — внимание владельцу</span></div>':'')
+    +'<div class="aktion"><button class="btn" data-open="'+f.id+'">Открыть</button></div></div>';
+}
+function fristChipMeta(f){ const c=fristChip(f); return c?'<span>·</span>'+c:''; }
+let OFFEN_ID=0;
+async function oeffne(id){
+  OFFEN_ID=id;
+  const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+  panel.innerHTML='<div class="leer">Загрузка…</div>'; ov.classList.add('an');
+  try{ panel.innerHTML=detail(await J('/api/frage/eins?id='+id)); }
+  catch(e){ panel.innerHTML='<div class="err">'+H(e.message)+'</div><div class="aktion"><button class="btn" onclick="zu()">Закрыть</button></div>'; }
+}
+function detail(f){
+  const kann=f.ich&&f.ich.verantwortlich===true;
+  const istBearb=f.ich&&f.bearbeiter===f.ich.login;
+  let h='<div class="k1"><h2>#'+f.id+' · вопрос</h2><span class="chip '+(f.status==='nachfrage'?'crit':['natalia_geprueft','im_paket','uebergeben','erledigt'].includes(f.status)?'ok':'warn')+'">'+H(f.status_text)+'</span></div>';
+  h+='<div class="meta">'+(f.quelle?'источник: '+H(f.quelle):'')+(f.datum?'<span>·</span>'+tag(f.datum):'')+fristChipMeta(f)+'</div>';
+  h+='<label class="lb">Вопрос</label><div>'+H(f.inhalt)+'</div>';
+  if(f.bezug_dok) h+='<label class="lb">Документы/период</label><div>'+H(f.bezug_dok)+'</div>';
+  h+='<div class="meta" style="margin-top:6px">срок Steuerberater: '+(f.frist_steuerberater?tag(f.frist_steuerberater):'не указан')
+    +'<span>·</span>внутренний срок: '+(f.frist_intern?tag(f.frist_intern):'не задан')
+    +'<span>·</span>исполнитель: '+(f.bearbeiter||'не назначен')+'</div>';
+  // назначение (Наталья)
+  if(kann && f.status!=='im_paket' && f.status!=='uebergeben'){
+    const opt='<option value="">— исполнитель</option>'+USERS.map(u=>'<option value="'+u.login+'"'+(u.login===f.bearbeiter?' selected':'')+'>'+H(u.name)+' ('+H(u.rolle)+')</option>').join('');
+    h+='<label class="lb">Назначить и задать внутренний срок</label>'
+      +'<div class="grid2"><select id="z_bearb">'+opt+'</select><input id="z_frist" type="date" value="'+(f.frist_intern?String(f.frist_intern).slice(0,10):'')+'"></div>'
+      +'<div class="aktion"><button class="btn" data-zuweisen="'+f.id+'">Сохранить назначение</button></div>';
+  }
+  // ответы
+  h+='<label class="lb">Ответы</label>';
+  h+=(f.antworten&&f.antworten.length)? f.antworten.map(a=>'<div class="antwort">'+H(a.text)
+      +(a.materialien?'<div class="meta">материалы: '+H(a.materialien)+'</div>':'')
+      +'<div class="meta">'+H(a.autor)+' · '+tagz(a.angelegt)+'<span>·</span><span class="chip '+(a.status==='geprueft'?'ok':a.status==='nachfrage'?'crit':'warn')+'">'+(a.status==='geprueft'?'проверен Натальей':a.status==='nachfrage'?'на уточнение':'подготовлен')+'</span>'+(a.geprueft_von?' '+H(a.geprueft_von):'')+'</div>'
+      +(kann&&a.status==='vorbereitet'?'<div class="aktion"><button class="btn pri" data-pruef="'+a.id+'" data-ok="1">Принять</button><button class="btn crit" data-pruef="'+a.id+'" data-ok="0">На уточнение</button></div>':'')
+      +'</div>').join('') : '<div class="leer">Ответов пока нет.</div>';
+  // добавить ответ (исполнитель или Наталья)
+  if((istBearb||kann) && !['im_paket','uebergeben','erledigt'].includes(f.status)){
+    h+='<label class="lb">Подготовить ответ</label><textarea id="a_text" rows="3"></textarea>'
+      +'<label class="lb">Материалы (ссылки)</label><input id="a_mat">'
+      +'<div class="aktion"><button class="btn" data-antwort="'+f.id+'">Сохранить ответ</button></div>';
+  }
+  // включить в комплект (Наталья), если проверен
+  if(kann && f.status==='natalia_geprueft'){
+    h+='<label class="lb">Включить проверенный ответ в комплект</label>'
+      +'<div class="grid2"><input id="p_id" placeholder="ID комплекта (необязательно)"><button class="btn pri" data-inpaket="'+f.id+'">В комплект ответов</button></div>';
+  }
+  if(f.status==='im_paket') h+='<div style="margin-top:8px"><span class="chip ok">включён в комплект ответов'+(f.paket_id?' #'+f.paket_id:'')+'</span></div>';
+  h+='<div class="aktion"><button class="btn" onclick="zu()">Закрыть</button></div>';
+  return h;
+}
+function zu(){ document.getElementById('ov').classList.remove('an'); }
+document.getElementById('neu').onclick=()=>{
+  const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+  const fo='<option value="">—</option>'+Object.keys(FIRMEN).map(k=>'<option value="'+k+'">'+H(FIRMEN[k])+'</option>').join('');
+  const mo='<option value="">—</option>'+MON.map((m,i)=>i?'<option value="'+i+'">'+H(m)+'</option>':'').join('');
+  panel.innerHTML='<h2>Новый вопрос Steuerberater</h2>'
+    +'<label class="lb">Источник</label><input id="n_quelle" placeholder="кто спросил / письмо">'
+    +'<div class="grid2"><div><label class="lb">Дата</label><input id="n_datum" type="date"></div><div><label class="lb">Срок Steuerberater</label><input id="n_frist" type="date"></div></div>'
+    +'<label class="lb">Вопрос *</label><textarea id="n_inhalt" rows="3"></textarea>'
+    +'<label class="lb">Документы/период</label><input id="n_dok">'
+    +'<div class="grid2"><div><label class="lb">Фирма</label><select id="n_firma">'+fo+'</select></div><div><label class="lb">Месяц</label><select id="n_monat">'+mo+'</select></div></div>'
+    +'<label class="lb">Год</label><input id="n_jahr" value="'+new Date().getFullYear()+'">'
+    +'<div class="err" id="nerr"></div>'
+    +'<div class="aktion"><button class="btn pri" id="nsend">Создать</button><button class="btn" onclick="zu()">Отмена</button></div>';
+  ov.classList.add('an');
+  document.getElementById('nsend').onclick=async()=>{
+    const g=x=>document.getElementById(x).value.trim();
+    try{ await P('/api/frage',{quelle:g('n_quelle'),datum:g('n_datum')||undefined,frist_steuerberater:g('n_frist')||undefined,inhalt:g('n_inhalt'),bezug_dok:g('n_dok'),firma:g('n_firma')||undefined,monat:g('n_monat')||undefined,jahr:g('n_jahr')||undefined}); zu(); laden(); }
+    catch(e){ document.getElementById('nerr').textContent=e.message; }
+  };
+};
+document.getElementById('filter').addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(!b)return;FILTER=b.dataset.f;laden();});
+document.getElementById('app').addEventListener('click',e=>{const b=e.target.closest('[data-open]');if(b)oeffne(Number(b.dataset.open));});
+document.getElementById('ov').addEventListener('click',e=>{if(e.target.id==='ov')zu();});
+document.getElementById('panel').addEventListener('click',async e=>{
+  const g=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  let b;
+  if((b=e.target.closest('[data-zuweisen]'))){ b.disabled=true; try{ await P('/api/frage/zuweisen',{id:Number(b.dataset.zuweisen),bearbeiter:g('z_bearb'),frist_intern:g('z_frist')||undefined}); await oeffne(Number(b.dataset.zuweisen)); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+  if((b=e.target.closest('[data-antwort]'))){ b.disabled=true; try{ await P('/api/frage/antwort',{frage_id:Number(b.dataset.antwort),text:g('a_text'),materialien:g('a_mat')}); await oeffne(Number(b.dataset.antwort)); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+  if((b=e.target.closest('[data-pruef]'))){ b.disabled=true; try{ await P('/api/frage/antwort/pruefen',{id:Number(b.dataset.pruef),ok:b.dataset.ok==='1'}); await oeffne(OFFEN_ID); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+  if((b=e.target.closest('[data-inpaket]'))){ b.disabled=true; try{ await P('/api/frage/paket',{id:Number(b.dataset.inpaket),paket_id:g('p_id')||undefined}); await oeffne(Number(b.dataset.inpaket)); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>
