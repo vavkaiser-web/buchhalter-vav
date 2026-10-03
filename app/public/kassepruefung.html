@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Проверка кассы · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;box-shadow:var(--schatten);margin-bottom:12px;border-left:3px solid var(--ok)}
+.karte.gesperrt{border-left-color:var(--crit)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.sum{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 12px}
+.aktion{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:6px 11px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{color:var(--crit)} .btn:disabled{opacity:.45}
+input{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink);width:120px}
+.diff{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/arbeit">Касса</a>
+    <a href="/kassepruefung" class="akt">Проверка кассы</a>
+    <a href="/integrationen">Интеграции</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><h1>Проверка кассы — блокировка и сверка</h1><div class="wer" id="wer"></div></div>
+  <div class="hinweis">Если остаток недостоверен — выдача из кассы блокируется на сервере до сверки. Снятие
+    блокировки: держатель подтверждает фактический остаток, расхождение устраняется, ответственный
+    бухгалтер снимает блокировку. Корректировку остатка утверждает Андрей; проводка отдельная,
+    старые движения не переписываются.</div>
+  <div class="msg" id="msg"></div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const tag=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleString('de-DE');};
+async function J(u){const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login?next=/kassepruefung';throw new Error('нет сессии');}const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+async function P(u,b){const r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>m.className='msg',4000);}
+let ICH={}, ROLLE='';
+function centAus(v){const x=Math.round(parseFloat(String(v).replace(',','.'))*100);return Number.isFinite(x)?x:NaN;}
+async function laden(){
+  try{
+    const [lage,sp]=await Promise.all([J('/api/k/lage'),J('/api/k/sperren')]);
+    ICH=lage.ich||{}; ROLLE=ICH.rolle||'';
+    document.getElementById('wer').textContent=(ICH.name||'')+' · '+(ROLLE==='gf'?'владелец':ROLLE==='buchhaltung'?'бухгалтерия':ROLLE);
+    const konten=(lage.konten||[]).filter(k=>k.art==='hauptkasse'||k.art==='halter');
+    const spMap={}; (sp.sperren||[]).forEach(s=>spMap[s.konto]=s);
+    const diffs=sp.differenzen||[];
+    let h='';
+    h+=konten.map(k=>{
+      const s=spMap[k.id]||{}; const g=s.gesperrt===true;
+      const kd=diffs.filter(d=>d.konto===k.id);
+      let c='<div class="karte'+(g?' gesperrt':'')+'"><div class="k1"><div><span style="font-weight:700">'+H(k.name||k.id)+'</span> <span class="chip">'+H(k.art)+'</span></div>'
+        +'<span class="sum">'+EUR(k.saldo)+'</span></div>';
+      c+='<div class="meta">'+(g?'<span class="chip crit">заблокировано</span>':'<span class="chip ok">выдача разрешена</span>')
+        +(g&&s.grund?'<span>'+H(s.grund)+'</span>':'')
+        +(s.halter_bestaetigt_cent!=null?'<span>сверка: факт '+EUR(s.halter_bestaetigt_cent)+' ('+H(s.halter_bestaetigt_von||'')+')</span>':'')+'</div>';
+      // действия блокировки
+      c+='<div class="aktion">';
+      if(!g) c+='<button class="btn crit" data-sperre="'+H(k.id)+'">Заблокировать</button>';
+      else {
+        c+='<input placeholder="факт, €" id="sv_'+H(k.id)+'"><button class="btn" data-sverka="'+H(k.id)+'">Сверка (держатель)</button>';
+        c+='<button class="btn pri" data-frei="'+H(k.id)+'">Снять блокировку</button>';
+      }
+      c+='<input placeholder="пересчёт, €" id="df_'+H(k.id)+'"><button class="btn" data-diff="'+H(k.id)+'">Зафиксировать расхождение</button>';
+      c+='</div>';
+      // открытые расхождения
+      kd.forEach(d=>{ c+=diffHtml(d); });
+      c+='</div>';
+      return c;
+    }).join('');
+    if(!konten.length) h='<div class="leer">Кассовых счетов нет.</div>';
+    document.getElementById('app').innerHTML=h;
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function diffHtml(d){
+  const st={erkannt:'обнаружено',ursache:'причина установлена',vorschlag:'корректировка предложена',genehmigt:'утверждена Андреем',angewandt:'применена'};
+  let h='<div class="diff"><div class="k1"><strong>Расхождение #'+d.id+'</strong><span class="chip '+(d.status==='genehmigt'?'ok':d.status==='angewandt'?'ok':'warn')+'">'+H(st[d.status]||d.status)+'</span></div>';
+  h+='<div class="meta">факт '+EUR(d.ist_cent)+' · расчёт '+EUR(d.soll_cent)+' · разница '+EUR(d.differenz_cent)+'</div>';
+  if(d.ursache) h+='<div class="meta">причина: '+H(d.ursache)+'</div>';
+  if(d.vorschlag) h+='<div class="meta">корректировка: '+H(d.vorschlag)+' ('+EUR(d.betrag_cent)+')</div>';
+  h+='<div class="aktion">';
+  if(['erkannt','ursache'].includes(d.status)) h+='<input placeholder="причина" id="ur_'+d.id+'" style="width:180px"><button class="btn" data-durs="'+d.id+'">Причина</button>';
+  if(['erkannt','ursache','vorschlag'].includes(d.status)) h+='<button class="btn" data-dvor="'+d.id+'" data-betrag="'+d.differenz_cent+'">Предложить корректировку ('+EUR(d.differenz_cent)+')</button>';
+  if(d.status==='vorschlag' && ROLLE==='gf') h+='<button class="btn pri" data-dgen="'+d.id+'">Утвердить (Андрей)</button>';
+  if(d.status==='vorschlag' && ROLLE!=='gf') h+='<span class="chip">ждёт утверждения Андреем</span>';
+  if(d.status==='genehmigt') h+='<button class="btn pri" data-danw="'+d.id+'">Применить корректировку</button>';
+  h+='</div></div>';
+  return h;
+}
+document.getElementById('app').addEventListener('click',async e=>{
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  let b;
+  try{
+    if((b=e.target.closest('[data-sperre]'))){ b.disabled=true; await P('/api/k/sperre',{konto:b.dataset.sperre,grund:'остаток недостоверен'}); msg('Касса заблокирована',true); laden(); return; }
+    if((b=e.target.closest('[data-sverka]'))){ const c=centAus(g('sv_'+b.dataset.sverka)); if(!Number.isFinite(c)) return msg('Введите фактический остаток'); b.disabled=true; await P('/api/k/sverka',{konto:b.dataset.sverka,ist_cent:c}); msg('Факт подтверждён',true); laden(); return; }
+    if((b=e.target.closest('[data-frei]'))){ b.disabled=true; await P('/api/k/freigeben',{konto:b.dataset.frei}); msg('Блокировка снята',true); laden(); return; }
+    if((b=e.target.closest('[data-diff]'))){ const c=centAus(g('df_'+b.dataset.diff)); if(!Number.isFinite(c)) return msg('Введите пересчёт'); b.disabled=true; await P('/api/k/differenz',{konto:b.dataset.diff,ist_cent:c}); msg('Расхождение зафиксировано, касса заблокирована',true); laden(); return; }
+    if((b=e.target.closest('[data-durs]'))){ b.disabled=true; await P('/api/k/differenz/'+b.dataset.durs+'/ursache',{ursache:g('ur_'+b.dataset.durs)}); laden(); return; }
+    if((b=e.target.closest('[data-dvor]'))){ b.disabled=true; await P('/api/k/differenz/'+b.dataset.dvor+'/vorschlag',{vorschlag:'выравнивание по фактическому пересчёту',betrag_cent:Number(b.dataset.betrag)}); laden(); return; }
+    if((b=e.target.closest('[data-dgen]'))){ b.disabled=true; await P('/api/k/differenz/'+b.dataset.dgen+'/genehmigen',{}); msg('Корректировка утверждена',true); laden(); return; }
+    if((b=e.target.closest('[data-danw]'))){ b.disabled=true; await P('/api/k/differenz/'+b.dataset.danw+'/anwenden',{}); msg('Корректировка применена — отдельная проводка',true); laden(); return; }
+  }catch(err){ msg(err.message); if(b)b.disabled=false; }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

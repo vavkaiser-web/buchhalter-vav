@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Начальные остатки · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:16px 0 8px}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 8px}.wer{font-size:13px;color:var(--muted)}
+.banner{padding:10px 12px;border-radius:9px;margin:8px 0;font-size:13px;background:var(--warn-bg);color:var(--warn)}
+.banner.ok{background:var(--ok-bg);color:var(--ok)}
+.kacheln{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.kachel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--schatten)}
+.kachel .l{font-size:12px;color:var(--muted)} .kachel .v{font-size:16px;font-weight:700;margin-top:2px}
+.kachel .u{font-size:11.5px;color:var(--muted);margin-top:3px}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--schatten);margin-bottom:10px;border-left:3px solid var(--muted)}
+.karte.bestaetigt{border-left-color:var(--ok)} .karte.auf_klaerung{border-left-color:var(--crit)} .karte.offen{border-left-color:var(--warn)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.sum{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:2px 12px}
+.aktion{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:6px 10px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{color:var(--crit)} .btn:disabled{opacity:.45}
+input,select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink)}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.ez{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-top:1px dashed var(--line);flex-wrap:wrap}
+.ez:first-child{border-top:0}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/anfang" class="akt">Начальные остатки</a>
+    <a href="/monat">Проверка месяцев</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><div><h1>Начальные остатки на 01.01.2026 и правила учёта</h1><div class="wer" id="wer"></div></div>
+    <button class="btn pri" id="neu" hidden>Новый остаток</button></div>
+  <div class="hinweis">Источник — Steuerberater; вводит и подтверждает ответственный бухгалтер. Неизвестное
+    показывается как «не получено», не нулём. Уточнение сохраняет прежнюю версию. Расхождение не подтверждается
+    автоматически. Погашение начального долга/аванса уменьшает остаток и не создаёт новый расход 2026 года.</div>
+  <div class="msg" id="msg"></div>
+  <div id="ueber"></div>
+  <h2>Правила учёта (Steuerberater)</h2>
+  <div class="karte" id="einst"><div class="leer">Загрузка…</div></div>
+  <h2>Позиции остатков</h2>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<div class="msg" id="ov" style="position:fixed;inset:0;background:rgba(10,15,20,.45);display:none;align-items:flex-start;justify-content:center;padding:24px 14px;z-index:9;overflow:auto"></div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>c==null?'—':((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>{m.className='msg';},4500);}
+function centAus(v){if(v==='')return '';const x=Math.round(parseFloat(String(v).replace(',','.'))*100);return Number.isFinite(x)?x:NaN;}
+async function J(u){const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login?next=/anfang';throw new Error('нет сессии');}const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+async function P(u,b){const r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+let ICH={}, KAT={}, KANN=false;
+async function laden(){
+  try{
+    const d=await J('/api/anfang'); ICH=d.ich||{}; KAT=d.kategorien||{}; KANN=ICH.verantwortlich===true;
+    document.getElementById('wer').textContent=(ICH.name||'')+(KANN?' · ответственный бухгалтер':'');
+    document.getElementById('neu').hidden=!KANN;
+    const ub=d.uebersicht;
+    let h=ub.unvollstaendig?'<div class="banner">Начальные данные НЕПОЛНЫ: есть непроверенные, спорные или неполученные позиции. Общие остатки и задолженность помечены как неполные.</div>':'<div class="banner ok">Все заведённые позиции подтверждены.</div>';
+    h+='<div class="kacheln">'+ub.kategorien.filter(g=>g.anzahl>0).map(g=>'<div class="kachel"><div class="l">'+H(g.text)+'</div><div class="v">'+EUR(g.summe_cent)+'</div>'
+      +'<div class="u">подтв. '+g.bestaetigt+'/'+g.anzahl+(g.unbekannt?' · не получено '+g.unbekannt:'')+(g.klaerung?' · на уточнении '+g.klaerung:'')+'</div></div>').join('')+'</div>';
+    document.getElementById('ueber').innerHTML=h;
+    document.getElementById('app').innerHTML=(d.liste||[]).length?(d.liste||[]).map(karte).join(''):'<div class="leer">Позиций нет.</div>';
+    ladenEinst();
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function inPanel(id,label,placeholder,action,extra){
+  return '<div id="p_'+id+'" style="display:none;margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:9px;border:1px solid var(--line)">'
+    +'<label style="font-size:12.5px;color:var(--muted);display:block;margin-bottom:4px">'+label+'</label>'
+    +(extra||'')
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    +'<input id="v_'+id+'" style="flex:1;min-width:120px;max-width:220px" placeholder="'+placeholder+'">'
+    +'<button class="btn pri" '+action+'>Сохранить</button>'
+    +'<button class="btn" onclick="hideP(\''+id+'\')">Отмена</button></div></div>';
+}
+function hideP(id){ const el=document.getElementById('p_'+id); if(el)el.style.display='none'; }
+function showP(id){ document.querySelectorAll('[id^="p_"]').forEach(el=>el.style.display='none'); const el=document.getElementById('p_'+id); if(el)el.style.display='block'; const inp=document.getElementById('v_'+id); if(inp)inp.focus(); }
+window.hideP=hideP; window.showP=showP;
+
+function karte(x){
+  const klarId='klar_'+x.id, aktId='akt_'+x.id, tilgId='tilg_'+x.id;
+  return '<div class="karte '+H(x.status)+'" id="karte_'+x.id+'">'
+    +'<div class="k1"><div><strong>'+H(x.kategorie_text)+' · '+H(x.bezeichnung)+'</strong> '
+    +'<span class="chip '+(x.status==='bestaetigt'?'ok':x.status==='auf_klaerung'?'crit':'warn')+'">'+H(x.status_text)+'</span></div>'
+    +'<span class="sum">'+(x.bekannt?EUR(x.betrag_cent):'<span class="chip warn">не получено</span>')+'</span></div>'
+    +'<div class="meta">'+(x.quelle?'источник '+H(x.quelle):'')+(x.beleg_ref?'<span>· '+H(x.beleg_ref)+'</span>':'')+'<span>· v'+x.version+'</span>'
+    +(x.geprueft_von?'<span>· проверил '+H(x.geprueft_von)+'</span>':'')
+    +(x.offen_rest_cent!=null?'<span>· осталось '+EUR(x.offen_rest_cent)+(x.getilgt_cent?' (погашено '+EUR(x.getilgt_cent)+')':'')+'</span>':'')+'</div>'
+    +(KANN?'<div class="aktion">'
+      +(x.status!=='bestaetigt'?'<button class="btn pri" data-best="'+x.id+'">Подтвердить</button>':'<span class="chip ok">подтверждено</span>')
+      +(x.status!=='auf_klaerung'?'<button class="btn" onclick="showP(\''+klarId+'\')" style="color:var(--crit)">На уточнение</button>':'')
+      +'<button class="btn" onclick="showP(\''+aktId+'\')">Изменить сумму</button>'
+      +(x.offen_rest_cent!=null&&x.offen_rest_cent>0?'<button class="btn" onclick="showP(\''+tilgId+'\')">Погашение</button>':'')
+      +'</div>'
+      +inPanel(klarId,'Причина расхождения / уточнения:','объясните расхождение','data-klar="'+x.id+'"')
+      +inPanel(aktId,'Уточнённая сумма €:','напр. 12500,00','data-akt="'+x.id+'"')
+      +(x.offen_rest_cent!=null&&x.offen_rest_cent>0?inPanel(tilgId,'Сумма погашения €:','напр. 5000,00','data-tilg="'+x.id+'"'):'')
+      :'')
+    +'</div>';
+}
+async function ladenEinst(){
+  try{
+    const d=await J('/api/einstellung');
+    document.getElementById('einst').innerHTML=(d.einstellungen||[]).map(e=>'<div class="ez"><div><strong>'+H(e.text)+'</strong> '
+      +'<span class="chip '+(e.status==='bestaetigt'?'ok':e.status==='vorgeschlagen'?'warn':'')+'">'+H(e.status_text)+'</span>'
+      +(e.wert?'<div class="meta">'+H(e.wert)+(e.quelle?' · '+H(e.quelle):'')+(e.ab_datum?' · с '+H(String(e.ab_datum).slice(0,10)):'')+'</div>':'<div class="meta">значение не задано — расчёт помечен неподтверждённым</div>')+'</div>'
+      +(KANN?'<div class="aktion"><input placeholder="значение" id="es_'+H(e.schluessel)+'" style="width:150px"><button class="btn" data-eset="'+H(e.schluessel)+'">Задать</button>'
+        +(e.wert&&e.status!=='bestaetigt'?'<button class="btn pri" data-ebest="'+H(e.schluessel)+'">Подтвердить</button>':'')+'</div>':'')
+      +'</div>').join('');
+  }catch(e){ document.getElementById('einst').innerHTML='<div class="leer">'+H(e.message)+'</div>'; }
+}
+function form(html){ const ov=document.getElementById('ov'); ov.innerHTML='<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;max-width:520px;width:100%;padding:18px">'+html+'</div>'; ov.style.display='flex'; }
+function zu(){ document.getElementById('ov').style.display='none'; }
+document.getElementById('neu').onclick=()=>{
+  const ko=Object.keys(KAT).map(k=>'<option value="'+k+'">'+H(KAT[k])+'</option>').join('');
+  form('<h2 style="margin-top:0">Новый начальный остаток</h2>'
+    +'<label class="wer">Категория</label><select id="n_kat" style="width:100%">'+ko+'</select>'
+    +'<label class="wer">Счёт / контрагент</label><input id="n_bez" style="width:100%">'
+    +'<label class="wer">Сумма € (пусто = не получено)</label><input id="n_betrag" style="width:100%" placeholder="напр. 12500,00">'
+    +'<label class="wer">Источник</label><input id="n_quelle" style="width:100%" value="Steuerberater">'
+    +'<label class="wer">Документ-основание</label><input id="n_beleg" style="width:100%">'
+    +'<div class="msg auf f" id="nerr" style="display:none"></div>'
+    +'<div class="aktion"><button class="btn pri" id="nsend">Создать</button><button class="btn" onclick="zu()">Отмена</button></div>');
+  document.getElementById('nsend').onclick=async()=>{
+    const g=id=>document.getElementById(id).value.trim();
+    const c=centAus(g('n_betrag')); if(Number.isNaN(c)){document.getElementById('nerr').textContent='сумма не число';document.getElementById('nerr').style.display='block';return;}
+    try{ await P('/api/anfang',{kategorie:g('n_kat'),bezeichnung:g('n_bez'),betrag_cent:c===''?null:c,quelle:g('n_quelle'),beleg_ref:g('n_beleg')}); zu(); laden(); }
+    catch(e){ document.getElementById('nerr').textContent=e.message; document.getElementById('nerr').style.display='block'; }
+  };
+};
+document.getElementById('app').addEventListener('click',async e=>{
+  let b;
+  try{
+    if((b=e.target.closest('[data-best]'))){ b.disabled=true; await P('/api/anfang/bestaetigen',{id:Number(b.dataset.best)}); msg('Подтверждено',true); laden(); return; }
+    if((b=e.target.closest('[data-klar]'))){ const v=(document.getElementById('v_klar_'+b.dataset.klar)||{}).value||''; if(!v.trim())return msg('нужна причина уточнения'); await P('/api/anfang/klaerung',{id:Number(b.dataset.klar),grund:v.trim()}); msg('Отмечено на уточнении',true); laden(); return; }
+    if((b=e.target.closest('[data-akt]'))){ const v=(document.getElementById('v_akt_'+b.dataset.akt)||{}).value||''; const c=centAus(v); if(Number.isNaN(c))return msg('сумма не число'); const r=await P('/api/anfang/aktualisieren',{id:Number(b.dataset.akt),betrag_cent:c===''?null:c,grund:'уточнение'}); msg('Обновлено'+(r.delta_cent!=null?' (Δ '+EUR(r.delta_cent)+')':''),true); laden(); return; }
+    if((b=e.target.closest('[data-tilg]'))){ const v=(document.getElementById('v_tilg_'+b.dataset.tilg)||{}).value||''; const c=centAus(v); if(!c||c<=0)return msg('нужна сумма'); await P('/api/anfang/tilgung',{bestand_id:Number(b.dataset.tilg),betrag_cent:c,quelle_ref:'оплата 2026'}); msg('Погашение записано — остаток уменьшен',true); laden(); return; }
+  }catch(err){ msg(err.message); if(b)b.disabled=false; }
+});
+document.getElementById('einst').addEventListener('click',async e=>{
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  let b;
+  try{
+    if((b=e.target.closest('[data-eset]'))){ await P('/api/einstellung',{schluessel:b.dataset.eset,wert:g('es_'+b.dataset.eset),quelle:'Steuerberater'}); msg('Задано',true); ladenEinst(); return; }
+    if((b=e.target.closest('[data-ebest]'))){ await P('/api/einstellung/bestaetigen',{schluessel:b.dataset.ebest}); msg('Подтверждено',true); ladenEinst(); return; }
+  }catch(err){ msg(err.message); }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

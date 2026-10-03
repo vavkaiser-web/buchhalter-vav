@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Исправления · VAV Kaiser</title>
+<style>
+:root{
+  --bg:#f2efe9; --surface:#ffffff; --surface2:#faf8f4; --ink:#1b2530; --muted:#5c6773;
+  --line:#e6e1d7; --akz:#14586e; --ok:#2e7d5b; --warn:#b07d16; --crit:#b23f2b;
+  --krit-bg:#fbeeea; --warn-bg:#fbf4e3; --ok-bg:#e9f4ee;
+  --r:14px; --schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1a2129; --surface2:#161c23; --ink:#e9edf1; --muted:#95a1ad;
+  --line:#2a333d; --akz:#5bb4cf; --ok:#5fc48f; --warn:#d9b154; --crit:#e2856f;
+  --krit-bg:#2a1c19; --warn-bg:#292417; --ok-bg:#182a22;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0}
+h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)} .nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 12px}
+.wer{font-size:13px;color:var(--muted)}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:7px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.btn.warn{color:var(--warn)} .btn.crit{color:var(--crit)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.filter{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px}
+.filter .btn.akt{background:var(--akz);border-color:var(--akz);color:#fff}
+.karten{display:grid;gap:10px}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;box-shadow:var(--schatten);border-left:3px solid var(--muted)}
+.karte.offen{border-left-color:var(--warn)} .karte.bestaetigt{border-left-color:var(--akz)}
+.karte.angewandt{border-left-color:var(--ok)} .karte.zurueck{border-left-color:var(--crit);opacity:.85}
+.k1{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.titel{font-weight:600}
+.meta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:3px 12px}
+.werte{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.wbox{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:13px}
+.wbox .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.aktion{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+label.lb{font-size:12.5px;color:var(--muted);display:block;margin:9px 0 3px}
+textarea,input,select{font:inherit;font-size:14px;width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface2);color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.verlauf{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.vz{font-size:12px;color:var(--muted);padding:3px 0}
+.ov{position:fixed;inset:0;background:rgba(10,15,20,.45);display:none;align-items:flex-start;justify-content:center;padding:24px 14px;z-index:9;overflow:auto}
+.ov.an{display:flex}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);max-width:600px;width:100%;padding:18px;box-shadow:var(--schatten)}
+.err{color:var(--crit);font-size:12.5px;margin-top:8px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/objekt">Объекты</a>
+    <a href="/monat">Проверка месяцев</a>
+    <a href="/korrektur" class="akt">Исправления</a>
+    <a href="/benachrichtigung">Уведомления</a>
+    <a href="/paket">Комплекты</a>
+    <a href="/fragen">Вопросы</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf">
+    <div><h1>Запросы на исправление</h1><div class="wer" id="wer"></div></div>
+    <button class="btn pri" id="neu">Новый запрос</button>
+  </div>
+  <div class="hinweis">Проверенные данные напрямую не меняются. Сотрудник создаёт запрос (что, почему,
+    старое → новое) — подтверждает и применяет ответственный бухгалтер. Оригинал документа не
+    перезаписывается. Применение к проверенному месяцу помечает его на повторную проверку.</div>
+  <div class="filter" id="filter"></div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+
+<div class="ov" id="ov"><div class="panel" id="panel"></div></div>
+
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MON=['','январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+function tag(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+async function J(u,opt){ const r=await fetch(u,Object.assign({credentials:'same-origin'},opt||{}));
+  if(r.status===401){location.href='/login?next=/korrektur';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+async function P(u,body){ return J(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); }
+
+let ICH={}, ARTEN={}, FIRMEN={}, FILTER='';
+const STATUS=[['','все'],['offen','ждут'],['bestaetigt','подтверждены'],['angewandt','применены'],['zurueck','возвращены']];
+
+async function laden(){
+  try{
+    const d=await J('/api/korrektur'+(FILTER?'?status='+FILTER:''));
+    ICH=d.ich||{}; ARTEN=d.arten||{}; FIRMEN=d.firmen||{};
+    document.getElementById('wer').textContent=(ICH.name||ICH.login||'')+(ICH.verantwortlich?' · ответственный бухгалтер':'');
+    document.getElementById('filter').innerHTML=STATUS.map(s=>'<button class="btn'+(FILTER===s[0]?' akt':'')+'" data-f="'+s[0]+'">'+H(s[1])+'</button>').join('');
+    const list=d.korrekturen||[];
+    document.getElementById('app').innerHTML = list.length? '<div class="karten">'+list.map(karte).join('')+'</div>'
+      : '<div class="leer">Запросов нет.</div>';
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function periodeText(k){ let t=[]; if(k.firma) t.push(FIRMEN[k.firma]||k.firma); if(k.monat) t.push(MON[k.monat]+(k.jahr?' '+k.jahr:'')); else if(k.jahr) t.push(k.jahr); if(k.objekt_nr) t.push('объект '+k.objekt_nr); return t.join(' · '); }
+function karte(k){
+  const p=periodeText(k);
+  return '<div class="karte '+H(k.status)+'" data-id="'+k.id+'">'
+    +'<div class="k1"><span class="titel">#'+k.id+' · '+H(k.art_text)+'</span>'
+      +'<span class="chip '+(k.status==='angewandt'?'ok':k.status==='offen'?'warn':k.status==='zurueck'?'crit':'')+'">'+H(k.status_text)+'</span></div>'
+    +'<div class="meta">'+H(k.bezug)+(p?'<span>·</span>'+H(p):'')+'<span>·</span>автор '+H(k.autor)+'<span>·</span>'+H(tag(k.angelegt))+'</div>'
+    +'<div style="margin-top:6px;font-size:13.5px">'+H(k.grund)+'</div>'
+    +((k.alt_wert||k.neu_wert)?'<div class="werte"><div class="wbox"><div class="l">было</div>'+H(k.alt_wert||'—')+'</div><div class="wbox"><div class="l">станет</div>'+H(k.neu_wert||'—')+'</div></div>':'')
+    +'<div class="aktion"><button class="btn" data-open="'+k.id+'">Подробно</button></div></div>';
+}
+
+/* ---- панель одного запроса ---- */
+async function oeffne(id){
+  const ov=document.getElementById('ov'), panel=document.getElementById('panel');
+  panel.innerHTML='<div class="leer">Загрузка…</div>'; ov.classList.add('an');
+  try{ panel.innerHTML=detail(await J('/api/korrektur/eins?id='+id)); }
+  catch(e){ panel.innerHTML='<div class="err">'+H(e.message)+'</div><div class="aktion"><button class="btn" onclick="zu()">Закрыть</button></div>'; }
+  const sel=document.getElementById('sbart'); if(sel) sbForm(sel.value);
+}
+function sbForm(art){
+  const box=document.getElementById('sbfelder'); if(!box) return;
+  if(art==='schriftlich'){
+    box.innerHTML='<label class="lb">Дата письма</label><input id="sb_datum" type="date">'
+      +'<label class="lb">Ссылка на письмо/документ Steuerberater *</label><input id="sb_dok" placeholder="например: письмо от 12.03, Drive/…">'
+      +'<label class="lb">Расчёт влияния</label><input id="sb_ausw">';
+  } else {
+    box.innerHTML='<label class="lb">Дата разговора</label><input id="sb_datum" type="date">'
+      +'<label class="lb">С кем согласовано *</label><input id="sb_mit" placeholder="имя из Steuerberater">'
+      +'<label class="lb">Какие документы обсуждались</label><input id="sb_besp">'
+      +'<label class="lb">Согласованные изменения *</label><textarea id="sb_verein" rows="2"></textarea>'
+      +'<label class="lb">Суммы / периоды / условия</label><input id="sb_betr">'
+      +'<label class="lb">Дальнейшие действия</label><input id="sb_weiter">'
+      +'<label class="lb">Расчёт влияния</label><input id="sb_ausw">';
+  }
+}
+function meldeFelder(kontext){
+  return '<label class="lb">Уведомить владельца об изменении показателя ('+H(kontext)+')</label>'
+    +'<select id="m_art"><option value="">— не показатель</option><option value="ergebnis">Прибыль</option><option value="steuer">Налог</option><option value="schuld">Задолженность</option></select>'
+    +'<div class="grid2"><div><label class="lb">прежняя сумма</label><input id="m_alt"></div><div><label class="lb">новая сумма</label><input id="m_neu"></div></div>';
+}
+function detail(k){
+  const kannPruef=ICH.verantwortlich===true;
+  let h='<div class="k1"><h2>#'+k.id+' · '+H(k.art_text)+'</h2><span class="chip '+(k.status==='angewandt'?'ok':k.status==='offen'?'warn':k.status==='zurueck'?'crit':'')+'">'+H(k.status_text)+'</span></div>';
+  const p=periodeText(k); if(p) h+='<div class="meta">'+H(p)+'</div>';
+  h+='<label class="lb">Что исправляем</label><div>'+H(k.bezug)+'</div>';
+  h+='<label class="lb">Причина</label><div>'+H(k.grund)+'</div>';
+  if(k.basis) h+='<label class="lb">Основание</label><div>'+H(k.basis)+'</div>';
+  h+='<div class="werte"><div class="wbox"><div class="l">было</div>'+H(k.alt_wert||'—')+'</div><div class="wbox"><div class="l">станет</div>'+H(k.neu_wert||'—')+'</div></div>';
+  if(k.belege) h+='<label class="lb">Документы</label><div>'+H(k.belege)+'</div>';
+  if(k.auswirkung) h+='<label class="lb">Влияние на расчёты</label><div>'+H(k.auswirkung)+'</div>';
+  if(k.bestaetigt_von) h+='<div style="margin-top:8px"><span class="chip">подтвердил: '+H(k.bestaetigt_von)+' · '+H(tag(k.bestaetigt_am))+'</span></div>';
+  if(k.angewandt_von) h+='<div style="margin-top:4px"><span class="chip ok">применил: '+H(k.angewandt_von)+' · '+H(tag(k.angewandt_am))+'</span></div>';
+
+  // ===== Ф4: Steuerberater =====
+  h+='<div class="verlauf"><div class="k1"><div class="wer">Steuerberater</div>'
+    +(k.steuerberater_pflicht?'<span class="chip warn">затрагивает: '+H(k.betroffen_text||'—')+'</span>':'<span class="chip">не затрагивает</span>')+'</div>';
+  if(kannPruef && k.status!=='angewandt'){
+    if(!k.steuerberater_pflicht){
+      h+='<div class="aktion" style="margin-top:6px"><select id="betr" style="max-width:220px"><option value="eingereichte_erklaerung">Поданная отчётность</option><option value="geschlossener_zeitraum">Закрытый период</option><option value="jahresabschluss">Годовое закрытие</option></select>'
+        +'<button class="btn warn" data-akt="sb_pflicht" data-id="'+k.id+'">Отметить: затрагивает Steuerberater</button></div>';
+    } else {
+      h+='<div class="aktion" style="margin-top:6px"><button class="btn" data-akt="sb_frei" data-id="'+k.id+'">Снять отметку</button></div>';
+    }
+  }
+  // существующие согласования — письменные и телефонные РАЗДЕЛЬНО
+  const bb=k.steuerberater_bestaetigungen||[];
+  if(bb.length){
+    h+=bb.map(b=>'<div class="wbox" style="margin-top:6px">'
+      +'<div class="k1"><strong>'+(b.art==='schriftlich'?'✍ Письменное подтверждение':'☎ Запись телефонного согласования')+'</strong>'
+      +'<span class="chip '+(b.art==='schriftlich'?'ok':'warn')+'">'+H(b.art_text)+'</span></div>'
+      +(b.datum?'<div class="meta">дата '+H(tag(b.datum))+'</div>':'')
+      +(b.dokument_ref?'<div style="font-size:13px">документ: '+H(b.dokument_ref)+'</div>':'')
+      +(b.mit_wem?'<div style="font-size:13px">с кем: '+H(b.mit_wem)+'</div>':'')
+      +(b.vereinbart?'<div style="font-size:13px">согласовано: '+H(b.vereinbart)+'</div>':'')
+      +(b.betraege_perioden?'<div style="font-size:13px">суммы/периоды: '+H(b.betraege_perioden)+'</div>':'')
+      +(b.weiter?'<div style="font-size:13px">далее: '+H(b.weiter)+'</div>':'')
+      +'<div class="meta">записал '+H(b.autor)+' · '+H(tag(b.angelegt))+'</div></div>').join('');
+  }
+  // форма добавления согласования
+  if(kannPruef && k.steuerberater_pflicht && k.status!=='angewandt'){
+    h+='<label class="lb">Добавить согласование</label>'
+      +'<select id="sbart" onchange="sbForm(this.value)"><option value="schriftlich">Письменное подтверждение</option><option value="telefonisch">Запись телефонного согласования</option></select>'
+      +'<div id="sbfelder"></div>'
+      +'<div class="aktion"><button class="btn pri" data-akt="sb_best" data-id="'+k.id+'">Сохранить согласование</button></div>'
+      +'<div class="hinweis">Письменное подтверждение и запись телефонного разговора — разные вещи. Телефонная запись — внутренняя, не подписанный документ.</div>';
+  }
+  h+='</div>';
+
+  // действия ответственного
+  if(kannPruef){
+    if(k.status==='offen'){
+      h+=meldeFelder('предварительно');
+      h+='<div class="aktion"><button class="btn pri" data-akt="bestaetigen" data-id="'+k.id+'">Подтвердить</button><button class="btn crit" data-akt="zurueck" data-id="'+k.id+'">Вернуть</button></div>';
+    }
+    if(k.status==='bestaetigt'){
+      h+='<label class="lb">Влияние на расчёты (при применении)</label><textarea id="ausw" rows="2" placeholder="например: прибыль объекта VK-26-140 −1 200 €"></textarea>';
+      h+=meldeFelder('применено');
+      if(k.steuerberater_pflicht && !bb.length) h+='<div class="hinweis">Пока нет согласования со Steuerberater — применение будет заблокировано.</div>';
+      h+='<div class="aktion"><button class="btn pri" data-akt="anwenden" data-id="'+k.id+'">Применить</button><button class="btn crit" data-akt="zurueck" data-id="'+k.id+'">Вернуть</button></div>';
+    }
+  } else if(k.status==='offen'){
+    h+='<div class="hinweis">Подтверждает и применяет ответственный бухгалтер.</div>';
+  }
+
+  if(k.verlauf&&k.verlauf.length){
+    h+='<div class="verlauf"><div class="wer">История</div>'+k.verlauf.map(v=>
+      '<div class="vz">'+H(tag(v.wann))+' · '+H(v.autor||'—')+' · '+H(v.ereignis)+(v.notiz?' · '+H(v.notiz):'')+'</div>').join('')+'</div>';
+  }
+  h+='<div class="aktion"><button class="btn" onclick="zu()">Закрыть</button></div>';
+  return h;
+}
+function zu(){ document.getElementById('ov').classList.remove('an'); }
+
+/* ---- форма нового запроса ---- */
+function neuForm(){
+  const ov=document.getElementById('ov'), panel=document.getElementById('panel');
+  const artOpt=Object.keys(ARTEN).map(k=>'<option value="'+k+'">'+H(ARTEN[k])+'</option>').join('');
+  const firmaOpt='<option value="">—</option>'+Object.keys(FIRMEN).map(k=>'<option value="'+k+'">'+H(FIRMEN[k])+'</option>').join('');
+  const monOpt='<option value="">—</option>'+MON.map((m,i)=>i?'<option value="'+i+'">'+H(m)+'</option>':'').join('');
+  panel.innerHTML='<h2>Новый запрос на исправление</h2>'
+    +'<label class="lb">Вид</label><select id="f_art">'+artOpt+'</select>'
+    +'<label class="lb">Что исправляем *</label><input id="f_bezug" placeholder="документ / поле / ссылка">'
+    +'<label class="lb">Причина *</label><textarea id="f_grund" rows="2"></textarea>'
+    +'<label class="lb">Основание</label><input id="f_basis" placeholder="на чём основано">'
+    +'<div class="grid2"><div><label class="lb">Было</label><input id="f_alt"></div><div><label class="lb">Станет</label><input id="f_neu"></div></div>'
+    +'<div class="grid2"><div><label class="lb">Фирма (период)</label><select id="f_firma">'+firmaOpt+'</select></div>'
+      +'<div><label class="lb">Месяц</label><select id="f_monat">'+monOpt+'</select></div></div>'
+    +'<div class="grid2"><div><label class="lb">Год</label><input id="f_jahr" value="'+new Date().getFullYear()+'"></div>'
+      +'<div><label class="lb">Объект (номер)</label><input id="f_objekt" placeholder="VK-26-…"></div></div>'
+    +'<label class="lb">Документы (ссылки)</label><input id="f_belege">'
+    +'<div class="err" id="ferr"></div>'
+    +'<div class="aktion"><button class="btn pri" id="senden">Создать запрос</button><button class="btn" onclick="zu()">Отмена</button></div>';
+  ov.classList.add('an');
+  document.getElementById('senden').onclick=async()=>{
+    const g=id=>document.getElementById(id).value.trim();
+    const body={art:g('f_art'),bezug:g('f_bezug'),grund:g('f_grund'),basis:g('f_basis'),
+      alt_wert:g('f_alt'),neu_wert:g('f_neu'),firma:g('f_firma')||undefined,
+      monat:g('f_monat')||undefined,jahr:g('f_jahr')||undefined,objekt_nr:g('f_objekt')||undefined,belege:g('f_belege')};
+    const b=document.getElementById('senden'); b.disabled=true;
+    try{ await P('/api/korrektur',body); zu(); laden(); }
+    catch(e){ document.getElementById('ferr').textContent=e.message; b.disabled=false; }
+  };
+}
+
+/* ---- события ---- */
+document.getElementById('neu').onclick=neuForm;
+document.getElementById('filter').addEventListener('click',e=>{ const b=e.target.closest('[data-f]'); if(!b) return; FILTER=b.dataset.f; laden(); });
+document.getElementById('app').addEventListener('click',e=>{ const b=e.target.closest('[data-open]'); if(b) oeffne(Number(b.dataset.open)); });
+document.getElementById('ov').addEventListener('click',e=>{ if(e.target.id==='ov') zu(); });
+document.getElementById('panel').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-akt]'); if(!b) return;
+  const id=Number(b.dataset.id), akt=b.dataset.akt; const g=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  b.disabled=true;
+  try{
+    if(akt==='sb_pflicht'){ await P('/api/korrektur/steuerberater',{id,pflicht:true,betroffen:g('betr')}); }
+    else if(akt==='sb_frei'){ await P('/api/korrektur/steuerberater',{id,pflicht:false}); }
+    else if(akt==='sb_best'){
+      const art=g('sbart');
+      const body={korrektur_id:id,art,datum:g('sb_datum')||undefined,auswirkung:g('sb_ausw')};
+      if(art==='schriftlich'){ body.dokument_ref=g('sb_dok'); }
+      else { body.mit_wem=g('sb_mit'); body.besprochen=g('sb_besp'); body.vereinbart=g('sb_verein'); body.betraege_perioden=g('sb_betr'); body.weiter=g('sb_weiter'); }
+      await P('/api/steuerberater/bestaetigung',body);
+    }
+    else {
+      const body={id}; if(akt==='anwenden') body.auswirkung=g('ausw');
+      if(akt==='bestaetigen'||akt==='anwenden'){ const ma=g('m_art'); if(ma) body.melde={art:ma,alt:g('m_alt'),neu:g('m_neu')}; }
+      await P('/api/korrektur/'+akt,body);
+    }
+    await oeffne(id); laden();
+  }catch(err){ alert(err.message); b.disabled=false; }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

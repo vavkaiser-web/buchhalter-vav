@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Распределение затрат · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;
+ --akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--ok-bg:#e9f4ee;--warn-bg:#fbf4e3;--krit-bg:#fbeeea;--info-bg:#e6f0f4;
+ --r:13px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 22px rgba(20,30,40,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;
+ --ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;
+ --ok-bg:#182a22;--warn-bg:#292417;--krit-bg:#2a1c19;--info-bg:#182731}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:940px;margin:0 auto;padding:16px 16px 100px}
+.zahl{font-variant-numeric:tabular-nums}
+a{color:var(--akz)}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 10px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1}
+h1{font-size:19px;margin:0 0 2px} .sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}
+.msg.auf{display:block} .msg.f{background:var(--krit-bg);color:var(--crit)} .msg.g{background:var(--ok-bg);color:var(--ok)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:8px;padding:6px 12px;cursor:pointer}
+.tabs button.akt{background:var(--akz);border-color:var(--akz);color:#fff}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--schatten);padding:13px 15px;margin-bottom:12px}
+.card.rest{border-left:3px solid var(--warn)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.tit{font-weight:600}
+.badge{font-size:10.5px;padding:1px 7px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--muted);margin-left:6px}
+.meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+.itog{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:13.5px}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:7px 0;border-top:1px dashed var(--line)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+@media(max-width:620px){.grid{grid-template-columns:1fr}}
+.grid label{font-size:11px;color:var(--muted);display:grid;gap:4px} .grid label.breit{grid-column:1/-1}
+.grid input,.grid select{width:100%;padding:9px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font:inherit;font-size:14px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:8px 13px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{border-color:var(--crit);color:var(--crit)}
+.leer{color:var(--muted);text-align:center;padding:24px 2px}
+.hint{font-size:12px;color:var(--muted);margin-top:8px;background:var(--surface2);border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/objekt">Объекты</a>
+    <a href="/kostenverteilung" class="akt">Распределение</a>
+    <a href="/aufgaben">Задачи</a>
+    <span class="sp"></span>
+    <a href="/api/logout">Выйти</a>
+  </nav>
+  <h1>Распределение затрат</h1>
+  <div class="sub">Часы, жильё, техника, топливо (§14–17) → по объектам. Остаток не распределён — виден отдельно; сумма частей ≤ распределяемой.</div>
+  <div class="msg" id="msg"></div>
+  <div class="tabs" id="tabs"></div>
+  <div style="margin-bottom:12px"><button class="btn pri" id="neu-toggle">+ Затрата</button>
+    <div id="neu-form" style="display:none;margin-top:10px" class="card"><div class="grid">
+      <label>Вид<select id="n-art"><option value="stunden">Часы</option><option value="unterkunft">Жильё</option><option value="technik">Техника/транспорт</option><option value="kraftstoff">Топливо</option><option value="sonstiges">Прочее</option></select></label>
+      <label>Сумма (€)<input id="n-betrag" type="number" step="0.01"></label>
+      <label class="breit">Название<input id="n-bez" placeholder="напр. Отель Nürnberg, октябрь / Дизель по чеку"></label>
+      <label>Период<input id="n-periode" placeholder="2026-01"></label>
+      <label>Дата<input id="n-datum" type="date"></label>
+      <label class="breit">Ссылка на счёт/чек<input id="n-beleg"></label>
+      <div class="breit"><button class="btn pri" id="n-add">Добавить затрату</button></div>
+    </div></div>
+  </div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<datalist id="objliste"></datalist>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EURc=c=>((Number(c)||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const T=(iso)=>{ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?String(iso).slice(0,10):d.toLocaleDateString('de-DE'); };
+const ARTD={stunden:'Часы',unterkunft:'Жильё',technik:'Техника',kraftstoff:'Топливо',sonstiges:'Прочее'};
+const TABS=[['','Все'],['stunden','Часы'],['unterkunft','Жильё'],['technik','Техника'],['kraftstoff','Топливо'],['sonstiges','Прочее']];
+let ART='', OFFEN={}, OBJ=[];
+
+async function J(u,o){ o=Object.assign({credentials:'same-origin'},o||{});
+  const ac=new AbortController(); const t=setTimeout(()=>ac.abort(),15000); o.signal=ac.signal;
+  let r; try{ r=await fetch(u,o); }catch(e){ clearTimeout(t); throw new Error(e.name==='AbortError'?'сервер не ответил':('сеть: '+e.message)); }
+  clearTimeout(t);
+  if(r.status===401){location.href='/login?next=/kostenverteilung';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+async function post(u,body){ return J(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }
+function melde(t,g){ const m=document.getElementById('msg'); m.textContent=t; m.className='msg auf '+(g?'g':'f'); clearTimeout(melde._t); melde._t=setTimeout(()=>{m.className='msg';},4000); }
+
+function tabs(){ document.getElementById('tabs').innerHTML=TABS.map(x=>'<button data-art="'+x[0]+'"'+(x[0]===ART?' class="akt"':'')+'>'+H(x[1])+'</button>').join(''); }
+
+async function laden(){
+  tabs();
+  try{
+    if(!OBJ.length){ const d=await J('/api/objekte'); OBJ=d.objekte||[];
+      document.getElementById('objliste').innerHTML=OBJ.map(o=>'<option value="'+H(o.nr)+'">'+H((o.kunde&&o.kunde.name||o.bez||''))+'</option>').join(''); }
+    const d=await J('/api/kv/liste'+(ART?('?art='+ART):'')); const ps=d.posten||[];
+    const app=document.getElementById('app');
+    if(!ps.length){ app.innerHTML='<div class="leer">Затрат нет. Добавьте первую кнопкой «+ Затрата».</div>'; return; }
+    app.innerHTML=ps.map(karte).join('');
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function karte(p){
+  const rest=p.rest>0;
+  let h='<div class="card'+(rest?' rest':'')+'" id="p'+p.id+'"><div class="k1"><span class="tit">'+H(p.bezeichnung)+'<span class="badge">'+H(ARTD[p.art]||p.art)+'</span></span><span class="zahl">'+EURc(p.betrag_cent)+'</span></div>';
+  h+='<div class="meta">'+(p.periode?'период '+H(p.periode)+' · ':'')+(p.datum?T(p.datum)+' · ':'')+(p.beleg_ref?H(p.beleg_ref)+' · ':'')+'распределено '+EURc(p.verteilt)+' · <b'+(rest?' style="color:var(--warn)"':'')+'>остаток '+EURc(p.rest)+'</b></div>';
+  h+='<div class="aktion" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-auf="'+p.id+'">Распределить / показать</button><details style="display:inline-block"><summary style="cursor:pointer;font-size:12px;color:var(--muted);list-style:none;padding:6px 4px">⋯</summary><button class="btn crit" data-pweg="'+p.id+'" style="margin-top:4px">Удалить</button></details></div>';
+  h+='<div id="d'+p.id+'"></div></div>';
+  return h;
+}
+async function detail(id){
+  const box=document.getElementById('d'+id);
+  if(box.innerHTML){ box.innerHTML=''; return; }
+  const d=await J('/api/kv/posten?id='+id);
+  let h='';
+  (d.verteilung||[]).forEach(x=>{ h+='<div class="row"><span>'+H(x.objekt_nr)+(x.bez?' — '+H(x.bez):'')+(x.basis?' · '+H(x.basis):'')+'</span><span><span class="zahl">'+EURc(x.betrag_cent)+'</span> <a href="#" data-vweg="'+x.id+'" data-p="'+id+'">✕</a></span></div>'; });
+  h+='<div class="itog" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px"><span>Остаток к распределению</span><span class="zahl"'+(d.rest>0?' style="color:var(--warn)"':'')+'>'+EURc(d.rest)+'</span></div>';
+  h+='<div class="grid"><label class="breit">Объект (VK-26-…)<input list="objliste" id="z-obj-'+id+'" placeholder="номер объекта"></label>'
+    +'<label>Сумма (€)<input id="z-betrag-'+id+'" type="number" step="0.01"></label>'
+    +'<label>База (ночёвки/дни/моточасы/пробег)<input id="z-basis-'+id+'" placeholder="напр. 8 ночёвок"></label>'
+    +'<div class="breit"><button class="btn pri" data-zut="'+id+'">Распределить на объект</button></div></div>';
+  box.innerHTML=h;
+}
+
+document.getElementById('tabs').addEventListener('click',e=>{ const b=e.target.closest('button[data-art]'); if(!b)return; ART=b.dataset.art; laden(); });
+document.getElementById('neu-toggle').addEventListener('click',()=>{ const f=document.getElementById('neu-form'); f.style.display=f.style.display==='none'?'block':'none'; });
+document.getElementById('n-add').addEventListener('click',async()=>{
+  const bez=document.getElementById('n-bez').value.trim(); const betrag=document.getElementById('n-betrag').value;
+  if(!bez||betrag===''){ melde('Название и сумма обязательны'); return; }
+  try{ await post('/api/kv/posten-neu',{art:document.getElementById('n-art').value,bezeichnung:bez,betrag,
+    periode:document.getElementById('n-periode').value,datum:document.getElementById('n-datum').value,beleg_ref:document.getElementById('n-beleg').value});
+    melde('Затрата добавлена',true); document.getElementById('n-bez').value=''; document.getElementById('n-betrag').value=''; laden();
+  }catch(e){ melde(e.message); }
+});
+document.getElementById('app').addEventListener('click',async(e)=>{
+  const t=e.target;
+  const au=t.closest('button[data-auf]'); if(au) return detail(au.dataset.auf);
+  const pw=t.closest('button[data-pweg]'); if(pw){ if(!confirm('Удалить затрату и её распределение?'))return; try{ await post('/api/kv/posten-weg',{id:+pw.dataset.pweg}); melde('Удалено',true); laden(); }catch(err){melde(err.message);} return; }
+  const zu=t.closest('button[data-zut]'); if(zu){ const id=zu.dataset.zut; const obj=document.getElementById('z-obj-'+id).value.trim(); const betrag=document.getElementById('z-betrag-'+id).value;
+    if(!obj||betrag===''){ melde('Объект и сумма обязательны'); return; }
+    try{ await post('/api/kv/zuteilen',{posten_id:+id,objekt_nr:obj,betrag,basis:document.getElementById('z-basis-'+id).value});
+      melde('Распределено на '+obj,true); document.getElementById('d'+id).innerHTML=''; await detail(id); laden();
+    }catch(err){ melde(err.message); } return; }
+  const vw=t.closest('a[data-vweg]'); if(vw){ e.preventDefault(); try{ await post('/api/kv/zuteilen',{id:+vw.dataset.vweg,loeschen:true}); melde('Удалено',true); const p=vw.dataset.p; document.getElementById('d'+p).innerHTML=''; await detail(p); laden(); }catch(err){melde(err.message);} return; }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>
