@@ -96,3 +96,22 @@
 - `kasse/api.js` — маршруты `plan/:id/einreichen`, `plan/:id/entscheiden`, `quittung/:id/ausgeben`
 - `public/kasse/index.html` — кнопка "Подать на одобрение", форма выдачи через `quittung/:id/ausgeben`
 - `public/kasse/sw.js` — версия кэша `kasse-vav-v5`
+
+## Gate 6: Снятие + пополнение кассы — ЗАКРЫТ ✅ (2026-10-03)
+
+### Проверено
+- [x] Кнопка "Снятие" видна только GF в табе "Касса" рядом с "+ Передача"
+- [x] Модал "Снятие наличных": Сумма + Примечание → `POST abhebung` → тост "Снятие записано"
+- [x] Движение "Снятие 200,00€ — Подтверждено" появляется в журнале с кнопкой "→ В кассу"
+- [x] Клик "→ В кассу" → `POST uebergabe` с `quelle_id` + `an_konto=hauptkasse`
+- [x] Backend автоматически подтверждает (status='bestaetigt'), тост "Деньги записаны в кассу"
+- [x] Движение "Передача наличных 200,00€ → Основная касса — Подтверждено" в журнале
+- [x] Кнопка "→ В кассу" исчезает у обработанного снятия (schonVerteilt=true)
+- [x] Рабочий стол: "Основная касса: 200,00€" (был баг `l.kasse.hauptkasse` vs `l.hauptkasse` — исправлен)
+- [x] adaptLage(): `hauptkasse` упакован в `kasse: { hauptkasse }` для совместимости renderLage/renderKasse
+
+### Компоненты
+- `kasse/dienst.js` — `abhebung()` (регистрация снятия), `uebergabe()` с auto-bestaetigt при `quelle_id`
+- `kasse/api.js` — маршрут `POST abhebung`
+- `public/kasse/index.html` — abhebung-form, inKasse-handler, kasse.hauptkasse адаптер, sw v7
+- `public/kasse/sw.js` — версия кэша `kasse-vav-v7`

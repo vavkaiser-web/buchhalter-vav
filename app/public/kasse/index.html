@@ -197,7 +197,7 @@ function adaptLage(raw) {
   const konten = raw.konten || [];
   const hauptkasse = konten.find(k=>k.art==='hauptkasse')?.saldo ?? null;
   const halter = konten.filter(k=>k.art==='halter').map(k=>({
-    login: k.login, name: k.name, kurzname: k.name, saldo: k.saldo||0,
+    id: k.id, login: k.login, name: k.name, kurzname: k.name, saldo: k.saldo||0,
     erhalten: k.erhalten||0, ausgaben: k.ausgaben||0, zurueck: k.zurueck||0,
   }));
   const firma = raw.firma || 'VAV Kaiser GmbH';
@@ -243,7 +243,7 @@ function adaptLage(raw) {
   // Объекты и машины для форм
   const objekte = (raw.objekte||[]).map(o=>({id: o.nummer, name: o.bez||o.nummer}));
   const fahrzeuge = (raw.fahrzeuge||[]).map(f=>({id: f.id, kennzeichen: f.text||f.id}));
-  return { ...raw, hauptkasse, halter, firma, bewegungen, belege_queue, meine_belege,
+  return { ...raw, kasse: { hauptkasse }, halter, firma, bewegungen, belege_queue, meine_belege,
     plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge, eingaenge };
 }
 
@@ -506,6 +506,7 @@ function renderRueckfragen() {
 
 function renderKasse() {
   const l = S.lage || {};
+  const istGf = S.ich?.rolle === 'gf';
   return `
 <div class="v-head">
   <div>
@@ -513,7 +514,10 @@ function renderKasse() {
     <h1>Касса и авансы</h1>
     <p>Показаны только подтверждённые движения.</p>
   </div>
-  ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Передача','neueUebergabe','primary') : ''}
+  <div style="display:flex;gap:8px">
+    ${istGf ? btn(icon('building-2')+' Снятие','neueAbhebung','') : ''}
+    ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Передача','neueUebergabe','primary') : ''}
+  </div>
 </div>
 <div class="v-metrics">
   <div class="v-metric">
@@ -531,15 +535,18 @@ function renderKasse() {
 <div class="v-panel">
   <div class="v-panelhead"><h2>Журнал движений</h2></div>
   <div class="v-ledger">
-    ${(l.bewegungen||[]).map(b=>`
-    <div class="v-event">
-      ${icon('arrow-right-left')}
-      <span>
-        <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
-        <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
-      </span>
-      <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}</span>
-    </div>`).join('')||'<div class="v-stateempty">Движений нет</div>'}
+    ${(l.bewegungen||[]).map(b=>{
+      const schonVerteilt = (l.bewegungen||[]).some(m=>m.quelle_id===b.id);
+      const kannVerteilen = istGf && b.art==='abhebung' && !schonVerteilt;
+      return `<div class="v-event">
+        ${icon('arrow-right-left')}
+        <span>
+          <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
+          <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
+        </span>
+        <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}${kannVerteilen ? `&nbsp;<button class="v-button small" data-action="inKasse" data-bew-id="${b.id}" data-bew-betrag="${b.betrag_cent}">→ В кассу</button>` : ''}</span>
+      </div>`;
+    }).join('')||'<div class="v-stateempty">Движений нет</div>'}
   </div>
 </div>`;
 }
@@ -548,11 +555,19 @@ function renderKasse() {
 function renderModal(mod) {
   if (!mod) return '';
   let title='', body='';
-  if (mod==='neueUebergabe'||mod==='neueAbhebung') {
-    title = mod==='neueAbhebung' ? 'Снятие наличных' : 'Передача наличных';
+  if (mod==='neueAbhebung') {
+    title = 'Снятие наличных';
+    body = `<form id="abhebung-form" class="v-form">
+      <div class="v-note">Фиксируем наличные, полученные из банка. После записи можно распределить в кассу.</div>
+      <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
+      <label>Примечание<input name="notiz" placeholder="Снятие в банке (необязательно)" maxlength="120"></label>
+      <button type="submit" class="v-button primary full">Записать снятие</button>
+    </form>`;
+  } else if (mod==='neueUebergabe') {
+    title = 'Передача наличных';
     body = `<form id="uebergabe-form" class="v-form">
-      <label>Получатель<select name="empfaenger">
-        ${(S.lage?.halter||[]).map(h=>`<option value="${esc(h.login)}">${esc(h.kurzname||h.name||h.login)}</option>`).join('')}
+      <label>Получатель<select name="an_konto">
+        ${(S.lage?.halter||[]).map(h=>`<option value="${esc(h.id)}">${esc(h.kurzname||h.name||h.login)}</option>`).join('')}
         <option value="hauptkasse">Основная касса</option>
       </select></label>
       <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
@@ -708,8 +723,11 @@ async function formAbsenden(form) {
   const parseEur = s => Math.round(Number(String(s||'0').replace(',','.')) * 100);
 
   try {
-    if (form.id==='uebergabe-form') {
-      await api('POST','uebergabe',{an_login: d.empfaenger, betrag: parseEur(d.betrag)});
+    if (form.id==='abhebung-form') {
+      await api('POST','abhebung',{betrag: parseEur(d.betrag), notiz: d.notiz||''});
+      toast('Снятие записано');
+    } else if (form.id==='uebergabe-form') {
+      await api('POST','uebergabe',{an_konto: d.an_konto, betrag: parseEur(d.betrag)});
       toast('Передача создана');
     } else if (form.id==='beleg-form') {
       await api('POST','beleg',{betrag: parseEur(d.betrag), art: d.art||'sonstig', objekt: d.objekt||null, fahrzeug: d.fahrzeug||null, zahlungsweg: d.zahlungsweg||'eigen'});
@@ -827,6 +845,17 @@ document.getElementById('app').addEventListener('click', async e => {
   }
   if (act==='fotoOeffnen') {
     window.open('/api/k/datei/'+b.dataset.sha, '_blank');
+    return;
+  }
+  if (act==='inKasse') {
+    const bewId = b.dataset.bewId;
+    const bewBetrag = Number(b.dataset.bewBetrag);
+    if (bewId) {
+      try {
+        await api('POST','uebergabe',{quelle_id: Number(bewId), an_konto: 'hauptkasse', betrag: bewBetrag});
+        await lageLaden(); toast('Деньги записаны в кассу'); renderApp();
+      } catch(e) { toast(e.message,'err'); }
+    }
     return;
   }
 

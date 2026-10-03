@@ -125,11 +125,16 @@ async function uebergabe(n, b, benutzer) {
       const s = await saldo(q, vonKonto);
       pruefe(betrag <= s.saldo, `Сумма превышает расчётный остаток (${euro(s.saldo)})`, 409);
     }
-    const r = await q(`INSERT INTO ${S}buch_bewegung (art, von_konto, an_konto, quelle_id, betrag_cent, status, notiz, von, idem)
-      VALUES ($1,$2,$3,$4,$5,'gemeldet',$6,$7,$8) ON CONFLICT (idem) DO NOTHING RETURNING id`,
-      [b.art === 'rueckgabe' ? 'rueckgabe' : 'uebergabe', vonKonto, an, quelle ? quelle.id : null, betrag, txt(b.notiz), n.login, b.idem || null]);
+    // При распределении из банковского снятия GF уже авторизовал: подтверждаем сразу.
+    const autoBestaetigt = !!quelle;
+    const status = autoBestaetigt ? 'bestaetigt' : 'gemeldet';
+    const r = await q(`INSERT INTO ${S}buch_bewegung (art, von_konto, an_konto, quelle_id, betrag_cent, status, notiz, von,
+        bestaetigt_am, bestaetigt_von, idem)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,${autoBestaetigt ? 'now()' : 'NULL'},$9,$10) ON CONFLICT (idem) DO NOTHING RETURNING id`,
+      [b.art === 'rueckgabe' ? 'rueckgabe' : 'uebergabe', vonKonto, an, quelle ? quelle.id : null, betrag, status, txt(b.notiz), n.login,
+        autoBestaetigt ? n.login : null, b.idem || null]);
     if (!r.length) return { ok: true, wiederholt: true };
-    await log(q, n, 'uebergabe_gemeldet', 'bewegung:' + r[0].id, { betrag, an, von: vonKonto, quelle: quelle && quelle.id });
+    await log(q, n, autoBestaetigt ? 'uebergabe_bestaetigt' : 'uebergabe_gemeldet', 'bewegung:' + r[0].id, { betrag, an, von: vonKonto, quelle: quelle && quelle.id });
     return { ok: true, id: r[0].id };
   });
 }
