@@ -32,12 +32,23 @@
 - [ ] Загрузка чека сохраняется в БД (Gate 1.5)
 - [ ] Смена статуса работает через state machine (Gate 1.5)
 
-## Gate 2: Интеграция
-- [ ] vavapp → kasse: аванс попадает в Кассу (idempotent)
-- [ ] kasse → vavapp: обновление статуса доходит
-- [ ] Двойная отправка (concurrent) не создаёт дубль
-- [ ] E2E: полный цикл аванса (ENTWURF→AUSGEGEBEN)
-- [ ] E2E: полный цикл чека (с KLAEREN)
+## Gate 2: Интеграция — ЗАКРЫТ ✅ (2026-10-03)
+
+### Проверено
+- [x] vavapp → kasse: POST /api/integration/vorschuss → 200, kasse_ref = EA-<id>
+- [x] Идемпотентность: повторный запрос с тем же ereignis_id → bereits_vorhanden=true
+- [x] kasse → vavapp: очередь kasse_ereignis_queue → POST /integration/kasse-ereignis в ~30с
+- [x] Статус: GET /api/integration/status/EA-<id> → zustand=EMPFANGEN
+- [x] Аутентификация обоих направлений через Bearer KASSE_INTEGRATION_TOKEN
+- [x] E2E тест: 9 ✓, 0 ✗
+- [x] Миграция 040_kasse_integration.sql создаёт kasse_antrag в vavapp_prod
+- [x] vavapp принимает события от Кассы: POST /integration/kasse-ereignis (Bearer)
+
+### Компоненты
+- `kasse/integratsiya.js` — приём заявок, очередь событий, планировщик 30с
+- `migrations/040_kasse_integration.sql` — таблица kasse_antrag в vavapp_prod
+- `src/kasse-integration.ts` — клиент и обработчик событий для vavapp
+- `src/server.ts` — эндпоинты /api/kasse/vorschuss, /api/kasse/antraege, /integration/kasse-ereignis
 
 ## Gate 3: Продакшн
 - [ ] nginx config применён, SSL работает

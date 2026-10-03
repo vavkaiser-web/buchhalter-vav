@@ -81,7 +81,7 @@ queueSichern().catch(e => console.error('kasse integration init:', e.message));
 
 /* ---------- Приём заявки на аванс ---------- */
 async function empfangeVorschuss(body) {
-  const { ereignis_id, person_id, person_name, objekt_id, betrag_cent, zweck } = body;
+  const { ereignis_id, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck } = body;
   if (!ereignis_id || !/^[0-9a-f-]{36}$/.test(String(ereignis_id))) throw new Fehler(400, 'ereignis_id обязателен (UUID)');
   if (!person_id) throw new Fehler(400, 'person_id обязателен');
   if (!betrag_cent || betrag_cent <= 0 || betrag_cent > 1e9) throw new Fehler(400, 'betrag_cent: 1–10 000 000');
@@ -91,24 +91,22 @@ async function empfangeVorschuss(body) {
     const existiert = await q(`SELECT kasse_ref FROM ${S}kasse_extern_anfrage WHERE ereignis_id = $1`, [ereignis_id]);
     if (existiert.length) return { ok: true, kasse_ref: existiert[0].kasse_ref, bereits_vorhanden: true };
 
-    // Создать запрос на аванс через обычную бизнес-логику.
-    // Для интеграции используем системного пользователя с ролью 'mitarbeiter'.
-    const systemBenutzer = { login: person_id, rolle: 'mitarbeiter', name: person_name || person_id };
-    const plan = await dienst.planAnlegen(systemBenutzer, {
-      betrag: betrag_cent,
-      zweck: String(zweck || 'Аванс').slice(0, 200),
-      objekt: objekt_id || null,
-    });
+    // Запись во входящей очереди — бухгалтер увидит её в разделе "Входящие".
+    // kasse_ref = EA-<id> (не buch_geldplan — бухгалтер создаст план сам).
+    const ins = await q(`INSERT INTO ${S}kasse_extern_anfrage
+      (ereignis_id, quelle, art, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck)
+      VALUES ($1,'vavapp','vorschuss',$2,$3,$4,$5,$6,$7)
+      RETURNING id`,
+      [ereignis_id, person_id, person_name || null, objekt_id || null, fahrzeug_id || null, betrag_cent, zweck || null]);
+    const kasseRef = `EA-${ins[0].id}`;
 
-    await q(`INSERT INTO ${S}kasse_extern_anfrage
-      (ereignis_id, quelle, art, person_id, person_name, objekt_id, betrag_cent, zweck, kasse_ref, verarbeitet_am)
-      VALUES ($1,'vavapp','vorschuss',$2,$3,$4,$5,$6,$7,NOW())`,
-      [ereignis_id, person_id, person_name || null, objekt_id || null, betrag_cent, zweck || null, String(plan.ref)]);
+    // Обновляем kasse_ref в той же транзакции.
+    await q(`UPDATE ${S}kasse_extern_anfrage SET kasse_ref = $1 WHERE id = $2`, [kasseRef, ins[0].id]);
 
-    // Поставить в очередь начальный статус EMPFANGEN.
-    await einreihen(q, String(plan.ref), crypto.randomUUID(), 'EMPFANGEN', null);
+    // Поставить в очередь начальный статус EMPFANGEN (отправим обратно в vavapp).
+    await einreihen(q, kasseRef, crypto.randomUUID(), 'EMPFANGEN', null);
 
-    return { ok: true, kasse_ref: String(plan.ref) };
+    return { ok: true, kasse_ref: kasseRef };
   });
 }
 
@@ -123,32 +121,37 @@ async function empfangeBeleg(body) {
     const existiert = await q(`SELECT kasse_ref FROM ${S}kasse_extern_anfrage WHERE ereignis_id = $1`, [ereignis_id]);
     if (existiert.length) return { ok: true, kasse_ref: existiert[0].kasse_ref, bereits_vorhanden: true };
 
-    const systemBenutzer = { login: person_id, rolle: 'mitarbeiter', name: person_id };
-    const beleg = await dienst.belegAnlegen(systemBenutzer, {
-      betrag: betrag_cent,
-      art: art || 'sonstig',
-      objekt: objekt_id || null,
-      fahrzeug: fahrzeug_id || null,
-      foto_url: foto_url || null,
-      quelle: 'vavapp',
-      ereignis_id,
-    });
-
-    await q(`INSERT INTO ${S}kasse_extern_anfrage
-      (ereignis_id, quelle, art, person_id, objekt_id, fahrzeug_id, betrag_cent, foto_url, rohdaten, kasse_ref, verarbeitet_am)
-      VALUES ($1,'vavapp','beleg',$2,$3,$4,$5,$6,$7::jsonb,$8,NOW())`,
+    const ins = await q(`INSERT INTO ${S}kasse_extern_anfrage
+      (ereignis_id, quelle, art, person_id, objekt_id, fahrzeug_id, betrag_cent, foto_url, rohdaten)
+      VALUES ($1,'vavapp','beleg',$2,$3,$4,$5,$6,$7::jsonb)
+      RETURNING id`,
       [ereignis_id, person_id, objekt_id || null, fahrzeug_id || null,
-       betrag_cent, foto_url || null, JSON.stringify(body), String(beleg.ref)]);
+       betrag_cent, foto_url || null, JSON.stringify(body)]);
+    const kasseRef = `EA-${ins[0].id}`;
 
-    await einreihen(q, String(beleg.ref), crypto.randomUUID(), 'EMPFANGEN', null);
+    await q(`UPDATE ${S}kasse_extern_anfrage SET kasse_ref = $1 WHERE id = $2`, [kasseRef, ins[0].id]);
+    await einreihen(q, kasseRef, crypto.randomUUID(), 'EMPFANGEN', null);
 
-    return { ok: true, kasse_ref: String(beleg.ref) };
+    return { ok: true, kasse_ref: kasseRef };
   });
 }
 
 /* ---------- Статус по kasse_ref ---------- */
 async function statusHolen(kasseRef) {
   return await lesen(async q => {
+    // Входящие заявки от vavapp (EA-<id>).
+    if (String(kasseRef).startsWith('EA-')) {
+      const ea = await q(`SELECT id, kasse_ref, art, betrag_cent, erstellt_am
+        FROM ${S}kasse_extern_anfrage WHERE kasse_ref = $1`, [kasseRef]);
+      if (ea.length) {
+        const e = ea[0];
+        // Текущий статус из последнего события очереди.
+        const evt = await q(`SELECT zustand FROM ${S}kasse_ereignis_queue WHERE kasse_ref = $1 ORDER BY id DESC LIMIT 1`, [kasseRef]);
+        const zustand = evt.length ? evt[0].zustand : 'EMPFANGEN';
+        return { ok: true, kasse_ref: kasseRef, typ: e.art, zustand, aktualisiert_am: e.erstellt_am };
+      }
+      throw new Fehler(404, 'Такой kasse_ref не найден');
+    }
     // Сначала проверяем план (заявка на аванс).
     const plan = await q(`SELECT ref, status, zweck, betrag_cent, erstellt_am FROM ${S}buch_plan WHERE ref = $1`, [kasseRef]);
     if (plan.length) {
