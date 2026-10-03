@@ -103,9 +103,19 @@ HTTP-маршруты (все требуют роль `gf` или `buchhaltung`)
 
 **Итого тестов: 117 ✓ 0 ✗** (32 + 13 + 17 + 31 + 24)
 
+## Этап 4 — Steuerberater (завершён)
+
+- [x] **`test-steuerberater.cjs`** — 5 сценариев, 37/37 ✓ (коммит `7ea65ef`):
+  1. Ф4 bestätigung schriftlich: валидация (неверный вид, нет dokument_ref) + создание + art_text
+  2. Ф4 bestätigung telefonisch: валидация (нет mit_wem, нет vereinbart) + создание
+  3. Ф6 pakete: полный цикл — anlegen → positionAdd(fehlt) → vollständig=false → positionStatus(bereit) → vollständig=true → paketUebergeben → статус uebergeben
+  4. Ф7 fragen: полный цикл — anlegen → frageZuweisen → antwortAnlegen → frageEins(antwort_vorbereitet) → antwortPruefen(ok) → natalia_geprueft → frageInPaket → im_paket
+  5. Ф7 nachfrage: antwortPruefen(ok=false) → nachfrage; frageInPaket без natalia_geprueft → ошибка; frageListe фильтр
+
+**Итого тестов: 154 ✓ 0 ✗** (32 + 13 + 17 + 31 + 24 + 37)
+
 ## Что НЕ сделано (следующие этапы)
 
-- [ ] Этап 4 — `steuerberater` (экспорт налоговому советнику)
 - [ ] Этап 5 — `debitor` (дебиторы/поступления)
 
 ---
