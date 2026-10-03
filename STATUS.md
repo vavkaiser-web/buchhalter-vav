@@ -57,13 +57,19 @@ HTTP-маршруты (все требуют роль `gf` или `buchhaltung`)
 
 ---
 
+## Дополнения Этапа 1 (завершены)
+
+- [x] **HTML-страница `/rechnung`** — `app/public/rechnung-kontrolle.html` (3 вкладки: проверить счёт, список прогонов, просрочки; роль-зависимые кнопки исключения)
+- [x] **Webhook bezahlt** — `server.js`: после `markieren(bezahlt=true)` вызывает `rk.nachZahlungPruefen()` async fire-and-forget
+- [x] **Lieferant-matching fix** — `norm()` (ü→ue, ö→oe, ä→ae, ß→ss, юр. суффиксы); сравнение по полному имени `beleg.lieferant` с fallback на `lieferant_key`
+- [x] **Kasse-заглушка** `app/kasse/api.js` — GET возвращает 200 с пустой структурой (zentrum/rolle.js загружается без 503)
+- [x] **32/32 тестов** — `test-dop-rechnung.cjs` (13 сценариев)
+
 ## Что НЕ сделано (следующие этапы)
 
-- [ ] HTML-страница контроля счетов (расширить `objekt.html` или новая страница)
-- [ ] Webhook/trigger: автоматический вызов `belegGeaendertPruefen` при обновлении beleg
-- [ ] Webhook/trigger: автоматический вызов `nachZahlungPruefen` при beleg.bezahlt=true
-- [ ] Интеграция с UTA (исключить двойной расход: чек + UTA) — через dublette.js
-- [ ] Правило 10 (нарезка заказа против порога) — bestellung gate (уже в dop_bestellung_gate.sql)
+- [ ] Интеграция с UTA (исключить двойной расход: чек + UTA) — через `dublette.js`
+- [ ] Правило 10 (нарезка заказа против порога) — bestellung gate (`dop_bestellung_gate.sql`)
+- [ ] `belegGeaendertPruefen` — вызов при замене файла счёта; маршрут `POST /api/rechnung/beleg-geaendert` есть, UI-кнопка не добавлена
 
 ---
 
