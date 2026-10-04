@@ -94,10 +94,10 @@ async function empfangeVorschuss(body) {
     // Запись во входящей очереди — бухгалтер увидит её в разделе "Входящие".
     // kasse_ref = EA-<id> (не buch_geldplan — бухгалтер создаст план сам).
     const ins = await q(`INSERT INTO ${S}kasse_extern_anfrage
-      (ereignis_id, quelle, art, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck)
-      VALUES ($1,'vavapp','vorschuss',$2,$3,$4,$5,$6,$7)
+      (ereignis_id, quelle, art, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck, rohdaten)
+      VALUES ($1,'vavapp','vorschuss',$2,$3,$4,$5,$6,$7,$8::jsonb)
       RETURNING id`,
-      [ereignis_id, person_id, person_name || null, objekt_id || null, fahrzeug_id || null, betrag_cent, zweck || null]);
+      [ereignis_id, person_id, person_name || null, objekt_id || null, fahrzeug_id || null, betrag_cent, zweck || null, JSON.stringify(body)]);
     const kasseRef = `EA-${ins[0].id}`;
 
     // Обновляем kasse_ref в той же транзакции.
