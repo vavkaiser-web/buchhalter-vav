@@ -323,7 +323,7 @@ async function quittungAusgeben(n, id) {
     Для подрядчиков такое право не согласовано — не разрешаем. */
 async function dringendAusgeben(n, b) {
   darf(istDisp(n) || istGf(n), 'Срочную выдачу оформляет ответственный за наличные или Андрей');
-  pruefe(['vorschuss', 'lohn'].includes(b.zweck), 'Срочно без согласования — только аванс или зарплата. Выплата подрядчику — через список, утверждённый Андреем.');
+  if (!istGf(n)) pruefe(['vorschuss', 'lohn'].includes(b.zweck), 'Срочно без согласования — только аванс или зарплата. Выплата подрядчику — через список, утверждённый Андреем.');
   return tx(async q => {
     if (b.idem) {
       const alt = (await q(`SELECT id, nr FROM ${S}buch_quittung WHERE idem = $1`, [b.idem]))[0];
@@ -374,6 +374,18 @@ async function quittungNuBestaetigt(n, id, b) {
     if (qt.nu_bestaetigt_am) return { ok: true, wiederholt: true };
     await q(`UPDATE ${S}buch_quittung SET nu_bestaetigt_am = now(), nu_bestaetigt_von = $2, nu_bestaetigt_notiz = $3 WHERE id = $1`, [qt.id, n.login, notiz]);
     await log(q, n, 'nu_bestaetigt', 'quittung:' + qt.id, { notiz });
+    return { ok: true };
+  });
+}
+
+async function quittungUnterschrift(n, id, b) {
+  darf(istGf(n) || istDisp(n) || buero(n), 'Подпись принимает директор, ответственный или бухгалтерия');
+  const sig = String(b.unterschrift || '');
+  pruefe(sig.startsWith('data:image/png;base64,') && sig.length < 200000, 'Неверный формат подписи');
+  return tx(async q => {
+    const qt = (await q(`SELECT id FROM ${S}buch_quittung WHERE id = $1`, [idOf(id)]))[0];
+    pruefe(qt, 'Квитанция не найдена', 404);
+    await q(`UPDATE ${S}buch_quittung SET unterschrift = $2 WHERE id = $1`, [qt.id, sig]);
     return { ok: true };
   });
 }
@@ -1186,7 +1198,8 @@ async function quittungenDruck(n, was) {
     await log(q, n, 'quittung_gedruckt', was.plan ? 'plan:' + was.plan : 'quittung:' + was.id, { anzahl: erlaubt.length });
     return erlaubt.map(x => ({ nr: x.nr, plan_nr: x.plan_nr, plan_status: x.plan_status, genehmigt_von: x.entschieden_von, genehmigt_am: x.entschieden_am,
       empfaenger: x.empfaenger_name, nu_name: x.nu_name, zweck: x.zweck, betrag: Number(x.betrag_cent), notiz: x.notiz,
-      status: x.status, dringend: x.dringend, angelegt: x.angelegt, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von }));
+      status: x.status, dringend: x.dringend, angelegt: x.angelegt, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von,
+      unterschrift: x.unterschrift || null }));
   });
 }
 
@@ -1244,7 +1257,7 @@ module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
   abhebung, uebergabe, rueckgabe, bestaetigen,
   planAnlegen, planEinfach, planEinreichen, planEntscheiden,
-  quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno,
+  quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
   dateiRegistrieren, dateiDarf,
   belegAnlegen, belegPruefen,
   erstattungWeg, erstattungBar, erstattungSchritt,

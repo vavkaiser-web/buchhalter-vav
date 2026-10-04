@@ -341,6 +341,7 @@ function renderLage() {
   const { kasse = {}, halter = [] } = l;
   const hauptkasse = kasse.hauptkasse || 0;
   const olegsaldo = halter.reduce((s,h)=>s+(h.saldo||0),0);
+  const isGf = S.ich?.rolle === 'gf';
   return `
 <div class="v-head">
   <div>
@@ -368,6 +369,16 @@ function renderLage() {
     <span>Требуют ответа ↗</span>
   </button>
 </div>
+${isGf && hauptkasse > 0 ? `
+<div class="v-panel" style="background:var(--v-warn-bg,#fff8e1);border:1px solid var(--v-warn,#e65100)40">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;gap:12px;flex-wrap:wrap">
+    <div>
+      <div style="font-weight:600;font-size:15px">${icon('wallet')} В кассе ${euro(hauptkasse)} — нераспределено</div>
+      <div class="v-small" style="margin-top:2px">Выдайте деньги людям и получите квитанции</div>
+    </div>
+    <button class="v-button primary" data-action="kasseAusgeben">${icon('send')} Распределить деньги</button>
+  </div>
+</div>` : ''}
 <div class="v-panel">
   <div class="v-panelhead"><h2>Последние движения</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
   <div class="v-ledger">
@@ -911,7 +922,9 @@ function renderModal(mod) {
         const restNote = rest > 0
           ? `<div class="v-note" style="margin-top:6px">Нераспределённый остаток: <strong>${euro(rest)}</strong></div>`
           : `<div class="v-note" style="color:var(--v-ok,green);margin-top:6px">${icon('check-circle')} Всё распределено</div>`;
-        const transferForm = rest > 0 ? `
+        const kasseHasGeld = (S.lage?.kasse?.hauptkasse||0) > 0;
+        const transferBlocked = rest > 0 && kasseHasGeld && verteilte.length === 0;
+        const transferForm = rest > 0 && !transferBlocked ? `
           <form id="abhebung-transfer-form" data-bew-id="${b.id}" style="margin-top:12px;display:grid;gap:8px">
             <label style="display:grid;gap:4px;font-size:13px">Сумма (€)
               <input class="v-input" name="betrag" inputmode="decimal"
@@ -925,10 +938,15 @@ function renderModal(mod) {
             </label>
             <button type="submit" class="v-button primary full">${icon('arrow-right-circle')} Передать деньги</button>
           </form>` : '';
+        const blockNote = transferBlocked ? `
+          <div class="v-note" style="margin-top:8px;color:var(--v-warn,#e65100);background:var(--v-warn-bg,#fff8e1);padding:8px 10px;border-radius:6px">
+            ${icon('lock')} В кассе ${euro(S.lage?.kasse?.hauptkasse||0)} нераспределённых денег — сначала распределите их, потом передавайте новое снятие.
+            <button class="v-button" data-action="kasseAusgeben" style="margin-top:6px;width:100%;justify-content:center">${icon('send')} Распределить деньги</button>
+          </div>` : '';
         transferSection = `
           <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
             <div class="v-small" style="font-weight:600;margin-bottom:6px">Передача наличных</div>
-            ${verteilListe}${restNote}${transferForm}
+            ${verteilListe}${restNote}${blockNote}${transferForm}
           </div>`;
       }
       body = `<div class="v-ledger">
@@ -950,6 +968,55 @@ function renderModal(mod) {
       title = 'Движение';
       body = '<div class="v-stateempty">Данные не найдены</div>';
     }
+  } else if (mod==='kasseAusgeben') {
+    if (S.signaturStep) {
+      title = 'Подпись · ' + esc(S.signaturStep.nr);
+      body = `
+        <div class="v-note" style="margin-bottom:12px">${icon('file-text')} Квитанция <strong>${esc(S.signaturStep.nr)}</strong> — ${esc(S.signaturStep.empfaenger||'')} — <strong>${euro(S.signaturStep.betrag||0)}</strong></div>
+        <div class="v-small" style="margin-bottom:6px;color:var(--v-muted)">Попросите расписаться пальцем или мышью:</div>
+        <canvas id="sig-canvas" width="700" height="160"
+          style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Очистить</button>
+          <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Сохранить подпись и открыть PDF</button>
+        </div>
+        <button type="button" data-action="sigSkip" class="v-button" style="width:100%;margin-top:6px;justify-content:center">${icon('printer')} Открыть PDF без подписи</button>`;
+    } else {
+    title = 'Распределить деньги';
+    const hauptkasse = S.lage?.kasse?.hauptkasse || 0;
+    const frei = S.lage?.kasse?.frei ?? hauptkasse;
+    body = `
+      <div class="v-note" style="margin-bottom:12px">${icon('wallet')} В кассе: <strong>${euro(hauptkasse)}</strong> · Свободно: <strong>${euro(frei)}</strong></div>
+      <form id="kasse-ausgeben-form" class="v-form">
+        <label>Назначение
+          <select name="kategorie" required>
+            <optgroup label="— Аванс —">
+              <option value="vorschuss|">Аванс (общий)</option>
+              <option value="vorschuss|Бензин / Kraftstoff">Аванс · Бензин</option>
+              <option value="vorschuss|Werkzeug / Инструменты">Аванс · Инструменты</option>
+              <option value="vorschuss|Material / Материалы">Аванс · Материалы</option>
+            </optgroup>
+            <optgroup label="— Выплаты —">
+              <option value="lohn|">Зарплата / выплата</option>
+              <option value="lohn|Оплата подрядчика">Оплата подрядчика</option>
+            </optgroup>
+            <optgroup label="— Прочее —">
+              <option value="erstattung|">Возврат расходов</option>
+            </optgroup>
+          </select>
+        </label>
+        <label>Кому
+          <input name="empfaenger_name" placeholder="Имя получателя" required autofocus>
+        </label>
+        <label>Сумма (€)
+          <input name="betrag" inputmode="decimal" placeholder="0,00" required>
+        </label>
+        <label>Примечание
+          <input name="notiz" placeholder="Необязательно (автозаполнится по назначению)">
+        </label>
+        <button type="submit" class="v-button primary full">${icon('send')} Выдать →</button>
+      </form>`;
+    } // end else (not signaturStep)
   } else if (mod==='zaehlen') {
     title = 'Пересчёт наличных';
     const isDisp = S.ich?.rolle === 'disponent';
@@ -1041,6 +1108,7 @@ function renderApp() {
 </div>`;
 
   if (window.lucide) lucide.createIcons();
+  setupSigCanvas();
 }
 
 /* ---------- Обработка форм ---------- */
@@ -1086,6 +1154,17 @@ async function formAbsenden(form) {
         toast('Заявка одобрена. Выдающий назначен.');
         S.ausgewaehlt = null;
       }
+    } else if (form.id==='kasse-ausgeben-form') {
+      const [zweck, defaultNotiz] = (d.kategorie || 'vorschuss|').split('|');
+      const notiz = d.notiz || defaultNotiz || undefined;
+      const betrag = parseEur(d.betrag);
+      const empfaenger_name = d.empfaenger_name;
+      const r = await api('POST', 'quittung/dringend', { zweck, empfaenger_name, betrag, notiz });
+      S.signaturStep = { id: r.id, nr: r.nr, empfaenger: empfaenger_name, betrag };
+      await lageLaden();
+      renderApp();
+      document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+      return;
     } else if (form.id==='abhebung-transfer-form') {
       const bewId = form.dataset.bewId;
       await api('POST','uebergabe',{quelle_id: Number(bewId), an_konto: d.an_konto, betrag: parseEur(d.betrag)});
@@ -1177,10 +1256,21 @@ document.getElementById('app').addEventListener('click', async e => {
     window.location.reload();
     return;
   }
-  if (act==='modalClose') { S.modal = null; S.modalData = null; renderApp(); return; }
+  if (act==='modalClose') { S.modal = null; S.modalData = null; S.signaturStep = null; renderApp(); return; }
+  if (act==='sigSkip') {
+    window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
+    toast('Квитанция ' + S.signaturStep.nr + ' открыта для печати');
+    S.signaturStep = null; S.modal = null;
+    await lageLaden(); renderApp(); return;
+  }
 
   const scrollToModal = () => document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
-  if (act==='metrikNalichnye') { S.modal = 'metrikNalichnye'; renderApp(); scrollToModal(); return; }
+  if (act==='metrikNalichnye' || act==='kasseAusgeben') {
+    const isGf = S.ich?.rolle === 'gf';
+    const kasseHasGeld = (S.lage?.kasse?.hauptkasse||0) > 0;
+    S.modal = (act==='kasseAusgeben' || (isGf && kasseHasGeld)) ? 'kasseAusgeben' : 'metrikNalichnye';
+    renderApp(); scrollToModal(); return;
+  }
   if (act==='metrikReserviert') { S.modal = 'metrikReserviert'; renderApp(); scrollToModal(); return; }
   if (act==='metrikFrei') { S.modalData = null; S.modal = 'metrikFrei'; renderApp(); scrollToModal(); return; }
   if (act==='metrikHalter') {
@@ -1387,6 +1477,44 @@ init();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/kasse/sw.js', {scope: '/kasse/'}).catch(e => console.warn('SW:', e.message));
 }
+function setupSigCanvas() {
+  const canvas = document.getElementById('sig-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  let drawing = false;
+
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / r.width;
+    const sy = canvas.height / r.height;
+    const src = e.touches ? e.touches[0] : e;
+    return [(src.clientX - r.left) * sx, (src.clientY - r.top) * sy];
+  }
+  canvas.addEventListener('mousedown',  e => { drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); });
+  canvas.addEventListener('mousemove',  e => { if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); });
+  canvas.addEventListener('mouseup',    () => drawing = false);
+  canvas.addEventListener('mouseleave', () => drawing = false);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); }, {passive:false});
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); }, {passive:false});
+  canvas.addEventListener('touchend',   () => drawing = false);
+
+  document.getElementById('sig-clear')?.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
+  document.getElementById('sig-save')?.addEventListener('click', async () => {
+    const sig = canvas.toDataURL('image/png');
+    try {
+      await api('POST', 'quittung/' + S.signaturStep.id + '/unterschrift', { unterschrift: sig });
+      window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
+      toast('Подпись сохранена · Квитанция ' + S.signaturStep.nr);
+    } catch(err) { toast(err.message, 'err'); return; }
+    S.signaturStep = null; S.modal = null;
+    await lageLaden(); renderApp();
+  });
+}
+
 let pwaPrompt = null;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
