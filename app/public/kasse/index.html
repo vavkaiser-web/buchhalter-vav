@@ -892,6 +892,45 @@ function renderModal(mod) {
           dokSection = `<div class="v-note" style="color:var(--v-warn,#e65100)">${icon('alert-circle')} Документ не прикреплён</div>`;
         }
       }
+      const isGf = S.ich?.rolle === 'gf';
+      let transferSection = '';
+      if (b.art === 'abhebung' && isGf) {
+        const verteilte = (S.lage?.bewegungen||[])
+          .filter(m => m.quelle_id === b.id && ['gemeldet','bestaetigt'].includes(m.status));
+        const verteilt = verteilte.reduce((s, m) => s + (m.betrag||0), 0);
+        const rest = Math.max(0, b.betrag - verteilt);
+        const halterOpts = (S.lage?.halter||[]).map(h =>
+          `<option value="${esc(h.id)}">${esc(h.kurzname||h.name||h.login)}</option>`).join('');
+        const verteilListe = verteilte.length
+          ? verteilte.map(m => `<div class="v-event">${icon('arrow-right-circle')}
+              <span style="flex:1">${esc(m.an_name||'Касса')}</span>
+              <span class="v-num">${euro(m.betrag)}</span>
+              <span style="font-size:11px;margin-left:4px;color:${m.status==='bestaetigt'?'var(--v-ok,green)':'var(--v-warn,#e65100)'}">${m.status==='bestaetigt'?'✓':'⏳'}</span>
+            </div>`).join('')
+          : `<div class="v-note" style="color:var(--v-warn,#e65100)">${icon('alert-circle')} Ещё не передавалось в кассу</div>`;
+        const restNote = rest > 0
+          ? `<div class="v-note" style="margin-top:6px">Нераспределённый остаток: <strong>${euro(rest)}</strong></div>`
+          : `<div class="v-note" style="color:var(--v-ok,green);margin-top:6px">${icon('check-circle')} Всё распределено</div>`;
+        const transferForm = rest > 0 ? `
+          <form id="abhebung-transfer-form" data-bew-id="${b.id}" style="margin-top:12px;display:grid;gap:8px">
+            <label style="display:grid;gap:4px;font-size:13px">Сумма (€)
+              <input class="v-input" name="betrag" inputmode="decimal"
+                value="${(rest/100).toFixed(2).replace('.',',')}" required>
+            </label>
+            <label style="display:grid;gap:4px;font-size:13px">Кому
+              <select class="v-input" name="an_konto">
+                <option value="hauptkasse">Касса VAV</option>
+                ${halterOpts}
+              </select>
+            </label>
+            <button type="submit" class="v-button primary full">${icon('arrow-right-circle')} Передать деньги</button>
+          </form>` : '';
+        transferSection = `
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
+            <div class="v-small" style="font-weight:600;margin-bottom:6px">Передача наличных</div>
+            ${verteilListe}${restNote}${transferForm}
+          </div>`;
+      }
       body = `<div class="v-ledger">
         ${keys([
           ['Тип', esc(bewArt(b.art))],
@@ -906,7 +945,7 @@ function renderModal(mod) {
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
         <div class="v-small" style="font-weight:600;margin-bottom:6px">Документ</div>
         ${dokSection}
-      </div>`;
+      </div>${transferSection}`;
     } else {
       title = 'Движение';
       body = '<div class="v-stateempty">Данные не найдены</div>';
@@ -1047,6 +1086,10 @@ async function formAbsenden(form) {
         toast('Заявка одобрена. Выдающий назначен.');
         S.ausgewaehlt = null;
       }
+    } else if (form.id==='abhebung-transfer-form') {
+      const bewId = form.dataset.bewId;
+      await api('POST','uebergabe',{quelle_id: Number(bewId), an_konto: d.an_konto, betrag: parseEur(d.betrag)});
+      toast('Деньги переданы в кассу');
     } else if (form.id==='zaehlen-form') {
       const isDisp = S.ich?.rolle === 'disponent';
       const h = isDisp ? (S.lage?.halter||[]).find(x=>x.login===S.ich?.login) : null;
