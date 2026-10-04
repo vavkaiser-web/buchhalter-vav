@@ -1043,6 +1043,7 @@ async function lage(n, benutzerListe, jetzt) {
     // Движения: бухгалтерия и Андрей — все; Олег — свои счета.
     const bew = (await q(`SELECT m.*, k1.name AS von_name, k2.name AS an_name, k2.art AS an_art, k2.login AS an_login
       FROM ${S}buch_bewegung m LEFT JOIN ${S}buch_konto k1 ON k1.id = m.von_konto LEFT JOIN ${S}buch_konto k2 ON k2.id = m.an_konto
+      WHERE m.status <> 'storniert'
       ORDER BY m.id DESC LIMIT 400`)).filter(m => buero(n) || kontoIds.includes(m.von_konto) || kontoIds.includes(m.an_konto));
     const bewegungen = bew.map(m => ({ id: Number(m.id), art: m.art, von_konto: m.von_konto, an_konto: m.an_konto, von_name: m.von_name,
       an_name: m.an_name, betrag: Number(m.betrag_cent), status: m.status, quelle_id: m.quelle_id && Number(m.quelle_id),
