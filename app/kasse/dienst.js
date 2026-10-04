@@ -899,6 +899,48 @@ async function bankLink(n, b, finde) {
   });
 }
 
+/* Ручная привязка банковской транзакции — без FinMap.
+   Используется когда Qonto API недоступен, а документ подтверждает операцию.
+   Принимает: finmap_op (ID из CSV), ziel_art, ziel_id, op_betrag_cent, op_datum, quelle.
+   Доступно только бухгалтерии. */
+async function bankLinkManuell(n, b) {
+  darf(istBuch(n) || istGf(n), 'Ручные связи с банком ведёт бухгалтерия или Андрей');
+  const opId = txt(b.finmap_op, 80); pruefe(opId, 'Нет кода операции');
+  pruefe(['abhebung', 'paket', 'beleg', 'erstattung', 'rueckfrage'].includes(b.ziel_art), 'Неизвестная цель связи');
+  const opBetrag = Number(b.op_betrag_cent); pruefe(opBetrag > 0, 'Сумма операции не задана');
+  const opDatum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.op_datum || '')) ? b.op_datum : null;
+  pruefe(opDatum, 'Дата операции не задана (формат YYYY-MM-DD)');
+  const quelle = txt(b.quelle || b.op_quelle, 80) || 'Ручная привязка';
+  return tx(async q => {
+    const zid = idOf(b.ziel_id);
+    const ziel = {
+      abhebung: `SELECT betrag_cent AS b FROM ${S}buch_bewegung WHERE id = $1 AND art = 'abhebung'`,
+      paket: `SELECT brutto_cent AS b FROM ${S}buch_zahlpaket WHERE id = $1`,
+      beleg: `SELECT betrag_cent AS b FROM ${S}buch_beleg WHERE id = $1`,
+      erstattung: `SELECT betrag_cent AS b FROM ${S}buch_erstattung WHERE id = $1`,
+      rueckfrage: `SELECT betrag_cent AS b FROM ${S}buch_rueckfrage WHERE id = $1`,
+    }[b.ziel_art];
+    const z = (await q(ziel, [zid]))[0];
+    pruefe(z && z.b != null, 'Документ для связи не найден', 404);
+    const zielBetrag = Number(z.b);
+    const gleich = zielBetrag === opBetrag;
+    if (!gleich) {
+      pruefe(b.trotz_abweichung === true && txt(b.notiz),
+        `Сумма в банке ${euro(opBetrag)} не совпадает с документом ${euro(zielBetrag)}. Связь при расхождении — только с пояснением.`, 409);
+    }
+    // Установить finmap_op на движении если не задан
+    await q(`UPDATE ${S}buch_bewegung SET finmap_op = $1 WHERE id = $2 AND art = 'abhebung' AND finmap_op IS NULL`,
+      [opId, zid]);
+    const r = await q(`INSERT INTO ${S}buch_bank_link (finmap_op, ziel_art, ziel_id, status, op_betrag_cent, ziel_betrag_cent, op_datum, op_quelle, notiz, von)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING RETURNING id`,
+      [opId, b.ziel_art, String(zid), gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag,
+        opDatum, quelle, txt(b.notiz), n.login]);
+    if (!r.length) return { ok: true, wiederholt: true };
+    await log(q, n, 'bank_link_manuell', b.ziel_art + ':' + zid, { op: opId, status: gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag });
+    return { ok: true, id: r[0].id, status: gleich ? 'abgeglichen' : 'abweichung' };
+  });
+}
+
 /* ---------------- чтение: картина для экрана ---------------- */
 function belegTitel(x) {
   const k = { kraftstoff: 'Заправка', material: 'Материалы', sonstiges: 'Расход' }[x.art] || 'Расход';
@@ -1161,6 +1203,6 @@ module.exports = {
   erstattungWeg, erstattungBar, erstattungSchritt,
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
-  bankLink, ibanGueltig, Fehler,
+  bankLink, bankLinkManuell, ibanGueltig, Fehler,
   eingangBewilligen, eingangAblehnen,
 };
