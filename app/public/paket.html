@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Комплекты Steuerberater · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)} .nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:7px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{color:var(--crit)} .btn:disabled{opacity:.45}
+.karten{display:grid;gap:10px}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;box-shadow:var(--schatten);border-left:3px solid var(--warn)}
+.karte.uebergeben{border-left-color:var(--ok)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 12px}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+label.lb{font-size:12.5px;color:var(--muted);display:block;margin:9px 0 3px}
+textarea,input,select{font:inherit;font-size:14px;width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface2);color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pos{display:flex;gap:8px;align-items:baseline;padding:7px 0;border-top:1px dashed var(--line);font-size:13.5px}
+.pos:first-child{border-top:0}
+.pos .b{flex:1}
+.aktion{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.ov{position:fixed;inset:0;background:rgba(10,15,20,.45);display:none;align-items:flex-start;justify-content:center;padding:24px 14px;z-index:9;overflow:auto}
+.ov.an{display:flex}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);max-width:640px;width:100%;padding:18px;box-shadow:var(--schatten)}
+.err{color:var(--crit);font-size:12.5px;margin-top:8px}
+#druck{display:none}
+@media print{ body *{visibility:hidden} #druck,#druck *{visibility:visible} #druck{display:block;position:absolute;inset:0;padding:20px;background:#fff;color:#000} .nodruck{display:none} }
+#druck table{width:100%;border-collapse:collapse;margin-top:10px} #druck th,#druck td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:12px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/monat">Проверка месяцев</a>
+    <a href="/korrektur">Исправления</a>
+    <a href="/paket" class="akt">Комплекты</a>
+    <a href="/fragen">Вопросы</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><div><h1>Комплекты для Steuerberater</h1><div class="wer" id="wer"></div></div>
+    <button class="btn pri" id="neu">Новый комплект</button></div>
+  <div class="hinweis">Передаются бумажные <strong>копии, лично</strong>; оригиналы остаются у VAV. Для
+    электронных счетов хранится исходный <strong>XML</strong> — бумажная визуализация его не заменяет.
+    «Подготовлено» ≠ «передано». Повторная передача копии — отдельное событие, не документ и не проводка.</div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<div class="ov" id="ov"><div class="panel" id="panel"></div></div>
+<div id="druck"></div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MON=['','январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+function tag(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE'); }
+function tagz(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+async function J(u,opt){ const r=await fetch(u,Object.assign({credentials:'same-origin'},opt||{}));
+  if(r.status===401){location.href='/login?next=/paket';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+async function P(u,body){ return J(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); }
+let ICH={}, FIRMEN={}, UEB={};
+async function laden(){
+  try{
+    const d=await J('/api/paket');
+    ICH=d.ich||{}; FIRMEN=d.firmen||{}; UEB=d.ueb_arten||{};
+    document.getElementById('wer').textContent=(ICH.name||ICH.login||'')+(ICH.verantwortlich?' · ответственный бухгалтер':'');
+    const list=d.pakete||[];
+    document.getElementById('app').innerHTML=list.length?'<div class="karten">'+list.map(karte).join('')+'</div>':'<div class="leer">Комплектов нет.</div>';
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+function period(p){ return (FIRMEN[p.firma]||p.firma)+' · '+(p.monat?MON[p.monat]+' ':'')+p.jahr; }
+function karte(p){
+  return '<div class="karte '+H(p.status)+'" data-id="'+p.id+'">'
+    +'<div class="k1"><strong>'+H(period(p))+(p.nummer?' · №'+H(p.nummer):'')+'</strong>'
+      +'<span class="chip '+(p.status==='uebergeben'?'ok':'warn')+'">'+H(p.status_text)+'</span></div>'
+    +'<div class="meta">позиций '+p.positionen+(p.fehlt?'<span>·</span><span class="chip crit">недостаёт '+p.fehlt+'</span>':'')
+      +(p.vollstaendig?'<span>·</span><span class="chip ok">полный</span>':'<span>·</span><span class="chip warn">неполный</span>')
+      +'<span>·</span>передач '+p.uebergaben+'</div>'
+    +'<div class="aktion"><button class="btn" data-open="'+p.id+'">Открыть</button></div></div>';
+}
+async function oeffne(id){
+  const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+  panel.innerHTML='<div class="leer">Загрузка…</div>'; ov.classList.add('an');
+  try{ panel.innerHTML=detail(await J('/api/paket/eins?id='+id)); }
+  catch(e){ panel.innerHTML='<div class="err">'+H(e.message)+'</div><div class="aktion"><button class="btn" onclick="zu()">Закрыть</button></div>'; }
+}
+function detail(p){
+  const kann=ICH.verantwortlich===true;
+  let h='<div class="k1"><h2>'+H(period(p))+(p.nummer?' · №'+H(p.nummer):'')+' · v'+p.version+'</h2>'
+    +'<span class="chip '+(p.status==='uebergeben'?'ok':'warn')+'">'+H(p.status_text)+'</span></div>';
+  h+='<div class="meta">'+(p.vollstaendig?'<span class="chip ok">полный</span>':'<span class="chip warn">неполный</span>')
+    +'<span>·</span>подготовил '+H(p.vorbereitet_von||'—')+'</div>';
+  // состав
+  h+='<label class="lb">Состав</label>';
+  h+=p.positionen.length? p.positionen.map(x=>'<div class="pos"><span class="b">'+H(x.bezeichnung)
+      +(x.beleg_ref?' <span class="wer" style="color:var(--muted)">· '+H(x.beleg_ref)+'</span>':'')
+      +(x.xml_ref?' <span class="chip ok">XML</span>':'')+'</span>'
+      +(x.status==='fehlt'?'<span class="chip crit">недостаёт</span>':'<span class="chip ok">готово</span>')
+      +(kann&&x.status==='fehlt'&&p.status!=='uebergeben'?'<button class="btn" data-posready="'+x.id+'">отметить готово</button>':'')
+      +'</div>').join('') : '<div class="leer">Позиций нет.</div>';
+  // добавить позицию
+  if(kann){
+    h+='<label class="lb">Добавить позицию</label>'
+      +'<input id="pz_bez" placeholder="название документа">'
+      +'<div class="grid2"><input id="pz_beleg" placeholder="ссылка на документ/оригинал"><input id="pz_xml" placeholder="XML эл. счёта (ссылка)"></div>'
+      +'<div class="aktion"><button class="btn" data-posadd="'+p.id+'">Добавить как готовую</button>'
+      +'<button class="btn crit" data-posmiss="'+p.id+'">Добавить как недостающую</button></div>';
+  }
+  // передачи
+  h+='<label class="lb">Передачи</label>';
+  h+=p.uebergaben.length? p.uebergaben.map(x=>'<div class="pos"><span class="b">'+H(x.art_text)
+      +(x.datum?' · '+tag(x.datum):'')+(x.an?' · кому: '+H(x.an):'')
+      +(x.umfang?'<div class="wer" style="color:var(--muted)">'+H(x.umfang)+'</div>':'')+'</span>'
+      +'<span class="wer" style="color:var(--muted)">'+H(x.autor)+' · '+tagz(x.angelegt)+'</span></div>').join('')
+    : '<div class="leer">Ещё не передавался.</div>';
+  if(kann){
+    const opt=Object.keys(UEB).map(k=>'<option value="'+k+'">'+H(UEB[k])+'</option>').join('');
+    h+='<label class="lb">Зарегистрировать передачу (лично, копии)</label>'
+      +'<select id="ub_art">'+opt+'</select>'
+      +'<div class="grid2"><input id="ub_datum" type="date"><input id="ub_an" placeholder="кому передано"></div>'
+      +'<input id="ub_umfang" placeholder="что передано / какие позиции закрыты" style="margin-top:8px">'
+      +'<div class="aktion"><button class="btn pri" data-ueb="'+p.id+'">Зарегистрировать передачу</button></div>';
+  }
+  h+='<div class="aktion"><button class="btn" data-druck="'+p.id+'">Печать реестра</button><button class="btn" onclick="zu()">Закрыть</button></div>';
+  h+='<div class="hinweis">Оригиналы остаются у VAV. Печать не меняет содержание; XML эл. счёта — обязательный оригинал.</div>';
+  return h;
+}
+function zu(){ document.getElementById('ov').classList.remove('an'); }
+async function drucken(id){
+  const p=await J('/api/paket/eins?id='+id);
+  const d=document.getElementById('druck');
+  d.innerHTML='<h2>Реестр комплекта для Steuerberater</h2>'
+    +'<div>'+H(period(p))+(p.nummer?' · №'+H(p.nummer):'')+' · версия '+p.version+' · '+(p.vollstaendig?'полный':'НЕПОЛНЫЙ')+'</div>'
+    +'<div>Подготовил: '+H(p.vorbereitet_von||'—')+' · '+tag(p.vorbereitet_am)+' · передаются копии лично, оригиналы у VAV</div>'
+    +'<table><thead><tr><th>№</th><th>Документ</th><th>Ссылка</th><th>XML</th><th>Статус</th></tr></thead><tbody>'
+    +p.positionen.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+H(x.bezeichnung)+'</td><td>'+H(x.beleg_ref||'')+'</td><td>'+(x.xml_ref?'да':'')+'</td><td>'+(x.status==='fehlt'?'НЕДОСТАЁТ':'готово')+'</td></tr>').join('')
+    +'</tbody></table>'
+    +(p.fehlt?'<div>Недостающие позиции отмечены — комплект передаётся как неполный со списком недостающего.</div>':'')
+    +'<div>Передачи: '+(p.uebergaben.map(u=>H(u.art_text)+(u.datum?' '+tag(u.datum):'')+(u.an?' → '+H(u.an):'')).join('; ')||'ещё не передавался')+'</div>';
+  setTimeout(()=>window.print(),100);
+}
+document.getElementById('neu').onclick=()=>{
+  const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+  if(ICH.verantwortlich!==true){ panel.innerHTML='<div class="hinweis">Создаёт комплект ответственный бухгалтер.</div><div class="aktion"><button class="btn" onclick="zu()">Закрыть</button></div>'; ov.classList.add('an'); return; }
+  const fo='<option value="">—</option>'+Object.keys(FIRMEN).map(k=>'<option value="'+k+'">'+H(FIRMEN[k])+'</option>').join('');
+  const mo='<option value="">весь год</option>'+MON.map((m,i)=>i?'<option value="'+i+'">'+H(m)+'</option>':'').join('');
+  panel.innerHTML='<h2>Новый комплект</h2>'
+    +'<label class="lb">Фирма *</label><select id="n_firma">'+fo+'</select>'
+    +'<div class="grid2"><div><label class="lb">Год *</label><input id="n_jahr" value="'+new Date().getFullYear()+'"></div>'
+    +'<div><label class="lb">Месяц</label><select id="n_monat">'+mo+'</select></div></div>'
+    +'<label class="lb">Номер/идентификатор</label><input id="n_nummer">'
+    +'<label class="lb">Комментарий</label><input id="n_komm">'
+    +'<div class="err" id="nerr"></div>'
+    +'<div class="aktion"><button class="btn pri" id="nsend">Создать</button><button class="btn" onclick="zu()">Отмена</button></div>';
+  ov.classList.add('an');
+  document.getElementById('nsend').onclick=async()=>{
+    const g=x=>document.getElementById(x).value.trim();
+    try{ const p=await P('/api/paket',{firma:g('n_firma'),jahr:g('n_jahr'),monat:g('n_monat')||undefined,nummer:g('n_nummer'),kommentar:g('n_komm')}); zu(); laden(); oeffne(p.id); }
+    catch(e){ document.getElementById('nerr').textContent=e.message; }
+  };
+};
+document.getElementById('app').addEventListener('click',e=>{const b=e.target.closest('[data-open]');if(b)oeffne(Number(b.dataset.open));});
+document.getElementById('ov').addEventListener('click',e=>{if(e.target.id==='ov')zu();});
+document.getElementById('panel').addEventListener('click',async e=>{
+  const g=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  let b;
+  if((b=e.target.closest('[data-posadd]'))){ b.disabled=true; try{ await P('/api/paket/position',{paket_id:Number(b.dataset.posadd),bezeichnung:g('pz_bez'),beleg_ref:g('pz_beleg'),xml_ref:g('pz_xml'),status:'bereit'}); await oeffne(Number(b.dataset.posadd)); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+  if((b=e.target.closest('[data-posmiss]'))){ b.disabled=true; try{ await P('/api/paket/position',{paket_id:Number(b.dataset.posmiss),bezeichnung:g('pz_bez'),beleg_ref:g('pz_beleg'),xml_ref:g('pz_xml'),status:'fehlt'}); await oeffne(Number(b.dataset.posmiss)); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+  if((b=e.target.closest('[data-posready]'))){ b.disabled=true; try{ const r=await P('/api/paket/position/status',{id:Number(b.dataset.posready),status:'bereit'}); const pid=document.querySelector('[data-ueb]'); await oeffne(pid?Number(pid.dataset.ueb):0); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+  if((b=e.target.closest('[data-ueb]'))){ b.disabled=true; try{ await P('/api/paket/uebergeben',{paket_id:Number(b.dataset.ueb),art:g('ub_art'),datum:g('ub_datum')||undefined,an:g('ub_an'),umfang:g('ub_umfang')}); await oeffne(Number(b.dataset.ueb)); laden(); }catch(err){ alert(err.message); b.disabled=false; } return; }
+  if((b=e.target.closest('[data-druck]'))){ drucken(Number(b.dataset.druck)); return; }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

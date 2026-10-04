@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Разнос партии · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;
+ --akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--ok-bg:#e9f4ee;--warn-bg:#fbf4e3;--krit-bg:#fbeeea;--info-bg:#e6f0f4;
+ --r:13px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 22px rgba(20,30,40,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;
+ --ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;
+ --ok-bg:#182a22;--warn-bg:#292417;--krit-bg:#2a1c19;--info-bg:#182731}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:16px 16px 100px}
+.zahl{font-variant-numeric:tabular-nums}
+a{color:var(--akz)}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 10px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1}
+.kopf{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 2px 12px}
+h1{font-size:19px;margin:0}
+.fort{font-size:13px;color:var(--muted)}
+.op{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--schatten);padding:14px 15px;margin-bottom:12px}
+.op.fertig{border-left:3px solid var(--ok)}
+.op .num{font-size:12px;color:var(--muted);font-weight:700}
+.op .z1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;margin-top:2px}
+.op .partner{font-weight:600;font-size:15px}
+.op .betr{font-weight:700;font-size:16px}
+.op .betr.aus{color:var(--crit)} .op .betr.ein{color:var(--ok)}
+.op .meta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;gap:4px 12px;flex-wrap:wrap}
+.sekt{margin-top:11px}
+.sekt .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:5px}
+.belege{display:flex;gap:6px;flex-wrap:wrap}
+.beleg{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer;text-align:left}
+.beleg .t{font-size:10.5px;padding:1px 6px;border-radius:999px;margin-left:6px}
+.beleg .t.genau{background:var(--ok-bg);color:var(--ok)} .beleg .t.nah{background:var(--warn-bg);color:var(--warn)} .beleg .t.name{background:var(--info-bg);color:var(--akz)}
+.beleg.sel{border-color:var(--akz);box-shadow:inset 0 0 0 1px var(--akz)}
+.keindoc{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.docpanel{margin-top:8px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);padding:10px 12px;font-size:12.5px;display:none}
+.docpanel.auf{display:block}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.kv:last-of-type{border-bottom:0} .kv span:first-child{color:var(--muted)}
+.zuform{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-top:11px}
+@media(max-width:620px){.zuform{grid-template-columns:1fr}}
+.zuform label{font-size:11px;color:var(--muted);display:grid;gap:4px}
+.zuform select{width:100%;padding:9px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font:inherit;font-size:14px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:9px 14px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.fertig-badge{font-size:12px;color:var(--ok);font-weight:600}
+.sub{position:sticky;bottom:0;background:var(--bg);padding:12px 0;margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line)}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}
+.msg.auf{display:block} .msg.f{background:var(--krit-bg);color:var(--crit)} .msg.g{background:var(--ok-bg);color:var(--ok)}
+.leer{color:var(--muted);text-align:center;padding:30px 2px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/verteilen" class="akt">Разнос партии</a>
+    <a href="/dokumente">Документы</a>
+    <span class="sp"></span>
+    <a href="/api/logout">Выйти</a>
+  </nav>
+  <div class="kopf">
+    <div><h1 id="titel">Разнос партии</h1><div class="fort" id="fort"></div></div>
+  </div>
+  <div class="msg" id="msg"></div>
+  <div id="app"><div class="leer">Загрузка… (тяну операции и подбираю документы, ~10–15 c)</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=n=>(Math.abs(Number(n)||0)).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const EURc=c=>((Number(c)||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const T=(iso)=>{ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?String(iso):d.toLocaleDateString('de-DE'); };
+const TYPD={fuel:'Топливо',rechnung:'Счёт',storno:'Сторно',mahnung:'Напоминание',material:'Материал',vertrag:'Договор',sonstiges:'Прочее'};
+let TASK=null, OBJEKTE=[], KATEGORIEN=[], SEL={};
+
+async function J(u,o){ const r=await fetch(u,Object.assign({credentials:'same-origin'},o||{}));
+  if(r.status===401){location.href='/login?next=/verteilen';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+function melde(t,g){ const m=document.getElementById('msg'); m.textContent=t; m.className='msg auf '+(g?'g':'f'); clearTimeout(melde._t); melde._t=setTimeout(()=>{m.className='msg';},4000); }
+
+function objOptions(sel){ return '<option value="">— объект —</option>'+OBJEKTE.map(o=>
+  '<option value="'+H(o.nr)+'"'+(sel===o.nr?' selected':'')+'>'+H(o.nr+' · '+(o.bez||o.kunde||''))+'</option>').join(''); }
+function katOptions(sel){ return '<option value="">— предназначение —</option>'+KATEGORIEN.map(k=>
+  '<option value="'+H(k.kz)+'"'+(sel===k.kz?' selected':'')+'>'+H(k.bez)+(k.art?' ('+k.art+')':'')+'</option>').join(''); }
+
+function belegKarte(o,idx){
+  const b=o.belege||[]; const zug=o.zuordnung;
+  const fertig=!!zug;
+  const aus=(o.typ!=='income');
+  let h='<div class="op'+(fertig?' fertig':'')+'" id="op'+idx+'">';
+  h+='<div class="num">Операция '+(idx+1)+(fertig?' · <span class="fertig-badge">разнесено ✓</span>':'')+'</div>';
+  h+='<div class="z1"><span class="partner">'+H(o.partner||'—')+'</span>'
+    +'<span class="betr '+(aus?'aus':'ein')+' zahl">'+(aus?'−':'+')+EUR(o.betrag)+'</span></div>';
+  h+='<div class="meta"><span>'+H(T(o.datum))+'</span><span>'+H(o.konto||'')+'</span>'
+    +(o.fm_kategorie?'<span>FinMap: '+H(o.fm_kategorie)+'</span>':'')
+    +(o.fm_projekt?'<span>проект: '+H(o.fm_projekt)+'</span>':'')
+    +(o.kommentar?'<span title="'+H(o.kommentar)+'">'+H(String(o.kommentar).slice(0,60))+'</span>':'')+'</div>';
+  // документы
+  h+='<div class="sekt"><div class="lbl">Документ (чек / счёт)</div>';
+  if(b.length){
+    h+='<div class="belege">'+b.map((d,j)=>{const mk={genau:'точно',nah:'похоже',name:'контрагент'}[d.treffer]||'';
+      return '<button class="beleg" data-op="'+idx+'" data-b="'+j+'">'+H('№'+(d.doc_nr||'?')+' · '+EURc(d.betrag_cent))
+        +'<span class="t '+d.treffer+'">'+mk+'</span></button>';}).join('')+'</div>';
+    h+='<div class="docpanel" id="doc'+idx+'"></div>';
+  } else {
+    h+='<div class="keindoc">Документ не найден автоматически. Он может быть в почте (Qonto/поставщик) — подтянем позже. Пока разнеси по своим данным.</div>';
+  }
+  h+='</div>';
+  // разнос
+  h+='<div class="zuform">'
+    +'<label>Объект (куда пошло)<select data-obj="'+idx+'">'+objOptions(zug&&zug.objekt)+'</select></label>'
+    +'<label>Предназначение<select data-kat="'+idx+'">'+katOptions(zug&&zug.kategorie)+'</select></label>'
+    +'<button class="btn '+(fertig?'ok':'pri')+'" data-setzen="'+idx+'">'+(fertig?'Обновить':'Разнести')+'</button>'
+    +'</div>';
+  h+='</div>';
+  return h;
+}
+
+function docPanel(d){
+  const rows=[['Тип',TYPD[d.typ]||d.typ||'—'],['Номер',d.doc_nr||'—'],['Сумма (брутто)',EURc(d.betrag_cent)],
+    ['Нетто',d.netto_cent!=null?EURc(d.netto_cent):'—'],['НДС',d.ust_cent!=null?EURc(d.ust_cent):'—'],
+    ['Дата документа',d.belegdatum?T(d.belegdatum):'—'],['Контрагент',d.kontrahent||'—'],
+    ['Источник',d.quelle==='ausgang'?'исходящий':d.quelle==='eingang'?'входящий':d.quelle||'—'],
+    ['Файл',d.dateiname||'—'],['Проверка',d.pruef_grund||'ок']];
+  let h=rows.map(r=>'<div class="kv"><span>'+H(r[0])+'</span><span>'+H(r[1])+'</span></div>').join('');
+  if(d.drive_id) h+='<div style="margin-top:8px"><a href="https://drive.google.com/file/d/'+H(d.drive_id)+'/view" target="_blank" rel="noopener">Открыть оригинал в Drive ↗</a></div>';
+  return h;
+}
+
+function render(d){
+  TASK=d.task; OBJEKTE=d.objekte||[]; KATEGORIEN=d.kategorien||[];
+  document.getElementById('titel').textContent=d.task?d.task.titel:'Разнос партии';
+  const ops=d.ops||[];
+  const done=ops.filter(o=>o.zuordnung).length;
+  document.getElementById('fort').textContent='разнесено '+done+' из '+ops.length;
+  let h=ops.map((o,i)=>belegKarte(o,i)).join('');
+  h+='<div class="sub"><button class="btn pri" id="sdat">Сдать партию ('+done+'/'+ops.length+')</button>'
+    +'<span class="fort">Разнеси все '+ops.length+', затем сдай — придут следующие 10.</span></div>';
+  document.getElementById('app').innerHTML=h;
+  window._OPS=ops;
+}
+
+async function laden(){
+  try{
+    const d=await J('/api/verteilen');
+    if(d.leer){ document.getElementById('app').innerHTML='<div class="leer">Открытых партий нет. Создай партию на вкладке «Задачи» → «+ Партия разноса».</div>'; return; }
+    render(d);
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+
+document.getElementById('app').addEventListener('click', async (e)=>{
+  const bel=e.target.closest('button.beleg');
+  if(bel){ const i=+bel.dataset.op, j=+bel.dataset.b; const o=window._OPS[i];
+    document.querySelectorAll('#op'+i+' .beleg').forEach(x=>x.classList.remove('sel')); bel.classList.add('sel');
+    SEL[i]=o.belege[j];
+    const pan=document.getElementById('doc'+i); pan.innerHTML=docPanel(o.belege[j]); pan.classList.add('auf'); return; }
+  const set=e.target.closest('button[data-setzen]');
+  if(set){ const i=+set.dataset.setzen; return setzen(i, set); }
+  if(e.target.id==='sdat'){ return sdat(); }
+});
+
+async function setzen(i, btn){
+  const o=window._OPS[i];
+  const objekt=document.querySelector('select[data-obj="'+i+'"]').value;
+  const kategorie=document.querySelector('select[data-kat="'+i+'"]').value;
+  if(!objekt||!kategorie){ melde('Выбери объект и предназначение для операции '+(i+1)); return; }
+  const doc=SEL[i]||null;
+  const grund=doc?('Beleg №'+(doc.doc_nr||'?')+(doc.drive_id?' ['+doc.drive_id+']':'')):'без документа';
+  btn.textContent='…';
+  try{
+    await J('/api/razn/setzen',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:o.id, objekt, kategorie, grund})});
+    o.zuordnung={objekt,kategorie,grund};
+    const card=document.getElementById('op'+i); card.classList.add('fertig');
+    card.querySelector('.num').innerHTML='Операция '+(i+1)+' · <span class="fertig-badge">разнесено ✓</span>';
+    btn.className='btn ok'; btn.textContent='Обновить';
+    const done=window._OPS.filter(x=>x.zuordnung).length;
+    document.getElementById('fort').textContent='разнесено '+done+' из '+window._OPS.length;
+    const sd=document.getElementById('sdat'); if(sd) sd.textContent='Сдать партию ('+done+'/'+window._OPS.length+')';
+    melde('Операция '+(i+1)+' разнесена'+(doc?' (документ №'+(doc.doc_nr||'?')+')':''),true);
+  }catch(err){ melde(err.message); btn.textContent='Разнести'; }
+}
+
+async function sdat(){
+  const done=window._OPS.filter(x=>x.zuordnung).length, all=window._OPS.length;
+  if(done<all && !confirm('Разнесено '+done+' из '+all+'. Сдать партию всё равно?')) return;
+  try{
+    // взять в работу (если ещё «назначена»), затем сдать
+    try{ await J('/api/aufgaben/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:TASK.id,aktion:'annehmen'})}); }catch(e){}
+    await J('/api/aufgaben/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:TASK.id,aktion:'einreichen',notiz:'разнесено '+done+' из '+all})});
+    melde('Партия сдана. Владелец примет — и придут следующие 10.',true);
+    setTimeout(laden, 1200);
+  }catch(err){ melde(err.message); }
+}
+
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

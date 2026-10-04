@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Документы · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;
+ --akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--ok-bg:#e9f4ee;--warn-bg:#fbf4e3;--krit-bg:#fbeeea;
+ --r:13px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 22px rgba(20,30,40,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;
+ --ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;
+ --ok-bg:#182a22;--warn-bg:#292417;--krit-bg:#2a1c19}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:16px 16px 80px}
+.zahl{font-variant-numeric:tabular-nums}
+.kopf{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:4px 2px 6px}
+h1{font-size:19px;margin:0}
+.wer{font-size:13px;color:var(--muted)}
+.lead{font-size:13px;color:var(--muted);margin:2px 2px 14px}
+.gruppe{margin-top:16px}
+.gt{display:flex;align-items:baseline;gap:10px;margin:0 2px 8px}
+.gt h2{font-size:15px;margin:0}.gt .z{margin-left:auto;font-size:13px;color:var(--muted)}
+.tab{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--schatten);overflow:hidden}
+.row{display:grid;grid-template-columns:96px 1fr 120px 116px;gap:10px;align-items:center;padding:10px 13px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row.kopfz{background:var(--surface2);font-size:12px;color:var(--muted);font-weight:600}
+.nr{font-weight:600;font-size:13.5px}
+.dn{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dn small{color:var(--muted)}
+.betr{text-align:right;font-weight:600}
+.chip{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)}.chip.warn{color:var(--warn);background:var(--warn-bg)}.chip.krit{color:var(--crit);background:var(--krit-bg)}
+.leer{color:var(--muted);font-size:13.5px;padding:12px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin-top:14px}
+@media(max-width:560px){.row{grid-template-columns:1fr auto;grid-auto-rows:min-content}.row .betr{grid-column:2}.row.kopfz{display:none}}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 10px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1}
+.nav a.aus{color:var(--muted);border-color:var(--line)}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/dokumente" class="akt">Документы</a>
+    <a href="/zahlungen">Платежи</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/arbeit">Касса</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><h1>Документы</h1><label>Период <select id="monat" aria-label="Месяц документов"></select></label><div class="wer" id="stand"></div></div>
+  <div class="lead">Обрабатываем от текущего месяца назад. Реальные январские документы сохранены. Оригиналы остаются в Google Drive; новая запись не означает новый расход или подтверждение оплаты. Загрузка периода может быть неполной.</div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>c==null?'':((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const TYP={rechnung:'счёт',storno:'сторно',mahnung:'напоминание',vertrag:'договор',sonstiges:'прочее'};
+function tag(d){ if(!d) return ''; const x=new Date(d); return isNaN(x)?'':x.toLocaleDateString('de-DE'); }
+function reihe(f){
+  const dubl = f.status==='exakt_dubl' ? '<span class="chip krit">точный дубль</span> ' : '';
+  const flag = f.pruef_grund ? '<span class="chip warn" title="'+H(f.pruef_grund)+'">на проверку</span>'
+    : (f.erkannt?'<span class="chip ok">распознан</span>':'<span class="chip">не распознан</span>');
+  return '<div class="row">'
+    +'<div class="nr">'+H(f.doc_nr||'—')+'</div>'
+    +'<div class="dn" title="'+H(f.dateiname)+'"><a target="_blank" rel="noopener noreferrer" href="https://drive.google.com/file/d/'+encodeURIComponent(f.drive_id)+'/view">'+H(f.dateiname)+'</a>'+' <small>'+H((f.ext||'').toUpperCase())+'</small>'
+      +(f.kontrahent?'<br><small>'+H(f.kontrahent)+'</small>':'')
+      +(f.pruef_grund?'<br><small style="color:var(--warn)">'+H(f.pruef_grund)+'</small>':'')+'</div>'
+    +'<div><span class="chip">'+H(TYP[f.typ]||f.typ||'?')+'</span> '+dubl+flag+'</div>'
+    +'<div class="betr zahl">'+(f.betrag_cent!=null?EUR(f.betrag_cent):'—')
+      +(f.belegdatum?'<br><small class="'+(f.periode_ok===false?'':'')+'">'+tag(f.belegdatum)+'</small>':'')+'</div>'
+    +'</div>';
+}
+function gruppe(titel, liste){
+  let h='<div class="gruppe"><div class="gt"><h2>'+H(titel)+'</h2><span class="z">'+liste.length+'</span></div>';
+  if(!liste.length) return h+'<div class="leer">Нет документов.</div></div>';
+  h+='<div class="tab"><div class="row kopfz"><div>Номер</div><div>Файл</div><div>Тип / статус</div><div class="betr">Сумма</div></div>'
+    +liste.map(reihe).join('')+'</div></div>';
+  return h;
+}
+const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+const current=parts.find(p=>p.type==='year').value+'-'+parts.find(p=>p.type==='month').value;
+const months=[]; for(let y=2026;y<=Number(current.slice(0,4));y++) for(let m=1;m<=12;m++){const v=y+'-'+String(m).padStart(2,'0');if(v<=current)months.push(v);}
+const sel=document.getElementById('monat');sel.innerHTML=months.reverse().map(m=>'<option value="'+m+'">'+m+'</option>').join('');
+sel.value=current;
+let requestVersion=0;
+async function laden(){
+  const version=++requestVersion;
+  const monat=sel.value;
+  try{
+    const r=await fetch('/api/dokumente?monat='+encodeURIComponent(monat),{credentials:'same-origin'});
+    if(r.status===401){location.href='/login?next=/dokumente';return;}
+    const d=await r.json();
+    if(version!==requestVersion)return;
+    if(!r.ok) throw new Error(d.fehler||('HTTP '+r.status));
+    const ein=d.dateien.filter(f=>f.quelle==='eingang'), aus=d.dateien.filter(f=>f.quelle==='ausgang');
+    const zuPruef=d.dateien.filter(f=>f.pruef_grund).length;
+    document.getElementById('stand').textContent='всего '+d.dateien.length+' · распознано '+d.dateien.filter(f=>f.erkannt).length+' · на проверку '+zuPruef;
+    document.getElementById('app').innerHTML=
+      '<div class="hinweis">Период '+H(monat)+'. Это реестр документов, не итог оборота. Полнота загрузки и бухгалтерская проверка ещё не подтверждены.</div>'
+      +gruppe('Входящие', ein)+gruppe('Исходящие (RE)', aus)+gruppe('Прочие / направление уточняется', d.dateien.filter(f=>!['eingang','ausgang'].includes(f.quelle)))
+      +'<div class="hinweis">Ссылка открывает оригинал. Совпадение файла Drive защищает от повторной ссылки; копии под другими ID и похожие документы требуют отдельной проверки. Непроверенные данные не означают подтверждённую задолженность.</div>';
+  }catch(e){ if(version!==requestVersion)return; document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+sel.addEventListener('change',laden);laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

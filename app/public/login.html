@@ -41,6 +41,12 @@ button{width:100%;margin-top:14px;padding:11px;border-radius:8px;border:1px soli
 button:hover{filter:brightness(1.09);transform:translateY(-1px)}
 button:disabled{opacity:.5;transform:none;cursor:default}
 .fehler{margin-top:12px;font-size:13px;color:var(--crit);min-height:19px}
+.schnell{display:none}
+.schnell .t{font-family:var(--f-m);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.rollen{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+button.rolle{width:100%;margin:0;padding:9px 8px;border-radius:8px;border:1px solid var(--line);
+ background:var(--surface-2);color:var(--ink);font-weight:600;font-size:13px;box-shadow:none}
+button.rolle:hover{filter:none;transform:none;background:var(--line)}
 </style></head><body>
 <form class="karte" id="f">
   <div class="mark"><span class="sq"></span>BUCHHALTER VAV</div>
@@ -52,6 +58,17 @@ button:disabled{opacity:.5;transform:none;cursor:default}
   <input id="pin" type="password" inputmode="numeric" autocomplete="current-password">
   <button id="b" type="submit">Войти</button>
   <div class="fehler" id="e"></div>
+  <div class="schnell">
+    <div class="t">Быстрый вход · тест</div>
+    <div class="rollen">
+      <button type="button" class="rolle" data-l="andrej">Владелец</button>
+      <button type="button" class="rolle" data-l="buch">Бухгалтер</button>
+      <button type="button" class="rolle" data-l="oleg">Ответственный 1</button>
+      <button type="button" class="rolle" data-l="oleg2">Ответственный 2</button>
+      <button type="button" class="rolle" data-l="ma_a">Сотрудник А</button>
+      <button type="button" class="rolle" data-l="ma_b">Сотрудник Б</button>
+    </div>
+  </div>
 </form>
 <script>
 const f=document.getElementById('f'),e=document.getElementById('e'),b=document.getElementById('b');
@@ -69,4 +86,14 @@ f.addEventListener('submit',async ev=>{
   b.disabled=false; b.textContent='Войти';
   document.getElementById('pin').value=''; document.getElementById('pin').focus();
 });
+document.querySelectorAll('.rolle').forEach(btn=>btn.addEventListener('click',async()=>{
+  e.textContent=''; document.querySelectorAll('.rolle').forEach(x=>x.disabled=true);
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({login:btn.dataset.l,pin:'demo-2409'})});
+    if(r.ok){ location.href='/'; return; }
+    const j=await r.json().catch(()=>({})); e.textContent=j.fehler||'Не получилось войти';
+  }catch(err){ e.textContent='Сервер не отвечает'; }
+  document.querySelectorAll('.rolle').forEach(x=>x.disabled=false);
+}));
 </script></body></html>

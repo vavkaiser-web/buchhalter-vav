@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Проверка дублей · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 12px}.wer{font-size:13px;color:var(--muted)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;box-shadow:var(--schatten);margin-bottom:12px;border-left:3px solid var(--muted)}
+.karte.dub{border-left-color:var(--warn)} .karte.iban{border-left-color:var(--crit)} .karte.kopie{border-left-color:var(--akz)} .karte.frei{border-left-color:var(--ok)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.akz{color:var(--akz);background:var(--ok-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 12px}
+.box{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13px}
+.box.warn{background:var(--warn-bg);border-color:transparent} .box.crit{background:var(--krit-bg);border-color:transparent}
+.aktion{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:6px 11px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{background:var(--krit-bg);border-color:var(--crit);color:var(--crit)} .btn:disabled{opacity:.45}
+input,select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink)}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+details summary{cursor:pointer;font-size:13px;color:var(--muted)}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/dubletten" class="akt">Проверка дублей</a>
+    <a href="/dokumente">Документы</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><div><h1>Проверка возможных дублей</h1><div class="wer" id="wer"></div></div></div>
+  <div class="hinweis">Возможный дубль сохраняется в статусе «Возможный дубль» и <b>заблокирован для расхода и повторной оплаты</b> до решения.
+    Уже учтённый документ не меняется. Точная копия файла авто-связывается (без второго счёта). Содержание письма проверяется
+    независимо от вложения; срок из письма не применяется без проверки. Mahngebühren/проценты — отдельно, после проверки → Андрею.
+    Смена реквизитов приостанавливает оплату до проверки через известный контакт. Документы не удаляются и не объединяются только по сумме.</div>
+  <div class="msg" id="msg"></div>
+
+  <details class="karte"><summary>Приём документа (демо: проверить сценарии)</summary>
+    <div class="grid" style="margin-top:10px">
+      <input id="i_lief" placeholder="поставщик">
+      <input id="i_nr" placeholder="номер счёта">
+      <input id="i_betrag" placeholder="сумма € (напр. 300,00)">
+      <input id="i_inhalt" placeholder="содержимое файла (для хэша)">
+      <input id="i_datei" placeholder="имя файла">
+      <input id="i_iban" placeholder="IBAN">
+      <input id="i_faellig" type="date" title="срок оплаты">
+      <input id="i_op" placeholder="operation_id (повтор)">
+      <input id="i_mg" placeholder="Mahngebühr € (необяз.)">
+      <input id="i_zins" placeholder="проценты € (необяз.)">
+      <input id="i_neuefrist" type="date" title="новый срок из письма">
+    </div>
+    <textarea id="i_mail" placeholder="текст письма (напоминание / срок / претензия / смена реквизитов)" style="width:100%;margin-top:8px;min-height:48px;font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink)"></textarea>
+    <div class="aktion"><button class="btn pri" id="i_add">Принять документ</button></div>
+  </details>
+
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EUR=c=>c==null?'—':((c||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const ST={neu:['новый','chip'],moeglicher_dubup:['возможный дубль','warn'],kopie:['копия файла','akz'],dubup:['дубль','warn'],separate:['отдельная операция','ok'],korrektur:['исправленный','akz'],verbucht:['учтён','ok']};
+const SIG={zahlungserinnerung:'напоминание об оплате',zahlungserinnerung_bezahlt:'напоминание по ОПЛАЧЕННОМУ — сверка',fristaenderung:'изменение срока (проверить)',anspruch:'претензия',mahnung:'Mahnung',iban_wechsel:'смена реквизитов'};
+let ICH=null;
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>{m.className='msg';},4800);}
+async function J(u,o){o=Object.assign({credentials:'same-origin'},o||{});const r=await fetch(u,o);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.fehler||('ошибка '+r.status));return d;}
+async function post(u,b){return J(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});}
+const g=id=>document.getElementById(id).value.trim();
+
+async function laden(){
+  let d; try{ d=await J('/api/dublette'); }catch(e){ document.getElementById('app').innerHTML='<div class="leer">'+H(e.message)+'</div>'; return; }
+  ICH=d.ich; document.getElementById('wer').textContent=(ICH?ICH.login+' · '+ICH.rolle:'')+' · очередь на '+H(d.stand);
+  const q=d.queue||[];
+  if(!q.length){ document.getElementById('app').innerHTML='<div class="leer">Очередь проверки пуста — возможных дублей и открытых сигналов нет.</div>'; return; }
+  document.getElementById('app').innerHTML=q.map(karte).join('');
+}
+function karte(b){
+  const st=ST[b.status]||[b.status,'chip'];
+  const kl=b.gesperrt_grund==='iban_stop'?'iban':b.status==='kopie'?'kopie':(b.status==='separate'||b.status==='korrektur')?'frei':'dub';
+  let h='<div class="karte '+kl+'"><div class="k1"><h2>#'+b.id+' '+H(b.lieferant||'поставщик?')+' · '+EUR(b.betrag_cent)+'</h2>'
+    +'<span class="chip '+st[1]+'">'+st[0]+'</span></div>';
+  h+='<div class="meta"><span>счёт: '+H(b.rechnung_nr||'—')+'</span><span>дата: '+H(b.datum||'—')+'</span><span>срок: '+H(b.faellig||'—')+(b.faellig_heute?' ⚠ сегодня':'')+'</span>'
+    +'<span>файл: '+H(b.datei_name||'—')+'</span>'+(b.iban?'<span>IBAN: '+H(b.iban)+'</span>':'')+'</div>';
+  if(b.gesperrt) h+='<div class="box crit">🔒 '+H(b.gesperrt_text||'заблокирован')+' — расход и повторная оплата остановлены'+(b.pruef_frist?' · срок проверки: '+H(b.pruef_frist)+(b.ueberfaellig?' (просрочен)':''):'')+'</div>';
+  // объяснение совпадений
+  if(b.erklaerung&&b.erklaerung.length){ h+='<div class="box warn"><b>Возможные совпадения:</b>'
+    +b.erklaerung.map(e=>'<div>→ документ #'+e.ziel_id+': '+H(e.grund)+' ('+EUR(e.betrag_cent)+(e.rechnung_nr?', '+H(e.rechnung_nr):'')+')</div>').join('')+'</div>'; }
+  // сигналы письма
+  if(b.signale&&b.signale.filter(s=>!s.erledigt).length){ h+='<div class="box"><b>Из письма:</b>'
+    +b.signale.filter(s=>!s.erledigt).map(s=>'<div>• '+H(SIG[s.art]||s.art)+(s.neuer_wert?' → '+H(s.neuer_wert):'')
+      +(s.art==='fristaenderung'&&s.neuer_wert&&!s.angewandt?' <button class="btn" data-frist="'+s.id+'">применить после проверки</button>':'')
+      +' <button class="btn" data-sigerl="'+s.id+'">снять</button></div>').join('')+'</div>'; }
+  // Mahngebühren / проценты — отдельно
+  if(b.extra&&b.extra.length){ h+='<div class="box"><b>Отдельно от долга (не в оплату авто):</b>'
+    +b.extra.map(e=>'<div>• '+(e.art==='zins'?'проценты':'Mahngebühr')+': '+EUR(e.betrag_cent)+' — '+H(e.status)+(e.entscheidung?' ('+H(e.entscheidung)+')':'')
+      +(e.status==='neu'?' <button class="btn" data-exp="'+e.id+'">проверено</button>':'')
+      +(e.status==='geprueft'?' <button class="btn" data-exa="'+e.id+'">Андрею</button>':'')
+      +(e.status==='an_andrej'&&ICH&&ICH.rolle==='gf'?' <button class="btn" data-exz="'+e.id+'">оплатить</button> <button class="btn crit" data-exn="'+e.id+'">отклонить</button>':'')
+      +'</div>').join('')+'</div>'; }
+  // решения
+  if(!b.verbucht&&(b.status==='moeglicher_dubup')){ h+='<div class="aktion"><input placeholder="исходный #" style="width:90px" id="z'+b.id+'">'
+    +'<button class="btn crit" data-dub="'+b.id+'">Дубль</button>'
+    +'<button class="btn" data-sep="'+b.id+'">Отдельная операция</button>'
+    +'<button class="btn" data-kor="'+b.id+'">Исправленный</button></div>'; }
+  if(b.gesperrt_grund==='iban_stop'){ h+='<div class="aktion"><label class="wer"><input type="checkbox" id="ik'+b.id+'" style="width:auto"> проверил через ИЗВЕСТНЫЙ контакт</label>'
+    +'<button class="btn" data-iban="'+b.id+'">Снять стоп реквизитов</button></div>'; }
+  h+='<div class="aktion"><input placeholder="связать с # (одна операция)" style="width:180px" id="v'+b.id+'"><button class="btn" data-verk="'+b.id+'">Связать (чек+UTA)</button>'
+    +(!b.verbucht?' <button class="btn" data-verb="'+b.id+'">отметить учтён</button>':'')
+    +(!b.bezahlt?' <button class="btn" data-bez="'+b.id+'">отметить оплачен</button>':'')+'</div>';
+  h+='</div>';
+  return h;
+}
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('button'); if(!t)return; const D=t.dataset;
+  try{
+    if(D.dub){ const z=g('z'+D.dub); if(!z){msg('укажите исходный # для дубля');return;} await post('/api/dublette/entscheiden',{id:+D.dub,entscheidung:'dubup',ziel_id:+z}); msg('отмечено как дубль (сохранено, не удалено)',true); }
+    else if(D.sep){ await post('/api/dublette/entscheiden',{id:+D.sep,entscheidung:'separate'}); msg('отдельная операция — разблокирована',true); }
+    else if(D.kor){ const z=g('z'+D.kor); if(!z){msg('укажите исходный # для исправления');return;} await post('/api/dublette/entscheiden',{id:+D.kor,entscheidung:'korrektur',ziel_id:+z}); msg('исправленный документ',true); }
+    else if(D.iban){ const ok=document.getElementById('ik'+D.iban).checked; await post('/api/dublette/iban-freigeben',{id:+D.iban,kontakt_geprueft:ok}); msg('стоп реквизитов снят',true); }
+    else if(D.verk){ const z=g('v'+D.verk); if(!z){msg('укажите # второго документа');return;} await post('/api/dublette/verknuepfen',{beleg_id:+D.verk,ziel_id:+z,art:'operation'}); msg('связано как одна операция',true); }
+    else if(D.frist){ await post('/api/dublette/frist-anwenden',{signal_id:+D.frist}); msg('новый срок применён после проверки',true); }
+    else if(D.sigerl){ await post('/api/dublette/signal-erledigt',{signal_id:+D.sigerl}); }
+    else if(D.exp){ await post('/api/dublette/extra-pruefen',{id:+D.exp}); msg('проверено',true); }
+    else if(D.exa){ await post('/api/dublette/extra-andrej',{id:+D.exa}); msg('передано Андрею',true); }
+    else if(D.exz){ await post('/api/dublette/extra-entscheiden',{id:+D.exz,entscheidung:'zahlen'}); msg('решение владельца записано (в оплату авто не идёт)',true); }
+    else if(D.exn){ await post('/api/dublette/extra-entscheiden',{id:+D.exn,entscheidung:'ablehnen'}); msg('отклонено',true); }
+    else if(D.verb){ await post('/api/dublette/markieren',{id:+D.verb,verbucht:true}); msg('отмечен учтён',true); }
+    else if(D.bez){ await post('/api/dublette/markieren',{id:+D.bez,bezahlt:true}); msg('отмечен оплачен',true); }
+    else return;
+    laden();
+  }catch(err){ msg(err.message); }
+});
+document.getElementById('i_add').addEventListener('click',async()=>{
+  try{
+    const b={lieferant:g('i_lief'),rechnung_nr:g('i_nr'),betrag:g('i_betrag'),inhalt:g('i_inhalt'),datei_name:g('i_datei'),
+      iban:g('i_iban'),faellig:g('i_faellig'),operation_id:g('i_op'),mahngebuehr_betrag:g('i_mg'),zins_betrag:g('i_zins'),
+      neue_frist:g('i_neuefrist'),mailtext:document.getElementById('i_mail').value};
+    const r=await post('/api/dublette/empfang',b);
+    msg(r.wiederholung?'повторный импорт — второй документ не создан':('принят #'+r.id+' · '+(ST[r.status]?ST[r.status][0]:r.status)+(r.gesperrt?' (заблокирован)':'')),true);
+    laden();
+  }catch(err){ msg(err.message); }
+});
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

@@ -1,7 +1,7 @@
 /* Оболочка кэшируется, данные — никогда: цифры всегда свежие с сервера.
    Экран /arbeit и его скрипты берутся из сети, а без сети — из кэша,
    чтобы сотрудник мог открыть приложение и чек из очереди ушёл позже. */
-const CACHE='buchhalter-v21';
+const CACHE='buchhalter-v39-reverse-20260926';
 const SCHALE=['/manifest.webmanifest','/icon-192.png','/icon-512.png','/arbeit.js','/vendor/lucide-1.17.0.min.js'];
 const ARBEIT=['/arbeit','/arbeit.js','/vendor/lucide-1.17.0.min.js'];
 self.addEventListener('install',e=>{

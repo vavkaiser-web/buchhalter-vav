@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Задачи · VAV Kaiser</title>
+<style>
+:root{
+  --bg:#f2efe9; --surface:#ffffff; --surface2:#faf8f4; --ink:#1b2530; --muted:#5c6773;
+  --line:#e6e1d7; --akz:#14586e; --ok:#2e7d5b; --warn:#b07d16; --crit:#b23f2b;
+  --krit-bg:#fbeeea; --warn-bg:#fbf4e3; --ok-bg:#e9f4ee; --info-bg:#e6f0f4;
+  --r:14px; --schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1a2129; --surface2:#161c23; --ink:#e9edf1; --muted:#95a1ad;
+  --line:#2a333d; --akz:#5bb4cf; --ok:#5fc48f; --warn:#d9b154; --crit:#e2856f;
+  --krit-bg:#2a1c19; --warn-bg:#292417; --ok-bg:#182a22; --info-bg:#182731;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:16px 16px 90px}
+.zahl{font-variant-numeric:tabular-nums}
+h1{font-size:19px;margin:0}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{background:var(--surface2)}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.nav .sp{flex:1}
+.nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 12px}
+.kopf .wer{font-size:13px;color:var(--muted)}
+.rolle{display:inline-block;font-size:11.5px;font-weight:600;color:var(--akz);background:var(--info-bg);
+  border:1px solid var(--line);border-radius:999px;padding:2px 10px;margin-left:6px;vertical-align:middle}
+.kacheln{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:6px 0 14px}
+.kachel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--schatten)}
+.kachel .l{font-size:12.5px;color:var(--muted)} .kachel .v{font-size:22px;font-weight:700;margin-top:3px}
+.filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 14px}
+.filter button{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  border-radius:999px;padding:6px 13px;cursor:pointer}
+.filter button.akt{color:#fff;background:var(--akz);border-color:var(--akz)}
+.filter .sp{flex:1}
+.karten{display:grid;gap:10px}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;box-shadow:var(--schatten)}
+.karte.eskaliert{border-left:3px solid var(--crit)} .karte.eingereicht{border-left:3px solid var(--akz)}
+.karte.in_arbeit{border-left:3px solid var(--warn)} .karte.angenommen{opacity:.72}
+.k1{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.titel{font-weight:600;font-size:15px}
+.meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 10px;align-items:center}
+.txt{font-size:13.5px;margin-top:8px;background:var(--surface2);border-radius:9px;padding:8px 10px;white-space:pre-wrap}
+.chip{display:inline-flex;align-items:center;font-size:11.5px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.krit{color:var(--crit);background:var(--krit-bg);border-color:transparent}
+.chip.warn{color:var(--warn);background:var(--warn-bg);border-color:transparent}
+.chip.ok{color:var(--ok);background:var(--ok-bg);border-color:transparent}
+.chip.info{color:var(--akz);background:var(--info-bg);border-color:transparent}
+.chip.ziel{color:var(--ink);background:var(--surface2)}
+.aktion{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);
+  border-radius:9px;padding:8px 13px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{background:var(--surface)}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.btn.crit{background:var(--krit-bg);border-color:var(--crit);color:var(--crit)}
+.verlauf{font-size:12px;color:var(--muted);margin-top:8px}
+.leer{color:var(--muted);font-size:14px;padding:24px 2px;text-align:center}
+.abschnitt{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em;margin:20px 2px 6px;text-transform:uppercase}
+.notiz{margin-top:8px;display:none;gap:8px;flex-wrap:wrap;align-items:center}
+.notiz.auf{display:flex}
+.notiz input{flex:1;min-width:160px;padding:8px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font:inherit;font-size:13px}
+.neu-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:15px;box-shadow:var(--schatten);margin-bottom:14px;display:none}
+.neu-box.auf{display:block}
+.form{display:grid;gap:10px}
+.form label{font-size:12.5px;color:var(--muted);display:grid;gap:4px}
+.form input,.form select,.form textarea{width:100%;padding:9px 10px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:8px;font:inherit;font-size:14px}
+.form .paar{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:560px){.form .paar{grid-template-columns:1fr}}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}
+.msg.auf{display:block}
+.msg.f{background:var(--krit-bg);color:var(--crit)} .msg.g{background:var(--ok-bg);color:var(--ok)}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/objekt">Объекты</a>
+    <a href="/dokumente">Документы</a>
+    <a href="/zahlungen">Платежи</a>
+    <a href="/aufgaben" class="akt">Задачи</a>
+    <a href="/bestaetigen">Проверка</a>
+    <a href="/verteilen">Разнос</a>
+    <a href="/arbeit">Касса</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf">
+    <div><h1>Задачи<span class="rolle" id="rolle"></span></h1>
+      <div class="wer" id="wer"></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="pruef-btn" hidden>+ Партия проверки (10)</button>
+      <button class="btn" id="charge-btn" hidden>+ Партия разноса (10)</button>
+      <button class="btn pri" id="neu-btn" hidden>+ Новая задача</button>
+    </div>
+  </div>
+
+  <div class="neu-box" id="neu-box">
+    <div class="form">
+      <label>Что нужно сделать
+        <input id="f-titel" placeholder="Например: проверить счёт RE0013 (сторно)"></label>
+      <label>Пояснение (необязательно)
+        <textarea id="f-text" rows="2" placeholder="Детали, ссылки на документ, что именно проверить"></textarea></label>
+      <div class="paar">
+        <label>Кому
+          <select id="f-ziel">
+            <optgroup label="Человек">
+              <option value="p:buch">Бухгалтер</option>
+              <option value="p:oleg">Ответственный 1 (Олег)</option>
+              <option value="p:oleg2">Ответственный 2</option>
+              <option value="p:ma_a">Сотрудник А</option>
+              <option value="p:ma_b">Сотрудник Б</option>
+            </optgroup>
+            <optgroup label="Вся роль">
+              <option value="r:buchhaltung">Бухгалтерия (любой)</option>
+              <option value="r:disponent">Ответственные (любой)</option>
+              <option value="r:mitarbeiter">Сотрудники (любой)</option>
+            </optgroup>
+          </select></label>
+        <label>Срок (необязательно)
+          <input id="f-frist" type="date"></label>
+      </div>
+      <div class="aktion">
+        <button class="btn pri" id="f-save">Создать задачу</button>
+        <button class="btn" id="f-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="msg" id="msg"></div>
+  <div id="tiles"></div>
+  <div class="filter" id="filter" hidden></div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const T=(iso)=>{ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE'); };
+let STATE={leitung:false,ich:null,filter:''};
+const STK={neu:'',in_arbeit:'warn',eingereicht:'info',angenommen:'ok',eskaliert:'krit'};
+const AKT_LABEL={annehmen:['Взять в работу','pri'],einreichen:['Сдать','pri'],abnehmen:['Принять ✓','ok'],
+  zurueck:['Вернуть','warn'],eskalieren:['Эскалировать','crit'],wieder:['Вернуть в работу','pri'],bearbeiten:['Изменить','']};
+const FILTER=[['','Все'],['p:buch','Бухгалтер'],['p:oleg','Ответственный 1'],['p:oleg2','Ответственный 2'],
+  ['p:ma_a','Сотрудник А'],['p:ma_b','Сотрудник Б']];
+
+async function J(u,o){ const r=await fetch(u,Object.assign({credentials:'same-origin'},o||{}));
+  if(r.status===401){location.href='/login?next=/aufgaben';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+
+function melde(t,g){ const m=document.getElementById('msg'); m.textContent=t; m.className='msg auf '+(g?'g':'f');
+  clearTimeout(melde._t); melde._t=setTimeout(()=>{m.className='msg';},3500); }
+
+function karte(a){
+  const kl=a.status;
+  let b='<div class="karte '+kl+'">';
+  b+='<div class="k1"><span class="titel">'+H(a.titel)+'</span>'
+    +'<span class="chip '+(STK[a.status]||'')+'">'+H(a.status_text)+'</span></div>';
+  const meta=['<span class="chip ziel">→ '+H(a.ziel_name)+'</span>'];
+  if(a.frist) meta.push('срок '+T(a.frist));
+  meta.push('от '+H(a.von_name));
+  if(a.bezug) meta.push(H(a.bezug));
+  b+='<div class="meta">'+meta.join('<span>·</span>')+'</div>';
+  if(a.art==='razn_charge'){
+    b+='<div class="aktion" style="margin-top:8px"><a class="btn pri" href="/verteilen">Открыть разнос партии →</a></div>';
+    b+='<div class="verlauf" style="margin-top:6px">Операции разносятся по одной: чек + объект + предназначение.</div>';
+  } else if(a.art==='beleg_pruef'){
+    b+='<div class="aktion" style="margin-top:8px"><a class="btn pri" href="/bestaetigen">Открыть проверку партии →</a></div>';
+    b+='<div class="verlauf" style="margin-top:6px">Документы проверяются по одному: открыть оригинал, подтвердить тип/сумму/дату/номер/контрагента.</div>';
+  } else if(a.text){ b+='<div class="txt">'+H(a.text)+'</div>'; }
+  const v=(a.verlauf||[])[a.verlauf.length-1];
+  if(v && a.verlauf.length>1) b+='<div class="verlauf">последнее: '+H(v.wer)+' — '+H(v.was)+(v.notiz?' («'+H(v.notiz)+'»)':'')+' · '+T(v.wann)+'</div>';
+  const akt=(a.aktionen||[]).filter(x=>x!=='bearbeiten');
+  if(akt.length){
+    b+='<div class="aktion">'+akt.map(x=>{const l=AKT_LABEL[x]||[x,''];
+      return '<button class="btn '+l[1]+'" data-akt="'+x+'" data-id="'+a.id+'">'+H(l[0])+'</button>';}).join('')+'</div>';
+    b+='<div class="notiz" data-notiz="'+a.id+'"><input placeholder="Комментарий (необязательно)"><button class="btn pri" data-do>Подтвердить</button></div>';
+  }
+  b+='</div>';
+  return b;
+}
+
+function tiles(u){
+  if(!u){document.getElementById('tiles').innerHTML='';return;}
+  document.getElementById('tiles').innerHTML='<div class="kacheln">'
+    +'<div class="kachel"><div class="l">Открытых задач</div><div class="v zahl">'+u.offen+'</div></div>'
+    +'<div class="kachel"><div class="l">Ждут вашей приёмки</div><div class="v zahl" style="color:var(--akz)">'+u.wartet_abnahme+'</div></div>'
+    +'<div class="kachel"><div class="l">Эскалации</div><div class="v zahl" style="color:'+(u.eskaliert?'var(--crit)':'inherit')+'">'+u.eskaliert+'</div></div>'
+    +'</div>';
+}
+
+function r1(list){
+  if(!list.length) return '<div class="leer">Здесь пока пусто.</div>';
+  return '<div class="karten">'+list.map(karte).join('')+'</div>';
+}
+
+function render(d){
+  STATE.leitung=d.leitung; STATE.ich=d.ich;
+  document.getElementById('rolle').textContent=d.ich.rollenname;
+  document.getElementById('wer').textContent=(d.ich.name||d.ich.login);
+  document.getElementById('neu-btn').hidden=!d.leitung;
+  document.getElementById('charge-btn').hidden=!d.leitung;
+  document.getElementById('pruef-btn').hidden=!d.leitung;
+  tiles(d.leitung?d.uebersicht:null);
+  const fil=document.getElementById('filter');
+  fil.hidden=!d.leitung;
+  if(d.leitung){
+    fil.innerHTML=FILTER.map(f=>'<button data-f="'+f[0]+'"'+(f[0]===STATE.filter?' class="akt"':'')+'>'+H(f[1])+'</button>').join('');
+  }
+  const app=document.getElementById('app');
+  const list=d.aufgaben||[];
+  if(!d.leitung){
+    // исполнитель видит свои задачи и (если создавал) созданные
+    const mein=list.filter(a=>a.meins);
+    const rest=list.filter(a=>!a.meins);
+    let h='<div class="abschnitt">Мои задачи</div>'+r1(mein.filter(a=>a.status!=='angenommen'));
+    const fertig=mein.filter(a=>a.status==='angenommen');
+    if(fertig.length) h+='<div class="abschnitt">Принятые</div>'+r1(fertig);
+    if(rest.length) h+='<div class="abschnitt">Прочее (создано мной)</div>'+r1(rest);
+    app.innerHTML=h;
+  } else {
+    const offen=list.filter(a=>a.status!=='angenommen');
+    const fertig=list.filter(a=>a.status==='angenommen');
+    let h='<div class="abschnitt">В работе'+(STATE.filter?' · '+(FILTER.find(f=>f[0]===STATE.filter)||['','',])[1]:'')+'</div>'+r1(offen);
+    if(fertig.length) h+='<div class="abschnitt">Принятые</div>'+r1(fertig);
+    app.innerHTML=h;
+  }
+}
+
+async function laden(){
+  try{
+    let q='/api/aufgaben';
+    if(STATE.leitung && STATE.filter){
+      const [t,v]=STATE.filter.split(':');
+      q+='?'+(t==='p'?'person=':'rolle=')+encodeURIComponent(v);
+    }
+    render(await J(q));
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+
+// действия
+document.getElementById('app').addEventListener('click', async (e)=>{
+  const nb=e.target.closest('button[data-akt]');
+  if(nb){
+    const akt=nb.dataset.akt;
+    if(akt==='zurueck'||akt==='eskalieren'){
+      const box=document.querySelector('.notiz[data-notiz="'+nb.dataset.id+'"]');
+      box.classList.add('auf'); box.dataset.akt=akt; box.dataset.id=nb.dataset.id;
+      box.querySelector('input').focus(); return;
+    }
+    return tun(nb.dataset.id, akt, '');
+  }
+  const done=e.target.closest('button[data-do]');
+  if(done){ const box=done.closest('.notiz');
+    return tun(box.dataset.id, box.dataset.akt, box.querySelector('input').value.trim()); }
+});
+async function tun(id,aktion,notiz){
+  try{ await J('/api/aufgaben/status',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id,aktion,notiz})});
+    melde('Готово: '+(AKT_LABEL[aktion]?AKT_LABEL[aktion][0]:aktion),true); laden();
+  }catch(err){ melde(err.message); }
+}
+
+// фильтр
+document.getElementById('filter').addEventListener('click',(e)=>{
+  const b=e.target.closest('button[data-f]'); if(!b) return;
+  STATE.filter=b.dataset.f; laden();
+});
+
+// новая задача
+document.getElementById('charge-btn').addEventListener('click',async ()=>{
+  const b=document.getElementById('charge-btn'); b.textContent='…';
+  try{ const r=await J('/api/razn/charge',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    if(r.created) melde('Партия '+r.nr+' создана: '+r.anzahl+' операций. Осталось: '+r.rest,true);
+    else if(r.schon) melde('Есть незакрытая партия — сначала закрой её.');
+    else if(r.fertig) melde('Все январские операции уже разнесены 🎉',true);
+    laden();
+  }catch(err){ melde(err.message); }
+  b.textContent='+ Партия разноса (10)';
+});
+document.getElementById('pruef-btn').addEventListener('click',async ()=>{
+  const b=document.getElementById('pruef-btn'); b.textContent='…';
+  try{ const r=await J('/api/beleg/charge',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    if(r.created) melde('Партия проверки '+r.nr+' создана: '+r.anzahl+' документов. Осталось: '+r.rest,true);
+    else if(r.schon) melde('Есть незакрытая партия проверки — сначала закрой её.');
+    else if(r.fertig) melde('Все январские документы уже проверены 🎉',true);
+    laden();
+  }catch(err){ melde(err.message); }
+  b.textContent='+ Партия проверки (10)';
+});
+document.getElementById('neu-btn').addEventListener('click',()=>document.getElementById('neu-box').classList.toggle('auf'));
+document.getElementById('f-cancel').addEventListener('click',()=>document.getElementById('neu-box').classList.remove('auf'));
+document.getElementById('f-save').addEventListener('click',async ()=>{
+  const titel=document.getElementById('f-titel').value.trim();
+  if(!titel){ melde('Впишите, что нужно сделать'); return; }
+  const [t,v]=document.getElementById('f-ziel').value.split(':');
+  const body={titel, text:document.getElementById('f-text').value.trim(), frist:document.getElementById('f-frist').value||''};
+  if(t==='p') body.ziel_person=v; else body.ziel_rolle=v;
+  try{ await J('/api/aufgaben',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    document.getElementById('f-titel').value=''; document.getElementById('f-text').value=''; document.getElementById('f-frist').value='';
+    document.getElementById('neu-box').classList.remove('auf');
+    melde('Задача создана',true); laden();
+  }catch(err){ melde(err.message); }
+});
+
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

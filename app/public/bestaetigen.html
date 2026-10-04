@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Проверка документов · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;
+ --akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--ok-bg:#e9f4ee;--warn-bg:#fbf4e3;--krit-bg:#fbeeea;--info-bg:#e6f0f4;
+ --r:13px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 22px rgba(20,30,40,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;
+ --ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;
+ --ok-bg:#182a22;--warn-bg:#292417;--krit-bg:#2a1c19;--info-bg:#182731}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:16px 16px 100px}
+.zahl{font-variant-numeric:tabular-nums}
+a{color:var(--akz)}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 10px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1}
+.kopf{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 2px 12px}
+h1{font-size:19px;margin:0}
+.fort{font-size:13px;color:var(--muted)}
+.op{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--schatten);padding:14px 15px;margin-bottom:12px}
+.op.fertig{border-left:3px solid var(--ok)}
+.op.abg{border-left:3px solid var(--crit)}
+.op .num{font-size:12px;color:var(--muted);font-weight:700}
+.op .z1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;margin-top:2px}
+.op .partner{font-weight:600;font-size:15px}
+.op .betr{font-weight:700;font-size:16px}
+.op .betr.aus{color:var(--crit)} .op .betr.ein{color:var(--ok)}
+.chip{font-size:10.5px;padding:2px 8px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--muted)}
+.chip.ausgang{background:var(--krit-bg);color:var(--crit)} .chip.eingang{background:var(--ok-bg);color:var(--ok)}
+.op .meta{font-size:12.5px;color:var(--muted);margin-top:5px;display:flex;gap:5px 10px;flex-wrap:wrap;align-items:center}
+.drivelink{display:inline-block;margin-top:10px;font-size:13px;font-weight:600;background:var(--info-bg);color:var(--akz);border:1px solid var(--line);border-radius:9px;padding:8px 13px;text-decoration:none}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+@media(max-width:620px){.form{grid-template-columns:1fr}}
+.form label{font-size:11px;color:var(--muted);display:grid;gap:4px}
+.form label.breit{grid-column:1/-1}
+.form input,.form select{width:100%;padding:9px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font:inherit;font-size:14px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:9px 14px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.crit{background:var(--surface2);border-color:var(--crit);color:var(--crit)}
+.aktion{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;align-items:center}
+.fertig-badge{font-size:12px;color:var(--ok);font-weight:600}
+.abg-badge{font-size:12px;color:var(--crit);font-weight:600}
+.sub{position:sticky;bottom:0;background:var(--bg);padding:12px 0;margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line)}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}
+.msg.auf{display:block} .msg.f{background:var(--krit-bg);color:var(--crit)} .msg.g{background:var(--ok-bg);color:var(--ok)}
+.leer{color:var(--muted);text-align:center;padding:30px 2px}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/bestaetigen" class="akt">Проверка</a>
+    <a href="/verteilen">Разнос</a>
+    <a href="/dokumente">Документы</a>
+    <span class="sp"></span>
+    <a href="/api/logout">Выйти</a>
+  </nav>
+  <div class="kopf">
+    <div><h1 id="titel">Проверка документов</h1><div class="fort" id="fort"></div></div>
+  </div>
+  <div class="msg" id="msg"></div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EURc=c=>((Number(c)||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const T=(iso)=>{ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?String(iso).slice(0,10):d.toLocaleDateString('de-DE'); };
+const ISO=(iso)=>{ if(!iso) return ''; const s=String(iso); const m=s.match(/^\d{4}-\d{2}-\d{2}/); return m?m[0]:''; };
+const TYPD={rechnung:'Счёт',mahnung:'Напоминание',storno:'Сторно',gutschrift:'Кредит-нота',lieferschein:'Накладная',angebot:'Предложение',sonstiges:'Прочее'};
+const TYPEN=['rechnung','mahnung','storno','gutschrift','lieferschein','angebot','sonstiges'];
+let TASK=null, DOCS=[];
+
+async function J(u,o){ o=Object.assign({credentials:'same-origin'},o||{});
+  const ac=new AbortController(); const t=setTimeout(()=>ac.abort(),15000); o.signal=ac.signal;
+  let r; try{ r=await fetch(u,o); } catch(e){ clearTimeout(t); throw new Error(e.name==='AbortError'?'сервер не ответил за 15 c — обнови страницу':('сеть: '+e.message)); }
+  clearTimeout(t);
+  if(r.status===401){location.href='/login?next=/bestaetigen';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+function melde(t,g){ const m=document.getElementById('msg'); m.textContent=t; m.className='msg auf '+(g?'g':'f'); clearTimeout(melde._t); melde._t=setTimeout(()=>{m.className='msg';},4000); }
+
+function typOptions(sel){ return TYPEN.map(t=>'<option value="'+t+'"'+(sel===t?' selected':'')+'>'+H(TYPD[t])+'</option>').join(''); }
+function quelleOptions(sel){ return ['<option value="ausgang"'+(sel==='ausgang'?' selected':'')+'>исходящий (наш счёт)</option>',
+  '<option value="eingang"'+(sel==='eingang'?' selected':'')+'>входящий (поставщик)</option>'].join(''); }
+
+function karte(d,idx){
+  const fertig=d.status==='bestaetigt', abg=d.status==='abgelehnt';
+  const aus=(d.quelle==='ausgang');
+  let h='<div class="op'+(fertig?' fertig':'')+(abg?' abg':'')+'" id="op'+idx+'" data-drive="'+H(d.drive_id)+'">';
+  h+='<div class="num">Документ '+(idx+1)+' из '+DOCS.length
+    +(fertig?' · <span class="fertig-badge">подтверждён ✓</span>':'')
+    +(abg?' · <span class="abg-badge">отклонён ✗</span>':'')+'</div>';
+  h+='<div class="z1"><span class="partner">'+H(d.kontrahent||'—')+'</span>'
+    +'<span class="betr '+(aus?'aus':'ein')+' zahl">'+EURc(d.betrag_cent)+'</span></div>';
+  h+='<div class="meta"><span class="chip '+H(d.quelle||'')+'">'+H(d.quelle==='ausgang'?'исходящий':d.quelle==='eingang'?'входящий':d.quelle||'—')+'</span>'
+    +'<span class="chip">'+H(TYPD[d.typ]||d.typ||'—')+'</span>'
+    +'<span>№ '+H(d.doc_nr||'—')+'</span><span>'+H(T(d.belegdatum))+'</span>'
+    +'<span>'+H(d.dateiname||'')+'</span>'
+    +(d.pruef_grund?'<span class="chip" style="color:var(--warn)">'+H(d.pruef_grund)+'</span>':'')+'</div>';
+  if(d.drive_id) h+='<a class="drivelink" href="https://drive.google.com/file/d/'+H(d.drive_id)+'/view" target="_blank" rel="noopener">📄 Открыть оригинал в Drive ↗</a>';
+  // форма правок
+  h+='<div class="form">'
+    +'<label>Тип документа<select data-f="typ">'+typOptions(d.typ)+'</select></label>'
+    +'<label>Направление<select data-f="quelle">'+quelleOptions(d.quelle)+'</select></label>'
+    +'<label>Сумма (брутто, €)<input data-f="betrag" type="number" step="0.01" value="'+((Number(d.betrag_cent)||0)/100)+'"></label>'
+    +'<label>Дата документа<input data-f="belegdatum" type="date" value="'+H(ISO(d.belegdatum))+'"></label>'
+    +'<label>Номер<input data-f="doc_nr" value="'+H(d.doc_nr||'')+'"></label>'
+    +'<label>Контрагент<input data-f="kontrahent" value="'+H(d.kontrahent||'')+'"></label>'
+    +'<label class="breit">Заметка (необязательно)<input data-f="notiz" value="'+H(d.pruef_notiz||'')+'" placeholder="например: сумма не читается, уточнить"></label>'
+    +'</div>';
+  h+='<div class="aktion">'
+    +'<button class="btn '+(fertig?'ok':'pri')+'" data-ok="'+idx+'">'+(fertig?'Подтверждено ✓ (обновить)':'Подтвердить ✓')+'</button>'
+    +'<button class="btn crit" data-abg="'+idx+'">Отклонить</button>'
+    +'</div>';
+  h+='<div class="hint">Открой оригинал, сверь тип/сумму/дату/номер/контрагента. Если всё верно — «Подтвердить». Если распознано неверно — исправь поля и «Подтвердить», либо «Отклонить» (в разнос не пойдёт).</div>';
+  h+='</div>';
+  return h;
+}
+
+function zaehle(){ return DOCS.filter(d=>d.status==='bestaetigt'||d.status==='abgelehnt').length; }
+function fortText(){ document.getElementById('fort').textContent='проверено '+zaehle()+' из '+DOCS.length; }
+
+function render(d){
+  TASK=d.task; DOCS=d.docs||[];
+  document.getElementById('titel').textContent=d.task?d.task.titel:'Проверка документов';
+  let h=DOCS.map((x,i)=>karte(x,i)).join('');
+  h+='<div class="sub"><button class="btn pri" id="sdat">Сдать партию ('+zaehle()+'/'+DOCS.length+')</button>'
+    +'<span class="fort">Проверь все '+DOCS.length+', затем сдай — придут следующие 10.</span></div>';
+  document.getElementById('app').innerHTML=h;
+  fortText();
+}
+
+async function laden(){
+  try{
+    const d=await J('/api/bestaetigen');
+    if(d.leer){ document.getElementById('app').innerHTML='<div class="leer">Открытых партий проверки нет. Создай партию на вкладке «Задачи» → «+ Партия проверки».</div>'; return; }
+    render(d);
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+
+function sammelKorrektur(card){
+  const g=f=>{ const el=card.querySelector('[data-f="'+f+'"]'); return el?el.value:''; };
+  const betrag=g('betrag');
+  return {
+    typ:g('typ'), quelle:g('quelle'),
+    betrag_cent: betrag===''?null:Math.round(parseFloat(String(betrag).replace(',','.'))*100),
+    belegdatum:g('belegdatum')||null,
+    doc_nr:g('doc_nr'), kontrahent:g('kontrahent'),
+    _notiz:g('notiz'),
+  };
+}
+
+async function pruefen(idx, aktion, btn){
+  const card=document.getElementById('op'+idx);
+  const d=DOCS[idx];
+  const k=sammelKorrektur(card);
+  const notiz=k._notiz; delete k._notiz;
+  btn.textContent='…';
+  try{
+    const r=await J('/api/beleg/pruef',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({drive_id:d.drive_id, aktion, korrektur:k, notiz})});
+    // применяем локально
+    d.status=r.status; d.typ=k.typ; d.quelle=k.quelle;
+    if(k.betrag_cent!=null) d.betrag_cent=k.betrag_cent;
+    d.belegdatum=k.belegdatum; d.doc_nr=k.doc_nr; d.kontrahent=k.kontrahent; d.pruef_notiz=notiz;
+    // перерисовываем карточку
+    card.outerHTML=karte(d,idx);
+    fortText();
+    const sd=document.getElementById('sdat'); if(sd) sd.textContent='Сдать партию ('+zaehle()+'/'+DOCS.length+')';
+    melde('Документ '+(idx+1)+': '+(r.status==='bestaetigt'?'подтверждён':'отклонён'),true);
+  }catch(err){ melde(err.message); btn.textContent=aktion==='ablehnen'?'Отклонить':'Подтвердить ✓'; }
+}
+
+async function sdat(){
+  const done=zaehle(), all=DOCS.length;
+  if(done<all && !confirm('Проверено '+done+' из '+all+'. Сдать партию всё равно?')) return;
+  try{
+    try{ await J('/api/aufgaben/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:TASK.id,aktion:'annehmen'})}); }catch(e){}
+    await J('/api/aufgaben/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:TASK.id,aktion:'einreichen',notiz:'проверено '+done+' из '+all})});
+    melde('Партия сдана. Владелец примет — и придут следующие 10.',true);
+    setTimeout(laden, 1200);
+  }catch(err){ melde(err.message); }
+}
+
+document.getElementById('app').addEventListener('click',(e)=>{
+  const ok=e.target.closest('button[data-ok]'); if(ok) return pruefen(+ok.dataset.ok,'bestaetigen',ok);
+  const ab=e.target.closest('button[data-abg]'); if(ab) return pruefen(+ab.dataset.abg,'ablehnen',ab);
+  if(e.target.id==='sdat') return sdat();
+});
+
+laden();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

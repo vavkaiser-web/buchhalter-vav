@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Доступ и журнал · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;--akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--krit-bg:#fbeeea;--warn-bg:#fbf4e3;--ok-bg:#e9f4ee;--r:14px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 24px rgba(20,30,40,.05);}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;--ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;--krit-bg:#2a1c19;--warn-bg:#292417;--ok-bg:#182a22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:19px;margin:0} h2{font-size:15px;margin:16px 0 8px}
+a{color:inherit}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1} .nav a.aus{color:var(--muted);border-color:var(--line)}
+.kopf{padding:6px 2px 8px}.wer{font-size:13px;color:var(--muted)}
+.karte{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--schatten);margin-bottom:10px;border-left:3px solid var(--ok)}
+.karte.gesperrt{border-left-color:var(--crit)}
+.k1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface2)}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.warn{color:var(--warn);background:var(--warn-bg)} .chip.crit{color:var(--crit);background:var(--krit-bg)}
+.aktion{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:6px 11px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff} .btn.crit{color:var(--crit)} .btn:disabled{opacity:.45}
+.meta{font-size:12px;color:var(--muted);margin-top:3px}
+.filter{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+input{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface2);color:var(--ink)}
+.log{font-size:12.5px;padding:7px 0;border-top:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:2px 10px}
+.log:first-child{border-top:0}
+.leer{color:var(--muted);font-size:13.5px;padding:10px 2px}
+.hinweis{font-size:12px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;margin:8px 0}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}.msg.auf{display:block}.msg.f{background:var(--krit-bg);color:var(--crit)}.msg.ok{background:var(--ok-bg);color:var(--ok)}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/zugang" class="akt">Доступ и журнал</a>
+    <a href="/index.html">Разделы</a>
+    <span class="sp"></span>
+    <a href="/api/logout" class="aus">Выйти</a>
+  </nav>
+  <div class="kopf"><h1>Доступ и журнал значимых действий</h1><div class="wer">Только владелец назначает права, завершает сеансы и блокирует доступ.</div></div>
+  <div class="hinweis">Завершение всех сеансов требует нового входа (учётка и история сохраняются). Блокировка
+    запрещает вход, пока не снята. Уже скачанные файлы этими действиями не удаляются, отключённое от сети
+    устройство получит запрет при следующем обращении к серверу. Аккаунт Натальи не создаётся автоматически.</div>
+  <div class="msg" id="msg"></div>
+  <h2>Пользователи и доступ</h2>
+  <div id="users"><div class="leer">Загрузка…</div></div>
+  <h2>Журнал значимых действий</h2>
+  <div class="filter"><input id="q" placeholder="поиск по журналу" style="width:220px"><button class="btn" id="qbtn">Найти</button><button class="btn" id="qall">Все</button></div>
+  <div class="karte" id="audit" style="border-left-color:var(--akz)"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const tag=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleString('de-DE');};
+const ROLLE={gf:'Владелец',buchhaltung:'Бухгалтерия',disponent:'Ответственный (Олег)',mitarbeiter:'Сотрудник',buero:'Офис'};
+function msg(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className='msg auf '+(ok?'ok':'f');setTimeout(()=>{m.className='msg';},4500);}
+async function J(u){const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login?next=/zugang';throw new Error('нет сессии');}const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+async function P(u,b){const r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.fehler||('HTTP '+r.status));return j;}
+async function ladenUsers(){
+  try{
+    const d=await J('/api/zugang');
+    document.getElementById('users').innerHTML=(d.benutzer||[]).map(u=>{
+      return '<div class="karte'+(u.gesperrt?' gesperrt':'')+'"><div class="k1"><div><strong>'+H(u.name)+'</strong> <span class="wer">('+H(u.login)+' · '+H(ROLLE[u.rolle]||u.rolle)+')</span> '
+        +(u.gesperrt?'<span class="chip crit">заблокирован</span>':'<span class="chip ok">активен</span>')
+        +(u.verantwortlich?' <span class="chip">ответственный бухгалтер</span>':'')
+        +(u.objektzugang?' <span class="chip">доступ к объектам</span>':'')+'</div></div>'
+        +'<div class="aktion">'
+        +'<button class="btn" data-sess="'+H(u.login)+'">Завершить все сеансы</button>'
+        +(u.gesperrt?'<button class="btn" data-block="'+H(u.login)+'" data-an="0">Снять блокировку</button>':'<button class="btn crit" data-block="'+H(u.login)+'" data-an="1">Заблокировать</button>')
+        +(u.rolle==='buchhaltung'?'<button class="btn" data-verantw="'+H(u.login)+'" data-an="'+(u.verantwortlich?'0':'1')+'">'+(u.verantwortlich?'Снять ответственного':'Назначить ответственным')+'</button>':'')
+        +(u.rolle==='disponent'?'<button class="btn" data-recht="objektzugang" data-login="'+H(u.login)+'" data-an="'+(u.objektzugang?'0':'1')+'">'+(u.objektzugang?'Убрать доступ к объектам':'Дать доступ к объектам')+'</button>':'')
+        +'</div></div>';
+    }).join('');
+  }catch(e){ document.getElementById('users').innerHTML='<div class="leer">'+H(e.message)+'</div>'; }
+}
+let Q='';
+async function ladenAudit(){
+  try{
+    const d=await J('/api/audit'+(Q?'?q='+encodeURIComponent(Q):''));
+    const el=document.getElementById('audit');
+    const list=d.eintraege||[];
+    el.innerHTML=list.length?list.map(e=>'<div class="log"><span style="min-width:130px">'+H(tag(e.wann))+'</span>'
+      +'<span style="min-width:90px">'+H(e.wer||'—')+'</span>'
+      +'<span class="chip">'+H(e.art_text||e.art)+'</span>'
+      +(e.ziel?'<span>'+H(e.ziel)+'</span>':'')
+      +((e.alt||e.neu)?'<span>'+H(e.alt||'—')+' → '+H(e.neu||'—')+'</span>':'')
+      +(e.grund?'<span class="wer">'+H(e.grund)+'</span>':'')+'</div>').join(''):'<div class="leer">Записей нет.</div>';
+  }catch(e){ document.getElementById('audit').innerHTML='<div class="leer">'+H(e.message)+'</div>'; }
+}
+document.getElementById('users').addEventListener('click',async e=>{
+  let b;
+  try{
+    if((b=e.target.closest('[data-sess]'))){ if(!confirm('Завершить все сеансы '+b.dataset.sess+'? Потребуется новый вход.'))return; b.disabled=true; await P('/api/zugang/sessions',{login:b.dataset.sess,grund:'по запросу владельца'}); msg('Сеансы завершены',true); ladenAudit(); ladenUsers(); return; }
+    if((b=e.target.closest('[data-block]'))){ b.disabled=true; await P('/api/zugang/sperren',{login:b.dataset.block,an:b.dataset.an==='1',grund:'по запросу владельца'}); msg('Готово',true); ladenAudit(); ladenUsers(); return; }
+    if((b=e.target.closest('[data-verantw]'))){ b.disabled=true; await P('/api/monat/verantwortlich',{login:b.dataset.verantw,verantwortlich:b.dataset.an==='1'}); msg('Готово',true); ladenAudit(); ladenUsers(); return; }
+    if((b=e.target.closest('[data-recht]'))){ b.disabled=true; await P('/api/zugang/recht',{login:b.dataset.login,recht:b.dataset.recht,an:b.dataset.an==='1'}); msg('Готово',true); ladenAudit(); ladenUsers(); return; }
+  }catch(err){ msg(err.message); if(b)b.disabled=false; }
+});
+document.getElementById('qbtn').onclick=()=>{Q=document.getElementById('q').value.trim();ladenAudit();};
+document.getElementById('qall').onclick=()=>{Q='';document.getElementById('q').value='';ladenAudit();};
+ladenUsers(); ladenAudit();
+</script>
+<script src="/rolle.js"></script>
+</body></html>

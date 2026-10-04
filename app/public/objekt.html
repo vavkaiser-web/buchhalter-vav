@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Экономика объекта · VAV Kaiser</title>
+<style>
+:root{--bg:#f2efe9;--surface:#fff;--surface2:#faf8f4;--ink:#1b2530;--muted:#5c6773;--line:#e6e1d7;
+ --akz:#14586e;--ok:#2e7d5b;--warn:#b07d16;--crit:#b23f2b;--ok-bg:#e9f4ee;--warn-bg:#fbf4e3;--krit-bg:#fbeeea;--info-bg:#e6f0f4;
+ --r:13px;--schatten:0 1px 3px rgba(20,30,40,.06),0 6px 22px rgba(20,30,40,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--surface:#1a2129;--surface2:#161c23;
+ --ink:#e9edf1;--muted:#95a1ad;--line:#2a333d;--akz:#5bb4cf;--ok:#5fc48f;--warn:#d9b154;--crit:#e2856f;
+ --ok-bg:#182a22;--warn-bg:#292417;--krit-bg:#2a1c19;--info-bg:#182731}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:940px;margin:0 auto;padding:16px 16px 100px}
+.zahl{font-variant-numeric:tabular-nums}
+a{color:var(--akz)}
+.nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0 10px}
+.nav a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:9px;border:1px solid transparent}
+.nav a.akt{color:#fff;background:var(--akz);border-color:var(--akz)} .nav .sp{flex:1}
+h1{font-size:19px;margin:0}
+.kopf{margin:2px 2px 12px}
+.sub{font-size:13px;color:var(--muted)}
+.msg{font-size:13px;padding:9px 12px;border-radius:9px;margin:8px 0;display:none}
+.msg.auf{display:block} .msg.f{background:var(--krit-bg);color:var(--crit)} .msg.g{background:var(--ok-bg);color:var(--ok)}
+.leer{color:var(--muted);text-align:center;padding:30px 2px}
+/* список объектов */
+.suche{width:100%;padding:10px 12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font:inherit;margin-bottom:10px}
+.olist{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:620px){.olist{grid-template-columns:1fr}}
+.ocard{display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:11px 13px;box-shadow:var(--schatten)}
+.ocard .nr{font-weight:700;font-size:13px;color:var(--akz)}
+.ocard .bz{font-size:14px;margin-top:2px}
+.ocard .ku{font-size:12px;color:var(--muted);margin-top:2px}
+.tag{font-size:10.5px;padding:1px 7px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--muted);margin-left:6px}
+.tag.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+/* карточка */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--schatten);padding:14px 15px;margin-bottom:12px}
+.card h2{font-size:14px;margin:0 0 4px}
+.card .cap{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.row:last-child{border-bottom:0}
+.row .l{display:flex;flex-direction:column;gap:2px}
+.row .t{font-size:14px}
+.row .m{font-size:11px;color:var(--muted);display:flex;gap:4px 8px;flex-wrap:wrap}
+.row .v{font-weight:700;font-size:15px;white-space:nowrap}
+.row .v.none{color:var(--muted);font-weight:500;font-style:italic}
+.badge{font-size:10px;padding:1px 6px;border-radius:999px;background:var(--info-bg);color:var(--akz)}
+.badge.ist{background:var(--krit-bg);color:var(--crit)} .badge.plan{background:var(--surface2);color:var(--muted)}
+.badge.bestaetigt{background:var(--ok-bg);color:var(--ok)} .badge.schaetzung{background:var(--warn-bg);color:var(--warn)}
+.badge.verpflichtung{background:var(--warn-bg);color:var(--warn)} .badge.zahlung{background:var(--info-bg);color:var(--akz)}
+.itog{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px}
+.itog.gross{font-weight:700;font-size:16px;border-top:1px solid var(--line);margin-top:4px;padding-top:10px}
+.itog .pos{color:var(--ok)} .itog .neg{color:var(--crit)}
+.hint{font-size:12px;color:var(--muted);margin-top:8px;background:var(--surface2);border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.warnrow{font-size:11px;color:var(--warn)}
+/* форма редактирования */
+.edit{background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:12px 13px;margin-bottom:12px;display:none}
+.edit.auf{display:block}
+.edit h3{font-size:14px;margin:0 0 8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media(max-width:620px){.grid{grid-template-columns:1fr}}
+.grid label{font-size:11px;color:var(--muted);display:grid;gap:4px}
+.grid label.breit{grid-column:1/-1}
+.grid input,.grid select{width:100%;padding:9px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font:inherit;font-size:14px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:9px;padding:9px 14px;cursor:pointer}
+.btn.pri{background:var(--akz);border-color:var(--akz);color:#fff}
+.btn.crit{border-color:var(--crit);color:var(--crit)}
+.aktion{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.vollbar{font-size:12px;color:var(--muted);margin:2px 0 12px}
+</style>
+</head><body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/zentrum">Центр</a>
+    <a href="/objekt" class="akt">Объекты</a>
+    <a href="/aufgaben">Задачи</a>
+    <a href="/bestaetigen">Проверка</a>
+    <a href="/verteilen">Разнос</a>
+    <a href="/kostenverteilung">Распределение</a>
+    <span class="sp"></span>
+    <a href="/api/logout">Выйти</a>
+  </nav>
+  <div class="kopf"><h1 id="titel">Экономика объектов</h1><div class="sub" id="sub"></div></div>
+  <div class="msg" id="msg"></div>
+  <div id="app"><div class="leer">Загрузка…</div></div>
+</div>
+<script>
+const H=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EURc=c=>(c==null?'—':((Number(c)||0)/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €');
+const T=(iso)=>{ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?'':d.toLocaleDateString('de-DE'); };
+const ARTD={plan:'план',bestaetigt:'подтв.',ist:'факт',verpflichtung:'обязат.',schaetzung:'оценка',zahlung:'деньги'};
+const QUELLED={vertrag:'договор',auftrag:'заказ',angebot:'Angebot',manuell:'вручную',finmap:'FinMap',ingenieur:'Инженер',schaetzung:'оценка'};
+let NR=new URL(location.href).searchParams.get('nr'); let DATA=null;
+
+async function J(u,o){ o=Object.assign({credentials:'same-origin'},o||{});
+  const ac=new AbortController(); const t=setTimeout(()=>ac.abort(),15000); o.signal=ac.signal;
+  let r; try{ r=await fetch(u,o); }catch(e){ clearTimeout(t); throw new Error(e.name==='AbortError'?'сервер не ответил за 15 c':('сеть: '+e.message)); }
+  clearTimeout(t);
+  if(r.status===401){location.href='/login?next=/objekt';throw new Error('нет сессии');}
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.fehler||('HTTP '+r.status)); return j; }
+function melde(t,g){ const m=document.getElementById('msg'); m.textContent=t; m.className='msg auf '+(g?'g':'f'); clearTimeout(melde._t); melde._t=setTimeout(()=>{m.className='msg';},4000); }
+
+/* ---- список объектов ---- */
+function kundeText(k){ if(!k) return ''; const nr=k.kunden_nr?(' · клиент '+k.kunden_nr):(k.debitor_nr?(' · дебитор '+k.debitor_nr):''); return (k.name||'')+nr; }
+async function liste(){
+  document.getElementById('titel').textContent='Экономика объектов';
+  const d=await J('/api/objekte'); const objs=d.objekte||[];
+  const dup=objs.filter(o=>o.dup).length;
+  document.getElementById('sub').textContent='Единый реестр ядра (vav_kern). Всего: '+objs.length;
+  window._OBJ=objs;
+  const app=document.getElementById('app');
+  let ban='';
+  if(dup) ban='<div style="background:var(--warn-bg);color:var(--warn);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px">⚠ Объекты-дубли: '+dup+' шт. в группах. <a href="#" id="dupbtn">Показать список →</a></div>';
+  app.innerHTML=ban+'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn" id="etccheck">Проверить устаревшие ETC</button></div>'
+    +'<input class="suche" id="suche" placeholder="Поиск по номеру, адресу, заказчику…"><div id="dupbox"></div><div class="olist" id="olist"></div>';
+  zeichneListe(objs);
+  document.getElementById('etccheck').addEventListener('click',async()=>{
+    try{ const r=await J('/api/objekt/etc-check',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      melde('Устаревших/без оценки: '+r.veraltet+'. Поставлено задач Олегу: '+r.aufgaben_erstellt,true);
+    }catch(e){ melde(e.message); }
+  });
+  document.getElementById('suche').addEventListener('input',e=>{
+    const q=e.target.value.toLowerCase().trim();
+    zeichneListe(objs.filter(o=>(o.nr+' '+o.bez+' '+(o.kunde&&o.kunde.name||'')).toLowerCase().includes(q)));
+  });
+  const db=document.getElementById('dupbtn');
+  if(db) db.addEventListener('click',async(e)=>{e.preventDefault(); await zeigeDubletten();});
+}
+async function zeigeDubletten(){
+  const box=document.getElementById('dupbox');
+  if(box.innerHTML){ box.innerHTML=''; return; }
+  try{ const d=await J('/api/objekt/dubletten'); const gr=d.dubletten||[];
+    box.innerHTML='<div class="card"><h2>Группы дублей ('+gr.length+')</h2>'
+      +'<div class="cap">свести по одному, ключ — номер; ничего не удаляем (алиасы)</div>'
+      +gr.map(g=>'<div class="row"><div class="l"><span class="t">'+H(g.kunde||'—')+'</span>'
+        +'<span class="m">'+H(g.adresse||'')+' · '+H(g.nummern)+'</span></div>'
+        +'<span class="v zahl" style="color:var(--warn)">'+g.anzahl+'×</span></div>').join('')
+      +'<div class="hint">Свод дублей — правка ядра и чужих приложений (объекты — «Учёт часов»). Делаю по одному с твоим подтверждением, начиная с самого крупного.</div></div>';
+  }catch(e){ melde(e.message); }
+}
+function zeichneListe(objs){
+  document.getElementById('olist').innerHTML=objs.map(o=>
+    '<a class="ocard" href="/objekt?nr='+encodeURIComponent(o.nr)+'">'
+    +'<div class="nr">'+H(o.nr)
+    +(o.dup?'<span class="tag" style="background:var(--warn-bg);color:var(--warn);border-color:transparent">дубль</span>':'')
+    +(o.merged_count?'<span class="tag ok">сведено '+o.merged_count+'</span>':'')
+    +(o.hat_oekonomik?'<span class="tag ok">есть данные</span>':'')
+    +(o.status&&o.status!=='aktiv'&&o.status!=='offen'?'<span class="tag">'+H(o.status)+'</span>':'')+'</div>'
+    +'<div class="bz">'+H(o.bez||'—')+'</div>'
+    +(o.kunde&&(o.kunde.name||o.kunde.kunden_nr)?'<div class="ku">'+H(kundeText(o.kunde))+'</div>':'<div class="ku" style="font-style:italic">клиент не указан</div>')
+    +'</a>').join('') || '<div class="leer">Ничего не найдено.</div>';
+}
+
+/* ---- карточка объекта ---- */
+function zeile(kat){
+  const r=DATA.kennzahlen[kat.k]; const has=r&&r.wert_cent!=null;
+  const meta=[];
+  if(has){ meta.push('<span class="badge '+H(r.art||kat.art)+'">'+H(ARTD[r.art||kat.art]||r.art||'')+'</span>');
+    if(r.quelle) meta.push(QUELLED[r.quelle]||r.quelle);
+    if(r.periode) meta.push('период '+H(r.periode));
+    if(r.stand) meta.push('обновл. '+T(r.stand));
+    if(r.pruefstatus!=='bestaetigt') meta.push('<span class="warnrow">не подтв. бухгалтером</span>');
+    if(r.unverteilt_cent) meta.push('<span class="warnrow">нераспр. '+EURc(r.unverteilt_cent)+'</span>');
+    if(r.beleg_ref) meta.push('осн.: '+H(r.beleg_ref));
+  } else { meta.push('нет данных'); }
+  return '<div class="row" data-k="'+kat.k+'"><div class="l"><span class="t">'+H(kat.titel)+'</span>'
+    +'<span class="m">'+meta.join(' · ')+(r&&r.notiz?' · '+H(r.notiz):'')+'</span></div>'
+    +'<span class="v'+(has?'':' none')+' zahl">'+(has?EURc(r.wert_cent):'внести')+'</span></div>';
+}
+function block(titel,cap,keys,extra){
+  const kat=DATA.katalog.filter(k=>keys.includes(k.k));
+  return '<div class="card"><h2>'+H(titel)+'</h2>'+(cap?'<div class="cap">'+H(cap)+'</div>':'')
+    +kat.map(zeile).join('')+(extra||'')+'</div>';
+}
+const BASISD={vertrag:'договор',auftrag:'заказ',angebot:'Angebot',sonstiges:'прочее'};
+function risikoHtml(){
+  const rs=DATA.risiken||[]; if(!rs.length) return '';
+  return '<div class="card" style="border-left:3px solid var(--crit)"><h2 style="color:var(--crit)">⚠ Риски для владельца ('+rs.length+')</h2>'
+    +rs.map(r=>'<div class="row" style="cursor:default"><div class="l"><span class="t">'+H(r.titel||'Риск')+'</span><span class="m">'+H(r.text||'')+'</span></div>'
+      +'<button class="btn" data-risiko="'+r.id+'">Решено</button></div>').join('')+'</div>';
+}
+function nachtragHtml(){
+  const ns=DATA.nachtraege||[]; const b=DATA.berechnet;
+  let h='<div style="margin-top:10px"><div class="cap">Доп. работы (Nachträge)</div>';
+  if(ns.length){ h+=ns.map(nt=>{
+    const best=nt.status==='bestaetigt';
+    return '<div class="row" style="cursor:default"><div class="l"><span class="t">'+H(nt.bezeichnung)
+      +' <span class="badge '+(best?'bestaetigt':'schaetzung')+'">'+(best?'подтв.':'не подтв.')+'</span></span>'
+      +'<span class="m">'+(nt.basis?H(BASISD[nt.basis]||nt.basis):'')+(nt.datum?' · '+T(nt.datum):'')+(nt.beleg_ref?' · '+H(nt.beleg_ref):'')+(nt.notiz?' · '+H(nt.notiz):'')+'</span></div>'
+      +'<span class="v zahl">'+EURc(nt.betrag_cent)+'</span>'
+      +'<span style="display:flex;gap:6px;margin-left:8px">'
+      +(best?'<button class="btn" data-nt-offen="'+nt.id+'">В неподтв.</button>':'<button class="btn pri" data-nt-best="'+nt.id+'">Подтвердить</button>')
+      +'<button class="btn crit" data-nt-del="'+nt.id+'">✕</button></span></div>';
+  }).join(''); }
+  else h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Доп. работ пока нет.</div>';
+  h+='<div class="itog"><span>Подтверждённые Nachträge → в базу заказа</span><span class="zahl">'+EURc(b.nachtrag_best)+'</span></div>';
+  h+='<div class="itog"><span>Неподтверждённые → отдельно, не в прогноз</span><span class="zahl" style="color:var(--warn)">'+EURc(b.nachtrag_offen)+'</span></div>';
+  h+='<button class="btn pri" id="nt-toggle" style="margin-top:8px">+ Доп. работа</button>';
+  h+='<div id="nt-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label class="breit">Название<input id="nt-bez" placeholder="например: доп. перегородки ось C"></label>'
+    +'<label>Сумма (€)<input id="nt-betrag" type="number" step="0.01"></label>'
+    +'<label>Основание<select id="nt-basis"><option value="">—</option><option value="vertrag">договор</option><option value="auftrag">заказ</option><option value="angebot">Angebot</option><option value="sonstiges">прочее</option></select></label>'
+    +'<label>Дата<input id="nt-datum" type="date"></label>'
+    +'<label>Статус<select id="nt-status"><option value="offen">не подтв. заказчиком</option><option value="bestaetigt">подтв. заказчиком</option></select></label>'
+    +'<label class="breit">Основание/ссылка на документ<input id="nt-beleg" placeholder="напр. Nachtrag 3, Drive-ссылка"></label>'
+    +'<div class="breit"><button class="btn pri" id="nt-add">Добавить</button></div></div>';
+  h+='<div class="hint">Неподтверждённые доп. работы <b>в основной прогноз не входят</b> (§2). Непринятый Angebot не считается подтверждённым заказом.</div></div>';
+  return h;
+}
+function etcHtml(){
+  const e=DATA.etc||{};
+  let h='<div style="margin-top:10px"><div class="cap">Оценка оставшихся затрат до завершения (ETC)</div>';
+  if(e.vorhanden){
+    h+='<div class="row" style="cursor:default"><div class="l"><span class="t">Текущая оценка'
+      +(e.veraltet?' <span class="badge schaetzung">устарела</span>':'')+'</span>'
+      +'<span class="m">обновл. '+T(e.stand)+(e.grund?' · '+H(e.grund):'')
+      +(e.delta_cent!=null?' · изменение к прошлой: '+(e.delta_cent>0?'+':'')+EURc(e.delta_cent):'')+'</span></div>'
+      +'<span class="v zahl">'+EURc(e.betrag_cent)+'</span></div>';
+    if(e.veraltet) h+='<div class="hint" style="color:var(--warn)">Оценка старше недели — Олегу нужна свежая (кнопка «Проверить устаревшие ETC» на списке объектов ставит задачу).</div>';
+  } else {
+    h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Оценки ETC ещё нет — без неё прогноз считает оставшиеся затраты как 0. Нужна оценка Олега.</div>';
+  }
+  h+='<button class="btn pri" id="etc-toggle" style="margin-top:8px">Обновить оценку</button>';
+  h+='<div id="etc-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label>Оценка ETC (€)<input id="etc-betrag" type="number" step="0.01" value="'+(e.vorhanden?(Number(e.betrag_cent)/100):'')+'"></label>'
+    +'<label class="breit">Причина изменения<input id="etc-grund" placeholder="что изменилось на объекте"></label>'
+    +'<div class="breit"><button class="btn pri" id="etc-save">Сохранить оценку</button></div></div>';
+  h+='<div class="hint">Снижение прогнозной прибыли сразу показывается владельцу как риск (§3). Обновлять минимум раз в неделю.</div></div>';
+  return h;
+}
+const BSTAT={offen:'открыт',teilweise:'частично',geschlossen:'закрыт',storniert:'сторно'};
+const RART={teilrechnung:'частичный',schlussrechnung:'финальный',korrektur:'корректура'};
+function bestellungHtml(){
+  const bs=DATA.bestellungen||[];
+  let h='<div style="margin-top:12px"><div class="cap">Заказы-обязательства (§4)</div>';
+  const ROLLE=(DATA.ich&&DATA.ich.rolle)||'';
+  const GST={genehmigt:['утверждено','bestaetigt'],wartet_andrej:['ждёт Андрея','verpflichtung'],offen:['ждёт утверждения','schaetzung'],abgelehnt:['отклонено','ist']};
+  const GRUND={summe:'сумма > 3 000 € брутто',budget:'сверх утверждённого бюджета',kein_budget:'бюджет не задан',split:'дробление связанных закупок'};
+  if(bs.length){ h+=bs.map(bo=>{
+    const stb=bo.status==='geschlossen'?'bestaetigt':(bo.status==='storniert'?'ist':'schaetzung');
+    const gs=GST[bo.genehmigung]||GST.offen;
+    let x='<div class="row" style="cursor:default;align-items:flex-start"><div class="l"><span class="t">'+H(bo.lieferant)+' <span class="badge '+stb+'">'+H(BSTAT[bo.status]||bo.status)+'</span>'
+      +(bo.status!=='storniert'?' <span class="badge '+gs[1]+'">'+gs[0]+'</span>':'')+'</span>'
+      +'<span class="m">'+(bo.umfang?H(bo.umfang)+' · ':'')+'заказ '+EURc(bo.summe_cent)+' · факт '+EURc(bo.fakturiert)+' · остаток '+EURc(bo.offen_rest)+(bo.soll_datum?' · срок '+T(bo.soll_datum):'')+'</span>';
+    if(bo.status!=='storniert' && bo.braucht_andrej && bo.genehmigung!=='genehmigt' && bo.genehmigung!=='abgelehnt') x+='<span class="m" style="color:var(--warn)">решение Андрея вместе с Олегом'+(GRUND[bo.braucht_grund]?' · '+GRUND[bo.braucht_grund]:'')+(bo.oleg_am?' · Олег ✓, ждём Андрея':'')+'</span>';
+    if(bo.genehmigung==='abgelehnt' && bo.ablehn_grund) x+='<span class="m" style="color:var(--crit,#c0392b)">отклонено: '+H(bo.ablehn_grund)+'</span>';
+    (bo.rechnungen||[]).forEach(r=>{ x+='<span class="m">— счёт '+EURc(r.betrag_cent)+' ('+H(RART[r.art]||r.art)+(r.datum?', '+T(r.datum):'')+(r.rechnung_ref?', '+H(r.rechnung_ref):'')+') <a href="#" data-br-del="'+r.id+'">удалить</a></span>'; });
+    const canOleg=ROLLE==='disponent', canGf=ROLLE==='gf', aktiv=bo.status!=='storniert';
+    x+='</div><span style="display:flex;flex-direction:column;gap:6px;margin-left:8px">'
+      +'<button class="btn pri" data-br-form="'+bo.id+'">+ счёт</button>'
+      +((aktiv && bo.genehmigung!=='genehmigt' && canOleg && !bo.oleg_am)?'<button class="btn pri" data-b-ok="'+bo.id+'">Утвердить (Олег)</button>':'')
+      +((aktiv && bo.genehmigung!=='genehmigt' && canGf && !bo.gf_am)?'<button class="btn pri" data-b-ok="'+bo.id+'">Утвердить (Андрей)</button>':'')
+      +((aktiv && bo.genehmigung!=='abgelehnt' && (canOleg||canGf))?'<button class="btn crit" data-b-nein="'+bo.id+'">Отклонить</button>':'')
+      +'<details style="display:block"><summary style="cursor:pointer;font-size:12px;color:var(--muted);list-style:none;padding:4px 2px">⋯</summary>'
+      +(aktiv?'<button class="btn" data-b-storno="'+bo.id+'" style="margin-top:4px;display:block">Сторно</button>':'<button class="btn" data-b-react="'+bo.id+'" style="margin-top:4px;display:block">Вернуть</button>')
+      +'<button class="btn crit" data-b-del="'+bo.id+'" style="margin-top:4px;display:block">✕ Удалить</button></details>'
+      +'</span></div>';
+    x+='<div id="reject_'+bo.id+'" style="display:none;margin:4px 0 10px;padding:8px 10px;background:var(--surface2);border-radius:9px;border:1px solid var(--line)">'
+      +'<label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Причина отклонения закупки</label>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+      +'<input id="rej_grund_'+bo.id+'" placeholder="укажите причину" style="flex:1;min-width:200px">'
+      +'<button class="btn crit" data-b-nein-ok="'+bo.id+'">Отклонить</button>'
+      +'<button class="btn" data-b-nein-close="'+bo.id+'">Отмена</button>'
+      +'</div></div>';
+    x+='<div id="br-form-'+bo.id+'" style="display:none;margin:4px 0 10px" class="grid">'
+      +'<label>Сумма счёта (€)<input id="br-betrag-'+bo.id+'" type="number" step="0.01"></label>'
+      +'<label>Вид<select id="br-art-'+bo.id+'"><option value="teilrechnung">частичный</option><option value="schlussrechnung">финальный</option><option value="korrektur">корректура (может быть −)</option></select></label>'
+      +'<label>Дата<input id="br-datum-'+bo.id+'" type="date"></label>'
+      +'<label>Ссылка на счёт<input id="br-ref-'+bo.id+'" placeholder="номер/Drive"></label>'
+      +'<div class="breit"><button class="btn pri" data-br-save="'+bo.id+'">Привязать счёт</button></div></div>';
+    return x;
+  }).join(''); }
+  else h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Заказов-обязательств пока нет.</div>';
+  h+='<button class="btn pri" id="b-toggle" style="margin-top:8px">+ Заказ</button>';
+  h+='<div id="b-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label class="breit">Поставщик / подрядчик<input id="b-lief" placeholder="напр. Knauf, Subunternehmer X"></label>'
+    +'<label>Сумма заказа (€)<input id="b-summe" type="number" step="0.01"></label>'
+    +'<label>Срок (ожид.)<input id="b-datum" type="date"></label>'
+    +'<label>Основание<select id="b-basis"><option value="">—</option><option value="vertrag">договор</option><option value="auftrag">заказ</option><option value="angebot">Angebot</option><option value="sonstiges">прочее</option></select></label>'
+    +'<label>Ссылка на документ<input id="b-beleg"></label>'
+    +'<label class="breit">Объём / что заказано<input id="b-umfang" placeholder="напр. ГКЛ 200 листов, монтаж 3 недели"></label>'
+    +'<div class="breit"><button class="btn pri" id="b-add">Добавить заказ</button></div></div>';
+  h+='<div class="hint">Каждый евро заказа — либо в <b>факте</b> (пришёл счёт), либо в <b>остатке обязательства</b>, не в обоих. Оплата не определяет момент признания затрат. ETC ниже не должен повторять то, что уже в заказах (§4).</div></div>';
+  return h;
+}
+function abschlussHtml(){
+  const a=DATA.abschluss||{}; const eh=DATA.ergebnis_historie||[];
+  const st=(label,on,when,feld,who,farbe)=>'<div class="row" style="cursor:default"><div class="l"><span class="t">'+H(label)
+    +(on?' <span class="badge bestaetigt">✓</span>':'')+'</span><span class="m">'+(on&&when?T(when):'')+(who?' · '+H(who):'')+'</span></div>'
+    +(feld?'<button class="btn '+(on?'':'pri')+'" data-abs="'+feld+'" data-on="'+(on?0:1)+'">'+(on?'снять':'отметить')+'</button>':'<span class="badge '+(on?'schaetzung':'bestaetigt')+'">'+(on?'да':'нет')+'</span>')+'</div>';
+  let h='<div class="card"><h2>Завершение объекта (§6)</h2><div class="cap">раздельные состояния — деньги закрывает владелец в конце</div>';
+  h+=st('Работы завершены (Олег)', a.arbeiten_fertig, a.arbeiten_am, 'arbeiten_fertig');
+  h+=st('Документы проверены (бухгалтер)', a.dok_geprueft, a.dok_am, 'dok_geprueft');
+  h+=st('Финансы не закрыты', a.finanzen_offen, null, null);
+  h+=st('Объект окончательно закрыт (владелец)', a.zu, a.zu_am, 'zu', a.zu_von);
+  if(a.finanzen_offen && a.zu) h+='<div class="hint" style="color:var(--warn)">Есть незакрытые деньги/удержания — они не исчезают после завершения работ.</div>';
+  if(eh.length){ h+='<div class="cap" style="margin-top:8px">История итога</div>'
+    +eh.map(x=>'<div class="row" style="cursor:default"><div class="l"><span class="t">'+EURc(x.ergebnis_cent)+'</span><span class="m">'+H(x.anlass||'')+' · '+T(x.stand)+(x.von?' · '+H(x.von):'')+'</span></div></div>').join(''); }
+  h+='<button class="btn" id="erg-neu" style="margin-top:8px">Пересмотреть итог (поздний счёт)</button>';
+  h+='<div class="hint">Поздний счёт после закрытия: прежняя версия итога сохраняется, изменение утверждает владелец (§6).</div></div>';
+  return h;
+}
+function einbehaltHtml(){
+  const es=DATA.einbehalte||[];
+  const STE={offen:'открыто',abgeloest:'заменено Bürgschaft',zurueck:'возвращено',beendet:'завершено'};
+  let h='<div class="card"><h2>Удержания и Bürgschaft (§7)</h2><div class="cap">отдельно от обычной задолженности</div>';
+  if(es.length){ h+=es.map(e=>{
+    const bg=e.art==='buergschaft';
+    return '<div class="row" style="cursor:default;align-items:flex-start"><div class="l"><span class="t">'+(bg?'Bürgschaft':'Удержание')+' '+EURc(e.betrag_cent)+' <span class="badge '+(e.status==='offen'?'schaetzung':'bestaetigt')+'">'+H(STE[e.status]||e.status)+'</span></span>'
+      +'<span class="m">'+(e.grund?H(e.grund)+' · ':'')+(e.freigabe_bedingung?'условие: '+H(e.freigabe_bedingung)+' · ':'')+(e.erwartete_rueckgabe?'возврат ~'+T(e.erwartete_rueckgabe)+' · ':'')+(e.verantwortlich?'отв.: '+H(e.verantwortlich):'')
+      +(bg&&e.gebuehr_cent?' · расход '+EURc(e.gebuehr_cent):'')+(bg&&e.ablauf?' · до '+T(e.ablauf):'')+'</span></div>'
+      +'<span style="display:flex;gap:6px;margin-left:8px">'
+      +(e.status!=='zurueck'?'<button class="btn" data-eb="'+e.id+'" data-eb-st="zurueck">Возвращено</button>':'')
+      +(e.art==='einbehalt'&&e.status==='offen'?'<button class="btn" data-eb="'+e.id+'" data-eb-st="abgeloest">→ Bürgschaft</button>':'')
+      +'<button class="btn crit" data-eb="'+e.id+'" data-eb-st="del">✕</button></span></div>';
+  }).join(''); }
+  else h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Удержаний нет.</div>';
+  h+='<button class="btn pri" id="eb-toggle" style="margin-top:8px">+ Удержание / Bürgschaft</button>';
+  h+='<div id="eb-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label>Тип<select id="eb-art"><option value="einbehalt">Удержание (Einbehalt)</option><option value="buergschaft">Гарантия (Bürgschaft)</option></select></label>'
+    +'<label>Сумма (€)<input id="eb-betrag" type="number" step="0.01"></label>'
+    +'<label class="breit">Основание<input id="eb-grund" placeholder="напр. Gewährleistung 5% по договору"></label>'
+    +'<label class="breit">Условие освобождения<input id="eb-frei" placeholder="напр. по Abnahme + 2 года без дефектов"></label>'
+    +'<label>Ожидаемый возврат<input id="eb-rueck" type="date"></label>'
+    +'<label>Ответственный<input id="eb-verant"></label>'
+    +'<label>Расход на гарантию (€, для Bürgschaft)<input id="eb-geb" type="number" step="0.01"></label>'
+    +'<label>Срок гарантии (для Bürgschaft)<input id="eb-ablauf" type="date"></label>'
+    +'<div class="breit"><button class="btn pri" id="eb-add">Добавить</button></div></div>';
+  h+='<div class="hint">Оформленная Bürgschaft ≠ возвращённые деньги — возврат удержанного контролируется отдельно (§7).</div></div>';
+  return h;
+}
+function streitHtml(){
+  const b=DATA.berechnet, ss=DATA.streit||[];
+  const STS={offen:'спорно (пауза)',geklaert:'снято',reduziert:'долг уменьшен'};
+  let h='<div style="margin-top:10px"><div class="cap">Спорные части долга и претензии (§8)</div>';
+  h+='<div class="itog"><span>Задолженность всего</span><span class="zahl">'+EURc(b.forderung||0)+'</span></div>';
+  if(b.forderung_strittig) h+='<div class="itog"><span>в т.ч. спорная — напоминания на паузе</span><span class="zahl" style="color:var(--warn)">'+EURc(b.forderung_strittig)+'</span></div>';
+  h+='<div class="itog"><span>бесспорный остаток — напоминания идут</span><span class="zahl">'+EURc(b.forderung_unstrittig||0)+'</span></div>';
+  if(ss.length){ h+=ss.map(s=>'<div class="row" style="cursor:default;align-items:flex-start"><div class="l"><span class="t">'+EURc(s.betrag_cent)+' <span class="badge '+(s.status==='offen'?'schaetzung':'bestaetigt')+'">'+H(STS[s.status]||s.status)+'</span></span>'
+    +'<span class="m">'+(s.grund?H(s.grund):'')+(s.entscheidung?' · решение: '+H(s.entscheidung)+(s.entschieden_von?' ('+H(s.entschieden_von)+')':''):'')+'</span></div>'
+    +'<span style="display:flex;gap:6px;margin-left:8px">'
+    +(s.status==='offen'?'<button class="btn" data-st-id="'+s.id+'" data-st-akt="geklaert">Снять спор</button><button class="btn crit" data-st-id="'+s.id+'" data-st-akt="reduziert">Уменьшить долг (владелец)</button>':'')
+    +'<button class="btn crit" data-st-id="'+s.id+'" data-st-akt="del">✕</button></span></div>').join(''); }
+  h+='<button class="btn pri" id="st-toggle" style="margin-top:8px">+ Спорная часть</button>';
+  h+='<div id="st-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label>Спорная сумма (€)<input id="st-betrag" type="number" step="0.01"></label>'
+    +'<label class="breit">Причина спора<input id="st-grund" placeholder="что оспаривает заказчик"></label>'
+    +'<div class="breit"><button class="btn pri" id="st-add">Добавить</button></div></div>';
+  h+='<div class="hint">Спорную часть не списываем авто; уменьшение долга утверждает только владелец. По бесспорному остатку напоминания продолжаются (§8).</div></div>';
+  return h;
+}
+function ausgangHtml(){
+  const rs=DATA.ausgang_rechnungen||[]; const s=DATA.sverka||{};
+  const AST={entwurf:'черновик',gesendet:'отправлен (тест)',fehler:'ошибка'};
+  let h='<div class="card"><h2>Исходящие счета (§11)</h2><div class="cap">Abschlag/Schluss — сверка перед отправкой</div>';
+  h+='<div class="itog"><span>База (подтв. стоимость + подтв. Nachträge)</span><span class="zahl">'+EURc(s.basis)+'</span></div>';
+  h+='<div class="itog"><span>Уже выставлено (отправленные счета)</span><span class="zahl">'+EURc(s.frueher)+'</span></div>';
+  h+='<div class="itog"><span>Получено денег</span><span class="zahl">'+EURc(s.erhalten)+'</span></div>';
+  h+='<div class="itog gross"><span>Остаток к выставлению</span><span class="zahl">'+EURc(s.rest)+'</span></div>';
+  if(rs.length){ h+=rs.map(r=>{
+    const stb=r.status==='gesendet'?'bestaetigt':(r.status==='fehler'?'ist':'schaetzung');
+    return '<div class="row" style="cursor:default;align-items:flex-start"><div class="l"><span class="t">'+(r.art==='schluss'?'Schlussrechnung':'Abschlag')+' '+EURc(r.betrag_cent)+' <span class="badge '+stb+'">'+H(AST[r.status]||r.status)+'</span>'+(r.sv_ok===false?' <span class="badge schaetzung">расхождение</span>':'')+'</span>'
+      +'<span class="m">'+(r.nummer?'№'+H(r.nummer)+' · ':'')+(r.empfaenger?H(r.empfaenger)+' · ':'')+(r.datum?T(r.datum):'')+(r.ergebnis?' · '+H(r.ergebnis):'')+'</span></div>'
+      +'<span style="display:flex;flex-direction:column;gap:6px;margin-left:8px">'
+      +(r.status==='entwurf'?'<button class="btn pri" data-ag-send="'+r.id+'">Отправить</button><button class="btn" data-ag-fehler="'+r.id+'">Сбой (тест)</button>':'')
+      +'<button class="btn crit" data-ag-del="'+r.id+'">✕</button></span></div>';
+  }).join(''); }
+  else h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Счетов пока нет.</div>';
+  h+='<button class="btn pri" id="ag-toggle" style="margin-top:8px">+ Счёт</button>';
+  h+='<div id="ag-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label>Тип<select id="ag-art"><option value="abschlag">Abschlag (частичный)</option><option value="schluss">Schlussrechnung</option></select></label>'
+    +'<label>Сумма (€)<input id="ag-betrag" type="number" step="0.01"></label>'
+    +'<label>Номер счёта<input id="ag-nummer"></label>'
+    +'<label>Дата<input id="ag-datum" type="date"></label>'
+    +'<label class="breit">Получатель (email/имя)<input id="ag-empf" placeholder="заказчик"></label>'
+    +'<div class="breit"><button class="btn pri" id="ag-add">Подготовить счёт</button></div></div>';
+  h+='<div class="hint">Если сумма больше остатка — «расхождение», отправка блокируется (без двойного зачёта, §11). Отправляет бухгалтер кнопкой; <b>реальной почты нет</b> — тест-заглушка с журналом. Передача письму ≠ прочтение заказчиком.</div></div>';
+  return h;
+}
+function mahnungHtml(){
+  const b=DATA.berechnet, ms=DATA.mahnungen||[], z=DATA.zusage, pause=DATA.mahn_pause;
+  const MST={vorbereitet:'подготовлено',bestaetigt:'подтверждено ответственным',gesendet:'отправлено (тест)',fehler:'ошибка'};
+  let h='<div class="card"><h2>Напоминания заказчику (§12)</h2><div class="cap">внутренний процесс, не юр. Verzug; авто-процентов нет</div>';
+  h+='<div class="itog"><span>Бесспорный остаток (по нему напоминаем)</span><span class="zahl">'+EURc(b.forderung_unstrittig||0)+'</span></div>';
+  if(z){ h+='<div class="row" style="cursor:default"><div class="l"><span class="t">Обещанная дата оплаты: '+T(z.datum)+(pause?' <span class="badge bestaetigt">напоминания на паузе</span>':'')+'</span><span class="m">'+(z.notiz?H(z.notiz):'')+'</span></div><button class="btn" id="zus-del">Снять</button></div>'; }
+  if(ms.length){ h+=ms.map(m=>{
+    const stb=m.status==='gesendet'?'bestaetigt':(m.status==='fehler'?'ist':'schaetzung');
+    return '<div class="row" style="cursor:default;align-items:flex-start"><div class="l"><span class="t">Напоминание '+m.stufe+' · '+EURc(m.betrag_cent)+' <span class="badge '+stb+'">'+H(MST[m.status]||m.status)+'</span></span>'
+      +'<span class="m">'+(m.bestaetigt_von?'подтв.: '+H(m.bestaetigt_von)+' · ':'')+(m.gesendet_am?T(m.gesendet_am)+' · ':'')+(m.ergebnis?H(m.ergebnis):'')+'</span></div>'
+      +'<span style="display:flex;flex-direction:column;gap:6px;margin-left:8px">'
+      +(m.status==='vorbereitet'&&Number(m.stufe)===1?'<button class="btn pri" data-mh-best="'+m.id+'">Подтвердить (ответств.)</button>':'')
+      +((m.status==='bestaetigt')||(m.status==='vorbereitet'&&Number(m.stufe)>1)?'<button class="btn pri" data-mh-send="'+m.id+'">Отправить</button>':'')
+      +(m.status!=='gesendet'?'<button class="btn crit" data-mh-del="'+m.id+'">✕</button>':'')+'</span></div>';
+  }).join(''); }
+  else h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Напоминаний нет.</div>';
+  h+='<div class="aktion"><button class="btn pri" id="mh-vor">Подготовить напоминание</button>'
+    +'<button class="btn" id="zus-toggle">Обещанная дата оплаты</button></div>';
+  h+='<div id="zus-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label>Дата, обещанная заказчиком<input id="zus-datum" type="date"></label>'
+    +'<label>Заметка (подтверждение)<input id="zus-notiz"></label>'
+    +'<div class="breit"><button class="btn pri" id="zus-add">Сохранить дату (пауза до неё)</button></div></div>';
+  h+='<div class="hint">1-е напоминание подтверждает ответственный за клиента; 2-е шлёт бухгалтер. Спорная часть исключена, по обещанной дате — пауза; исходный срок и история просрочки сохраняются (§12).</div></div>';
+  return h;
+}
+const VARTD={stunden:'часы',unterkunft:'жильё',technik:'техника',kraftstoff:'топливо',sonstiges:'прочее'};
+const MCHK=[['chk_vertrag','договор и условия'],['chk_mangel','описание недостатка'],['chk_nachweise','доказательства'],['chk_aufforderung','уведомление отправлено'],['chk_empfang','получение подтверждено'],['chk_frist','срок назначен'],['chk_antwort','ответ/сроки'],['chk_kosten','расходы задокументированы'],['chk_bezug','связь расходов с нарушением']];
+const MST={offen:'открыт',juristisch_pruefen:'нужна юр. проверка',geklaert:'решён',abgelehnt:'отклонён'};
+const RGST={moeglich:'возможно',bestaetigt:'основание подтв.',anerkannt:'признано в учёте',erhalten:'деньги получены'};
+const MCHK_KEYS=MCHK.map(x=>x[0]);
+function mangelHtml(){
+  const ms=DATA.maengel||[], b=DATA.berechnet;
+  let h='<div class="card"><h2>Недостатки и требования к подрядчику (§9–10)</h2><div class="cap">без авто-удержаний; VOB/B не применяется автоматически</div>';
+  h+='<div class="itog"><span>Расходы на устранение (в факт объекта)</span><span class="zahl neg">'+EURc(b.ist_mangel||0)+'</span></div>';
+  h+='<div class="itog"><span>Возможное возмещение (отдельно, не улучшает результат)</span><span class="zahl">'+EURc(b.regress_offen||0)+'</span></div>';
+  if(ms.length){ h+=ms.map(m=>{
+    const stb=m.status==='geklaert'?'bestaetigt':(m.status==='juristisch_pruefen'?'schaetzung':(m.status==='abgelehnt'?'ist':'plan'));
+    let x='<div class="row" style="cursor:default;align-items:flex-start"><div class="l"><span class="t">'+(m.subunternehmer?H(m.subunternehmer)+' — ':'')+H(m.beschreibung).slice(0,80)+' <span class="badge '+stb+'">'+H(MST[m.status]||m.status)+'</span></span>'
+      +'<span class="m">расход '+EURc(m.mangelkosten_cent)+' · возмещение '+EURc(m.regress_cent)+' ('+H(RGST[m.regress_status]||m.regress_status)+')'+(m.rechtsgrundlage?' · '+H(m.rechtsgrundlage):'')+'</span></div>'
+      +'<button class="btn" data-mg-edit="'+m.id+'">Изменить</button></div>';
+    x+='<div id="mg-form-'+m.id+'" style="display:none;margin:4px 0 10px" class="grid">';
+    x+='<div class="breit" style="font-size:11px;color:var(--muted)">Досье (§9):</div>';
+    x+='<div class="breit" style="display:flex;flex-wrap:wrap;gap:10px">'+MCHK.map(c=>'<label style="flex-direction:row;align-items:center;gap:5px;font-size:12.5px"><input type="checkbox" id="mg-'+c[0]+'-'+m.id+'"'+(m[c[0]]?' checked':'')+' style="width:auto">'+H(c[1])+'</label>').join('')+'</div>';
+    x+='<label>Статус<select id="mg-status-'+m.id+'">'+Object.entries(MST).map(([k,vv])=>'<option value="'+k+'"'+(m.status===k?' selected':'')+'>'+H(vv)+'</option>').join('')+'</select></label>';
+    x+='<label>Правовое основание (проверить)<input id="mg-rg-'+m.id+'" value="'+H(m.rechtsgrundlage||'')+'" placeholder="§ 634/637/280/281 BGB — проверить"></label>';
+    x+='<label>Расход на устранение (€)<input id="mg-mk-'+m.id+'" type="number" step="0.01" value="'+(Number(m.mangelkosten_cent)/100)+'"></label>';
+    x+='<label>Возможное возмещение (€)<input id="mg-rgb-'+m.id+'" type="number" step="0.01" value="'+(Number(m.regress_cent)/100)+'"></label>';
+    x+='<label>Статус возмещения<select id="mg-rgs-'+m.id+'">'+Object.entries(RGST).map(([k,vv])=>'<option value="'+k+'"'+(m.regress_status===k?' selected':'')+'>'+H(vv)+'</option>').join('')+'</select></label>';
+    x+='<label class="breit">Заметка<input id="mg-notiz-'+m.id+'" value="'+H(m.notiz||'')+'"></label>';
+    x+='<div class="breit" style="display:flex;gap:8px"><button class="btn pri" data-mg-save="'+m.id+'">Сохранить</button><button class="btn crit" data-mg-del="'+m.id+'">Удалить</button></div></div>';
+    return x;
+  }).join(''); }
+  else h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Недостатков нет.</div>';
+  h+='<button class="btn pri" id="mg-toggle" style="margin-top:8px">+ Недостаток</button>';
+  h+='<div id="mg-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label>Подрядчик<input id="mg-sub" placeholder="кто выполнял"></label>'
+    +'<label class="breit">Описание недостатка<input id="mg-bes"></label>'
+    +'<div class="breit"><button class="btn pri" id="mg-add">Добавить</button></div></div>';
+  h+='<div class="hint">Юриста нет: сомнительное — статус «нужна юр. проверка» → владельцу. Спорные суммы из оплаты подрядчику <b>авто не удерживаются</b>. Расход и ожидаемое возмещение не сворачиваются; возмещение не улучшает результат, пока деньги не получены (§10).</div></div>';
+  return h;
+}
+const FQ={exif:'EXIF',manuell:'вручную',ingenieur:'Инженер',stunden:'Учёт часов'};
+function fotoHtml(){
+  const fs=DATA.fotos||[];
+  let h='<div class="card"><h2>Фото объекта (§13)</h2><div class="cap">по дате съёмки; метаданные — не безусловное доказательство</div>';
+  if(fs.length){ h+=fs.map(f=>'<div class="row" style="cursor:default"><div class="l"><span class="t">'+(f.datei_ref?(/^https?:/.test(f.datei_ref)?'<a href="'+H(f.datei_ref)+'" target="_blank" rel="noopener">'+H(f.datei_ref).slice(0,50)+'</a>':H(f.datei_ref).slice(0,50)):'(без ссылки)')+'</span>'
+    +'<span class="m">'+(f.autor?H(f.autor)+' · ':'')+'съёмка '+(f.aufnahme_datum?T(f.aufnahme_datum):'—')+' · загрузка '+T(f.upload_datum)+' · '+H(FQ[f.aufnahme_quelle]||f.aufnahme_quelle)+' · '+(f.zuordnung_art==='auto'?'авто':'вручную')+(f.verknuepfung?' · '+H(f.verknuepfung):'')+'</span></div>'
+    +'<button class="btn crit" data-foto-del="'+f.id+'">✕</button></div>').join(''); }
+  else h+='<div class="keindoc" style="font-size:12.5px;color:var(--muted)">Фото пока нет.</div>';
+  h+='<button class="btn pri" id="foto-toggle" style="margin-top:8px">+ Фото</button>';
+  h+='<div id="foto-form" style="display:none;margin-top:10px" class="grid">'
+    +'<label class="breit">Ссылка на файл (Drive/…), без копии оригинала<input id="fo-ref"></label>'
+    +'<label>Автор<input id="fo-autor"></label>'
+    +'<label>Дата съёмки<input id="fo-datum" type="date"></label>'
+    +'<label>Источник<select id="fo-quelle"><option value="manuell">вручную</option><option value="exif">EXIF</option><option value="ingenieur">Инженер</option><option value="stunden">Учёт часов</option></select></label>'
+    +'<label>Связь (претензия/задача/этап)<input id="fo-verkn"></label>'
+    +'<div class="breit"><button class="btn pri" id="fo-add">Добавить</button></div></div>';
+  h+='<div class="hint">Поздняя загрузка привязывается по <b>дате съёмки</b>, не загрузки. Авто-привязка (достоверный сотрудник + дата + одно назначение) заработает, когда подключим «Учёт часов»/«Инженер» — пока привязка вручную. Фото связывается ссылкой, оригинал не копируется.</div></div>';
+  return h;
+}
+function kostenExtra(){
+  const b=DATA.berechnet;
+  let h='<div class="itog"><span>Факт всего (вне заказов + счета по заказам + распределённое)</span><span class="zahl">'+EURc(b.ist_gesamt)+'</span></div>';
+  if(b.ist_verteilt){ const parts=Object.entries(b.verteilte_kosten||{}).map(([k,c])=>VARTD[k]+' '+EURc(c)).join(' · ');
+    h+='<div class="itog"><span style="padding-left:12px">в т.ч. распределённые (§14–17): '+H(parts)+'</span><span class="zahl">'+EURc(b.ist_verteilt)+'</span></div>'; }
+  h+='<div class="itog"><span>Остаток обязательств по заказам</span><span class="zahl" style="color:var(--warn)">'+EURc(b.verpflichtung)+'</span></div>';
+  h+='<div class="itog"><span>Оценка ETC (оставшиеся, вне заказов)</span><span class="zahl">'+EURc(b.etc_cent)+'</span></div>';
+  h+=bestellungHtml();
+  h+=etcHtml();
+  return h;
+}
+function karte(){
+  const o=DATA.objekt, b=DATA.berechnet, v=DATA.vollstaendigkeit;
+  document.getElementById('titel').innerHTML='<a href="/objekt" style="text-decoration:none">← Объекты</a> · '+H(o.nr);
+  document.getElementById('sub').textContent=(o.bez||'')+(o.adresse?' · '+o.adresse:'')+(o.status?' · '+o.status:'');
+  // паспорт: клиент с номером + всегда привязанный номер объекта
+  const k=o.kunde||{};
+  let pass='<div class="card"><h2>Паспорт объекта</h2>';
+  pass+='<div class="row" style="cursor:default"><div class="l"><span class="t">Номер объекта (ядро)</span><span class="m">единый номер, привязан всегда</span></div><span class="v zahl">'+H(o.nr)+'</span></div>';
+  pass+='<div class="row" style="cursor:default"><div class="l"><span class="t">Клиент</span><span class="m">'
+    +(k.kunden_nr?('клиент № '+H(k.kunden_nr)):'')+(k.debitor_nr?(' · дебитор '+H(k.debitor_nr)):'')
+    +(!k.hat_nummer?'<span class="warnrow">номер клиента не присвоен в источнике</span>':'')+'</span></div>'
+    +'<span class="v">'+(k.name?H(k.name):'<span class="none">не указан</span>')+'</span></div>';
+  if(o.firma) pass+='<div class="row" style="cursor:default"><div class="l"><span class="t">Фирма</span></div><span class="v">'+H(o.firma)+'</span></div>';
+  pass+='</div>';
+  let dupw='';
+  if(o.umgeleitet){ dupw+='<div class="msg auf g" style="position:static">Номер '+H(o.umgeleitet)+' сведён в этот объект — показываю канонический '+H(o.nr)+'.</div>'; }
+  if(o.dup){ dupw+='<div class="card" style="border-left:3px solid var(--warn)"><h2 style="color:var(--warn)">⚠ Объект-дубль</h2>'
+    +'<div class="cap">тот же клиент и адрес есть у других номеров (ещё не сведены)</div>'
+    +(o.dubletten||[]).map(d=>'<div class="row"><div class="l"><span class="t">'+H(d.nummer)+'</span><span class="m">'+H(d.bez||'')+' · '+H(d.status||'')+'</span></div></div>').join('')
+    +'<div class="hint">Свод дублей делается по одному, с твоим подтверждением (ключ — номер, через алиасы). Хозяин объектов — «Учёт часов».</div></div>'; }
+  if(o.zusammengefuehrt&&o.zusammengefuehrt.length){ dupw+='<div class="card" style="border-left:3px solid var(--ok)"><h2 style="color:var(--ok)">✓ Сведённые номера ('+o.zusammengefuehrt.length+')</h2>'
+    +'<div class="cap">эти номера сведены в этот объект (алиас в ядре, ничего не удалено)</div>'
+    +o.zusammengefuehrt.map(d=>'<div class="row" style="cursor:default"><div class="l"><span class="t">'+H(d.nummer)+'</span><span class="m">'+H(d.bez||'')+'</span></div></div>').join('')
+    +'<div class="hint">Дубли этого объекта в самом «Учёте часов» нужно свести отдельно — это его зона.</div></div>'; }
+  const fehlt=v.fehlt.length?(' — не хватает: '+v.fehlt.join(', ')):'';
+  let h=pass+dupw+risikoHtml()+'<div class="vollbar">Полнота исходных данных: '+v.gefuellt+' из '+v.von+fehlt+'</div>';
+  h+=block('Заказ и доп. работы','основание: договор / заказ / принятый Angebot',['budget','auftragswert'], nachtragHtml());
+  h+=block('Затраты','три категории не пересекаются (§4)',['ist_kosten'], kostenExtra());
+  h+=block('Деньги','отдельно от заказа и затрат',['zahlung_ein','forderung'], streitHtml());
+  // итог
+  h+='<div class="card"><h2>Прогноз результата</h2><div class="cap">до общих расходов фирмы (§18)</div>';
+  h+='<div class="itog"><span>База заказа (подтв. стоимость + подтв. Nachträge)</span><span class="zahl">'+EURc(b.ertragsbasis)+'</span></div>';
+  h+='<div class="itog"><span>Ожидаемые затраты (факт + обязательства + оценка)</span><span class="zahl neg">−'+EURc(b.erwartete_kosten)+'</span></div>';
+  h+='<div class="itog gross"><span>Прогноз итога объекта</span><span class="zahl '+(b.prognose_ergebnis>=0?'pos':'neg')+'">'+EURc(b.prognose_ergebnis)+'</span></div>';
+  if(b.nachtrag_offen) h+='<div class="itog"><span>справочно: с учётом неподтверждённых Nachträge</span><span class="zahl">'+EURc(b.prognose_mit_offen)+'</span></div>';
+  h+='<div class="hint">'+H(b.hinweis)+'</div></div>';
+  h+=abschlussHtml();
+  h+=einbehaltHtml();
+  h+=mangelHtml();
+  h+=ausgangHtml();
+  h+=mahnungHtml();
+  h+=fotoHtml();
+  // форма
+  h+='<div class="edit" id="edit"></div>';
+  document.getElementById('app').innerHTML=h;
+}
+
+function editForm(k){
+  const kat=DATA.katalog.find(x=>x.k===k); const r=DATA.kennzahlen[k]||{};
+  const arten=['plan','bestaetigt','ist','verpflichtung','schaetzung','zahlung'];
+  const quellen=['manuell','vertrag','auftrag','angebot','finmap','ingenieur','schaetzung'];
+  const val=(r.wert_cent!=null)?((Number(r.wert_cent)/100)):'';
+  const unv=(r.unverteilt_cent!=null)?((Number(r.unverteilt_cent)/100)):'';
+  const ed=document.getElementById('edit');
+  ed.innerHTML='<h3>'+H(kat.titel)+'</h3><div class="grid">'
+    +'<label>Сумма (€)<input id="e-wert" type="number" step="0.01" value="'+val+'"></label>'
+    +'<label>Вид<select id="e-art">'+arten.map(a=>'<option value="'+a+'"'+((r.art||kat.art)===a?' selected':'')+'>'+H(ARTD[a])+'</option>').join('')+'</select></label>'
+    +'<label>Источник<select id="e-quelle">'+quellen.map(q=>'<option value="'+q+'"'+((r.quelle||'manuell')===q?' selected':'')+'>'+H(QUELLED[q])+'</option>').join('')+'</select></label>'
+    +'<label>Период (ГГГГ или ГГГГ-ММ)<input id="e-periode" value="'+H(r.periode||'')+'" placeholder="2026"></label>'
+    +'<label>Нераспределённая часть (€)<input id="e-unv" type="number" step="0.01" value="'+unv+'"></label>'
+    +'<label>Подтверждено бухгалтером<select id="e-pr"><option value="neu"'+(r.pruefstatus!=='bestaetigt'?' selected':'')+'>нет</option><option value="bestaetigt"'+(r.pruefstatus==='bestaetigt'?' selected':'')+'>да</option></select></label>'
+    +'<label class="breit">Основание / ссылка на документ или расчёт<input id="e-beleg" value="'+H(r.beleg_ref||'')+'" placeholder="напр. Vertrag 2026-01, Drive-ссылка"></label>'
+    +'<label class="breit">Заметка<input id="e-notiz" value="'+H(r.notiz||'')+'"></label>'
+    +'</div><div class="aktion"><button class="btn pri" id="e-save">Сохранить</button>'
+    +(r.wert_cent!=null?'<button class="btn crit" id="e-del">Очистить</button>':'')
+    +'<button class="btn" id="e-cancel">Отмена</button></div>';
+  ed.classList.add('auf'); ed.dataset.k=k; ed.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+async function speichern(loeschen){
+  const k=document.getElementById('edit').dataset.k;
+  const body={objekt_nr:NR, kennzahl:k, loeschen:!!loeschen,
+    wert:document.getElementById('e-wert').value, art:document.getElementById('e-art').value,
+    quelle:document.getElementById('e-quelle').value, periode:document.getElementById('e-periode').value,
+    unverteilt:document.getElementById('e-unv').value, pruefstatus:document.getElementById('e-pr').value,
+    beleg_ref:document.getElementById('e-beleg').value, notiz:document.getElementById('e-notiz').value};
+  try{ await J('/api/objekt/kennzahl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    melde(loeschen?'Показатель очищен':'Сохранено',true);
+    DATA=await J('/api/objekt?nr='+encodeURIComponent(NR)); karte();
+  }catch(e){ melde(e.message); }
+}
+
+async function post(u,body){ return J(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }
+async function neu(){ DATA=await J('/api/objekt?nr='+encodeURIComponent(NR)); karte(); }
+
+document.getElementById('app').addEventListener('click',async (e)=>{
+  const t=e.target;
+  // риски
+  const rb=t.closest('button[data-risiko]'); if(rb){ try{ await post('/api/objekt/risiko-erledigt',{id:+rb.dataset.risiko}); melde('Риск закрыт',true); await neu(); }catch(err){melde(err.message);} return; }
+  // Nachträge
+  if(t.id==='nt-toggle'){ const f=document.getElementById('nt-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='nt-add'){
+    const bez=document.getElementById('nt-bez').value.trim(); if(!bez){melde('Впишите название');return;}
+    try{ await post('/api/objekt/nachtrag',{objekt_nr:NR,bezeichnung:bez,betrag:document.getElementById('nt-betrag').value,
+      basis:document.getElementById('nt-basis').value,datum:document.getElementById('nt-datum').value,
+      status:document.getElementById('nt-status').value,beleg_ref:document.getElementById('nt-beleg').value});
+      melde('Доп. работа добавлена',true); await neu(); }catch(err){melde(err.message);} return; }
+  const nb=t.closest('button[data-nt-best]'); if(nb){ try{ await post('/api/objekt/nachtrag/status',{id:+nb.dataset.ntBest,status:'bestaetigt'}); melde('Подтверждено',true); await neu(); }catch(err){melde(err.message);} return; }
+  const no=t.closest('button[data-nt-offen]'); if(no){ try{ await post('/api/objekt/nachtrag/status',{id:+no.dataset.ntOffen,status:'offen'}); melde('Возвращено в неподтверждённые',true); await neu(); }catch(err){melde(err.message);} return; }
+  const nd=t.closest('button[data-nt-del]'); if(nd){ if(!confirm('Удалить доп. работу?'))return; try{ await post('/api/objekt/nachtrag/status',{id:+nd.dataset.ntDel,loeschen:true}); melde('Удалено',true); await neu(); }catch(err){melde(err.message);} return; }
+  // ETC
+  if(t.id==='etc-toggle'){ const f=document.getElementById('etc-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='etc-save'){ const val=document.getElementById('etc-betrag').value; if(val===''){melde('Впишите сумму ETC');return;}
+    try{ const r=await post('/api/objekt/etc',{objekt_nr:NR,betrag:val,grund:document.getElementById('etc-grund').value});
+      melde(r.risiko?'Оценка сохранена. Прибыль снизилась — риск показан владельцу.':'Оценка сохранена',true); await neu(); }catch(err){melde(err.message);} return; }
+  // Заказы-обязательства (§4)
+  if(t.id==='b-toggle'){ const f=document.getElementById('b-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='b-add'){ const lief=document.getElementById('b-lief').value.trim(); if(!lief){melde('Впишите поставщика');return;}
+    try{ await post('/api/objekt/bestellung',{objekt_nr:NR,lieferant:lief,betrag:document.getElementById('b-summe').value,
+      soll_datum:document.getElementById('b-datum').value,basis:document.getElementById('b-basis').value,
+      beleg_ref:document.getElementById('b-beleg').value,umfang:document.getElementById('b-umfang').value});
+      melde('Заказ добавлен',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bf=t.closest('button[data-br-form]'); if(bf){ const f=document.getElementById('br-form-'+bf.dataset.brForm); if(f) f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  const brs=t.closest('button[data-br-save]'); if(brs){ const id=brs.dataset.brSave; const val=document.getElementById('br-betrag-'+id).value; if(val===''){melde('Сумма счёта');return;}
+    try{ await post('/api/objekt/bestellung/rechnung',{bestellung_id:+id,betrag:val,art:document.getElementById('br-art-'+id).value,
+      datum:document.getElementById('br-datum-'+id).value,rechnung_ref:document.getElementById('br-ref-'+id).value});
+      melde('Счёт привязан',true); await neu(); }catch(err){melde(err.message);} return; }
+  const brd=t.closest('a[data-br-del]'); if(brd){ if(!confirm('Удалить привязку счёта?'))return; try{ await post('/api/objekt/bestellung/rechnung',{id:+brd.dataset.brDel,loeschen:true}); melde('Счёт удалён',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bok=t.closest('button[data-b-ok]'); if(bok){ try{ const r=await post('/api/objekt/bestellung/genehmigen',{id:+bok.dataset.bOk}); melde(r.genehmigung==='wartet_andrej'?'Одобрено Олегом — ждёт решения Андрея':'Закупка утверждена',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bno=t.closest('button[data-b-nein]'); if(bno){ const el=document.getElementById('reject_'+bno.dataset.bNein); if(el){el.style.display='block';const inp=document.getElementById('rej_grund_'+bno.dataset.bNein);if(inp)inp.focus();} return; }
+  const bnok=t.closest('button[data-b-nein-ok]'); if(bnok){ const id=bnok.dataset.bNeinOk; const g=document.getElementById('rej_grund_'+id).value.trim(); if(!g){melde('Укажите причину отклонения');return;} try{ await post('/api/objekt/bestellung/genehmigen',{id:+id,entscheidung:'ablehnen',grund:g}); melde('Закупка отклонена',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bnclose=t.closest('button[data-b-nein-close]'); if(bnclose){ const el=document.getElementById('reject_'+bnclose.dataset.bNeinClose); if(el)el.style.display='none'; return; }
+  const bst=t.closest('button[data-b-storno]'); if(bst){ try{ await post('/api/objekt/bestellung/status',{id:+bst.dataset.bStorno,status:'storniert'}); melde('Заказ сторнирован',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bre=t.closest('button[data-b-react]'); if(bre){ try{ await post('/api/objekt/bestellung/status',{id:+bre.dataset.bReact,status:'reaktivieren'}); melde('Заказ возвращён',true); await neu(); }catch(err){melde(err.message);} return; }
+  const bde=t.closest('button[data-b-del]'); if(bde){ if(!confirm('Удалить заказ и его счета?'))return; try{ await post('/api/objekt/bestellung/status',{id:+bde.dataset.bDel,loeschen:true}); melde('Заказ удалён',true); await neu(); }catch(err){melde(err.message);} return; }
+  // Завершение (§6)
+  const ab=t.closest('button[data-abs]'); if(ab){ try{ await post('/api/objekt/abschluss',{objekt_nr:NR,feld:ab.dataset.abs,wert:ab.dataset.on==='1'}); melde('Состояние обновлено',true); await neu(); }catch(err){melde(err.message);} return; }
+  if(t.id==='erg-neu'){ try{ const r=await post('/api/objekt/ergebnis',{objekt_nr:NR}); melde('Новая версия итога сохранена: '+EURc(r.ergebnis),true); await neu(); }catch(err){melde(err.message);} return; }
+  // Удержания/Bürgschaft (§7)
+  if(t.id==='eb-toggle'){ const f=document.getElementById('eb-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='eb-add'){ const val=document.getElementById('eb-betrag').value; if(val===''){melde('Впишите сумму');return;}
+    try{ await post('/api/objekt/einbehalt',{objekt_nr:NR,art:document.getElementById('eb-art').value,betrag:val,
+      grund:document.getElementById('eb-grund').value,freigabe_bedingung:document.getElementById('eb-frei').value,
+      erwartete_rueckgabe:document.getElementById('eb-rueck').value,verantwortlich:document.getElementById('eb-verant').value,
+      gebuehr:document.getElementById('eb-geb').value,ablauf:document.getElementById('eb-ablauf').value});
+      melde('Добавлено',true); await neu(); }catch(err){melde(err.message);} return; }
+  const ebb=t.closest('button[data-eb]'); if(ebb){ const st=ebb.dataset.ebSt;
+    if(st==='del'){ if(!confirm('Удалить запись?'))return; try{ await post('/api/objekt/einbehalt/status',{id:+ebb.dataset.eb,loeschen:true}); melde('Удалено',true); await neu(); }catch(err){melde(err.message);} }
+    else { try{ await post('/api/objekt/einbehalt/status',{id:+ebb.dataset.eb,status:st}); melde('Статус обновлён',true); await neu(); }catch(err){melde(err.message);} } return; }
+  // Спорные части (§8)
+  if(t.id==='st-toggle'){ const f=document.getElementById('st-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='st-add'){ const val=document.getElementById('st-betrag').value; if(val===''){melde('Впишите сумму');return;}
+    try{ await post('/api/objekt/streit',{objekt_nr:NR,betrag:val,grund:document.getElementById('st-grund').value});
+      melde('Спорная часть добавлена — напоминания по ней на паузе',true); await neu(); }catch(err){melde(err.message);} return; }
+  const sti=t.closest('button[data-st-id]'); if(sti){ const akt=sti.dataset.stAkt;
+    if(akt==='del'){ if(!confirm('Удалить?'))return; try{ await post('/api/objekt/streit/status',{id:+sti.dataset.stId,loeschen:true}); melde('Удалено',true); await neu(); }catch(err){melde(err.message);} }
+    else { let ent=''; if(akt==='reduziert'){ ent=prompt('Основание уменьшения долга (утверждает владелец):')||''; } try{ await post('/api/objekt/streit/status',{id:+sti.dataset.stId,status:akt,entscheidung:ent}); melde(akt==='reduziert'?'Долг уменьшен (владелец)':'Спор снят',true); await neu(); }catch(err){melde(err.message);} } return; }
+  // Недостатки (§9–10)
+  if(t.id==='mg-toggle'){ const f=document.getElementById('mg-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='mg-add'){ const bes=document.getElementById('mg-bes').value.trim(); if(!bes){melde('Опишите недостаток');return;}
+    try{ await post('/api/objekt/mangel',{objekt_nr:NR,beschreibung:bes,subunternehmer:document.getElementById('mg-sub').value}); melde('Недостаток добавлен',true); await neu(); }catch(err){melde(err.message);} return; }
+  const mge=t.closest('button[data-mg-edit]'); if(mge){ const f=document.getElementById('mg-form-'+mge.dataset.mgEdit); if(f) f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  const mgs=t.closest('button[data-mg-save]'); if(mgs){ const id=mgs.dataset.mgSave;
+    const body={id:+id,status:document.getElementById('mg-status-'+id).value,rechtsgrundlage:document.getElementById('mg-rg-'+id).value,
+      mangelkosten:document.getElementById('mg-mk-'+id).value,regress:document.getElementById('mg-rgb-'+id).value,
+      regress_status:document.getElementById('mg-rgs-'+id).value,notiz:document.getElementById('mg-notiz-'+id).value};
+    MCHK_KEYS.forEach(c=>{ const el=document.getElementById('mg-'+c+'-'+id); if(el) body[c]=el.checked; });
+    try{ await post('/api/objekt/mangel/update',body); melde('Сохранено',true); await neu(); }catch(err){melde(err.message);} return; }
+  const mgd=t.closest('button[data-mg-del]'); if(mgd){ if(!confirm('Удалить недостаток?'))return; try{ await post('/api/objekt/mangel/update',{id:+mgd.dataset.mgDel,loeschen:true}); melde('Удалено',true); await neu(); }catch(err){melde(err.message);} return; }
+  // Фото (§13)
+  if(t.id==='foto-toggle'){ const f=document.getElementById('foto-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='fo-add'){ try{ await post('/api/objekt/foto',{objekt_nr:NR,datei_ref:document.getElementById('fo-ref').value,autor:document.getElementById('fo-autor').value,aufnahme_datum:document.getElementById('fo-datum').value,aufnahme_quelle:document.getElementById('fo-quelle').value,verknuepfung:document.getElementById('fo-verkn').value}); melde('Фото добавлено',true); await neu(); }catch(err){melde(err.message);} return; }
+  const fod=t.closest('button[data-foto-del]'); if(fod){ if(!confirm('Удалить фото?'))return; try{ await post('/api/objekt/foto/loeschen',{id:+fod.dataset.fotoDel}); melde('Удалено',true); await neu(); }catch(err){melde(err.message);} return; }
+  // Исходящие счета (§11)
+  if(t.id==='ag-toggle'){ const f=document.getElementById('ag-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='ag-add'){ const val=document.getElementById('ag-betrag').value; if(val===''){melde('Впишите сумму');return;}
+    try{ const r=await post('/api/objekt/ausgang',{objekt_nr:NR,art:document.getElementById('ag-art').value,betrag:val,
+      nummer:document.getElementById('ag-nummer').value,datum:document.getElementById('ag-datum').value,empfaenger:document.getElementById('ag-empf').value});
+      melde(r.sv_ok?'Счёт подготовлен — сверка ок':'Счёт подготовлен, но есть расхождение (сумма больше остатка) — отправка заблокирована',true); await neu(); }catch(err){melde(err.message);} return; }
+  const ags=t.closest('button[data-ag-send]'); if(ags){ try{ const r=await post('/api/objekt/ausgang/senden',{id:+ags.dataset.agSend}); melde(r.journal||'Отправлено (тест)',true); await neu(); }catch(err){melde(err.message);} return; }
+  const agf=t.closest('button[data-ag-fehler]'); if(agf){ try{ await post('/api/objekt/ausgang/status',{id:+agf.dataset.agFehler,fehler:true}); melde('Отмечена ошибка — задача бухгалтеру создана',true); await neu(); }catch(err){melde(err.message);} return; }
+  const agd=t.closest('button[data-ag-del]'); if(agd){ if(!confirm('Удалить счёт?'))return; try{ await post('/api/objekt/ausgang/status',{id:+agd.dataset.agDel,loeschen:true}); melde('Удалено',true); await neu(); }catch(err){melde(err.message);} return; }
+  // Напоминания (§12)
+  if(t.id==='mh-vor'){ try{ const r=await post('/api/objekt/mahnung',{objekt_nr:NR}); melde('Напоминание '+r.stufe+' подготовлено на '+EURc(r.betrag),true); await neu(); }catch(err){melde(err.message);} return; }
+  const mhb=t.closest('button[data-mh-best]'); if(mhb){ try{ await post('/api/objekt/mahnung/bestaetigen',{id:+mhb.dataset.mhBest}); melde('Подтверждено ответственным',true); await neu(); }catch(err){melde(err.message);} return; }
+  const mhs=t.closest('button[data-mh-send]'); if(mhs){ try{ const r=await post('/api/objekt/mahnung/senden',{id:+mhs.dataset.mhSend}); melde(r.journal||'Отправлено (тест)',true); await neu(); }catch(err){melde(err.message);} return; }
+  const mhd=t.closest('button[data-mh-del]'); if(mhd){ if(!confirm('Удалить напоминание?'))return; try{ await post('/api/objekt/mahnung/loeschen',{id:+mhd.dataset.mhDel}); melde('Удалено',true); await neu(); }catch(err){melde(err.message);} return; }
+  if(t.id==='zus-toggle'){ const f=document.getElementById('zus-form'); f.style.display=f.style.display==='none'?'grid':'none'; return; }
+  if(t.id==='zus-add'){ const d=document.getElementById('zus-datum').value; if(!d){melde('Впишите дату');return;}
+    try{ await post('/api/objekt/zusage',{objekt_nr:NR,datum:d,notiz:document.getElementById('zus-notiz').value}); melde('Дата сохранена — напоминания на паузе до неё',true); await neu(); }catch(err){melde(err.message);} return; }
+  if(t.id==='zus-del'){ try{ await post('/api/objekt/zusage',{objekt_nr:NR,loeschen:true}); melde('Обещанная дата снята',true); await neu(); }catch(err){melde(err.message);} return; }
+  // kennzahl (Фаза 1)
+  const row=t.closest('.row[data-k]'); if(row) return editForm(row.dataset.k);
+  if(t.id==='e-save') return speichern(false);
+  if(t.id==='e-del') return speichern(true);
+  if(t.id==='e-cancel'){ document.getElementById('edit').classList.remove('auf'); }
+});
+
+async function start(){
+  try{
+    if(NR){ DATA=await J('/api/objekt?nr='+encodeURIComponent(NR)); karte(); }
+    else { await liste(); }
+  }catch(e){ document.getElementById('app').innerHTML='<div class="leer">Не удалось загрузить: '+H(e.message)+'</div>'; }
+}
+start();
+</script>
+<script src="/rolle.js"></script>
+</body></html>
