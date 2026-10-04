@@ -289,6 +289,18 @@ async function api(methode, pfad, koerper) {
   if (!r.ok) throw Object.assign(new Error(j.fehler || 'Ошибка ' + r.status), { status: r.status });
   return j;
 }
+async function uploadDatei(file) {
+  const buf = await file.arrayBuffer();
+  const r = await fetch('/api/k/datei', {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Dateiname': encodeURIComponent(file.name) },
+    credentials: 'same-origin',
+    body: buf,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.fehler || 'Ошибка загрузки файла');
+  return j.sha;
+}
 
 async function lageLaden() {
   try {
@@ -980,7 +992,12 @@ function renderModal(mod) {
           <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Очистить</button>
           <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Сохранить подпись и открыть PDF</button>
         </div>
-        <button type="button" data-action="sigSkip" class="v-button" style="width:100%;margin-top:6px;justify-content:center">${icon('printer')} Открыть PDF без подписи</button>`;
+        <button type="button" data-action="sigSkip" class="v-button" style="width:100%;margin-top:6px;justify-content:center">${icon('printer')} Открыть PDF без подписи</button>
+        <div id="chek-area" class="v-upload" style="margin:14px 0 0;padding:14px 12px;position:relative">
+          ${icon('paperclip')}<strong id="chek-status">Прикрепить чек / фото</strong>
+          <span class="v-small">Фото чека, PDF (необязательно)</span>
+          <input type="file" id="chek-input" accept="image/*,application/pdf" capture="environment" style="position:absolute;opacity:0;inset:0;cursor:pointer">
+        </div>`;
     } else {
     title = 'Распределить деньги';
     const hauptkasse = S.lage?.kasse?.hauptkasse || 0;
@@ -1513,6 +1530,29 @@ function setupSigCanvas() {
     S.signaturStep = null; S.modal = null;
     await lageLaden(); renderApp();
   });
+
+  const chekInput = document.getElementById('chek-input');
+  if (chekInput) {
+    chekInput.addEventListener('change', async () => {
+      const file = chekInput.files[0];
+      if (!file) return;
+      const chekArea = document.getElementById('chek-area');
+      const chekStatus = document.getElementById('chek-status');
+      chekStatus.textContent = 'Загрузка…';
+      if (chekArea) chekArea.style.opacity = '0.6';
+      try {
+        const sha = await uploadDatei(file);
+        await api('POST', 'quittung/' + S.signaturStep.id + '/foto', { sha });
+        if (chekArea) { chekArea.style.background = '#e8f5e9'; chekArea.style.borderColor = '#35674e'; chekArea.style.opacity = '1'; }
+        chekStatus.textContent = '✓ ' + file.name;
+        toast('Чек прикреплён к квитанции ' + S.signaturStep.nr);
+      } catch(err) {
+        chekStatus.textContent = 'Ошибка: ' + err.message;
+        if (chekArea) chekArea.style.opacity = '1';
+        toast(err.message, 'err');
+      }
+    });
+  }
 }
 
 let pwaPrompt = null;
