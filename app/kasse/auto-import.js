@@ -28,7 +28,16 @@ async function ausfuehren() {
   try { ops = await razn.operationen(90); }
   catch (e) { console.error('[auto-import] FinMap не отвечает:', e.message); return; }
 
-  const bar = ops.filter(istBarabhebung);
+  // Уровень 1: дата-барьер — игнорировать операции раньше KASSE_IMPORT_AB
+  const ab = process.env.KASSE_IMPORT_AB; // напр. '2026-10-01'
+  const bar = ops.filter(op => {
+    if (!istBarabhebung(op)) return false;
+    if (ab && String(op.datum || '') < ab) {
+      console.log('[auto-import] пропуск (до', ab + '):', op.datum, op.partner || '');
+      return false;
+    }
+    return true;
+  });
   if (!bar.length) return;
 
   let neu = 0, fehler = 0;
@@ -44,10 +53,11 @@ async function ausfuehren() {
         const da = await q(`SELECT id FROM ${S}buch_bank_link WHERE finmap_op = $1`, [opId]);
         if (da.length) return;
 
+        // Уровень 2: статус gemeldet — человек должен подтвердить вручную
         const r = await q(
           `INSERT INTO ${S}buch_bewegung
-           (art, betrag_cent, status, datum, finmap_op, notiz, von, bestaetigt_am, bestaetigt_von, idem)
-           VALUES ('abhebung',$1,'bestaetigt',$2,$3,$4,'auto-import',now(),'auto-import',$5)
+           (art, betrag_cent, status, datum, finmap_op, notiz, von, idem)
+           VALUES ('abhebung',$1,'gemeldet',$2,$3,$4,'auto-import',$5)
            ON CONFLICT (idem) DO NOTHING RETURNING id`,
           [betrag, op.datum, opId, notiz, idem]
         );

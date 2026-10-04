@@ -127,6 +127,48 @@ async function abhebung(n, b) {
   });
 }
 
+/** Подтверждение авто-импортированного снятия наличных (abhebung gemeldet → bestaetigt).
+    Уровень 3: хронологический замок — дата снятия не может быть раньше последнего подтверждённого. */
+async function abhebungBestaetigen(n, id) {
+  darf(istGf(n) || istBuch(n), 'Подтверждает снятие только директор или бухгалтерия');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Снятие не найдено', 404);
+    pruefe(m.art === 'abhebung', 'Операция не является снятием наличных', 400);
+    if (m.status !== 'gemeldet') return { ok: true, wiederholt: true, status: m.status };
+
+    // Уровень 3: дата новой записи должна быть >= даты последнего подтверждённого снятия
+    const letzt = (await q(
+      `SELECT datum::text FROM ${S}buch_bewegung WHERE art = 'abhebung' AND status = 'bestaetigt' ORDER BY datum DESC, id DESC LIMIT 1`
+    ))[0];
+    if (letzt && String(m.datum).slice(0, 10) < String(letzt.datum).slice(0, 10)) {
+      throw new Fehler(409,
+        `Хронологическая ошибка: последнее подтверждённое снятие от ${letzt.datum}. ` +
+        `Это снятие (${iso(m.datum)}) раньше — подтверждение заблокировано. ` +
+        `Сначала занесите все операции в хронологическом порядке.`
+      );
+    }
+
+    await q(`UPDATE ${S}buch_bewegung SET status = 'bestaetigt', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'abhebung_bestaetigt', 'bewegung:' + m.id, { betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'bestaetigt' };
+  });
+}
+
+/** Отклонение авто-импортированного снятия. */
+async function abhebungAblehnen(n, id) {
+  darf(istGf(n) || istBuch(n), 'Отклоняет снятие только директор или бухгалтерия');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Снятие не найдено', 404);
+    pruefe(m.art === 'abhebung', 'Операция не является снятием наличных', 400);
+    if (m.status !== 'gemeldet') return { ok: true, wiederholt: true, status: m.status };
+    await q(`UPDATE ${S}buch_bewegung SET status = 'storniert', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'abhebung_abgelehnt', 'bewegung:' + m.id, { betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'storniert' };
+  });
+}
+
 /** Передача наличных. Отдающий отмечает, получатель подтверждает отдельно. */
 async function uebergabe(n, b, benutzer) {
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
@@ -1050,7 +1092,8 @@ async function lage(n, benutzerListe, jetzt) {
       quittung_id: m.quittung_id && Number(m.quittung_id), beleg_id: m.beleg_id && Number(m.beleg_id), datum: iso(m.datum),
       angelegt: m.angelegt, von: m.von, bestaetigt_von: m.bestaetigt_von, finmap_op: m.finmap_op, notiz: m.notiz,
       bestaetigen_darf: m.status === 'gemeldet' && m.von !== n.login &&
-        ((m.an_art === 'hauptkasse' && istBuch(n)) || (m.an_art === 'halter' && m.an_login === n.login)) }));
+        ((m.an_art === 'hauptkasse' && istBuch(n)) || (m.an_art === 'halter' && m.an_login === n.login)),
+      abhebung_bestaetigen_darf: m.status === 'gemeldet' && m.art === 'abhebung' && m.von === 'auto-import' && (istGf(n) || istBuch(n)) }));
 
     const belegeRoh = await q(`SELECT b.*, e.id AS e_id, e.status AS e_status, e.weg AS e_weg,
         (SELECT nr FROM ${S}buch_beleg d WHERE d.id <> b.id AND d.status <> 'storniert' AND d.person_ref IS NOT DISTINCT FROM b.person_ref
@@ -1256,7 +1299,7 @@ async function eingangAblehnen(n, id, b) {
 
 module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
-  abhebung, uebergabe, rueckgabe, bestaetigen,
+  abhebung, abhebungBestaetigen, abhebungAblehnen, uebergabe, rueckgabe, bestaetigen,
   planAnlegen, planEinfach, planEinreichen, planEntscheiden,
   quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
   dateiRegistrieren, dateiDarf,

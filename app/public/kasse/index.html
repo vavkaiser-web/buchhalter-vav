@@ -961,6 +961,15 @@ function renderModal(mod) {
             ${verteilListe}${restNote}${blockNote}${transferForm}
           </div>`;
       }
+      const autoImportSection = b.abhebung_bestaetigen_darf ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd);background:var(--v-warn-bg,#fff8e1);border-radius:8px;padding:12px">
+          <div class="v-small" style="font-weight:600;margin-bottom:8px;color:var(--v-warn,#e65100)">${icon('alert-circle')} Автоимпорт — требует подтверждения</div>
+          <div class="v-note" style="margin-bottom:10px;font-size:12px">Это снятие обнаружено автоматически в FinMap. Проверьте сумму и дату по банковской выписке.</div>
+          <div style="display:flex;gap:8px">
+            <button class="v-button primary" style="flex:1;justify-content:center" data-action="abhebungBestaetigen" data-id="${b.id}">${icon('check-circle')} Подтвердить</button>
+            <button class="v-button" style="flex:1;justify-content:center;color:var(--v-err,#c62828)" data-action="abhebungAblehnen" data-id="${b.id}">${icon('x-circle')} Отклонить</button>
+          </div>
+        </div>` : '';
       body = `<div class="v-ledger">
         ${keys([
           ['Тип', esc(bewArt(b.art))],
@@ -975,7 +984,7 @@ function renderModal(mod) {
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
         <div class="v-small" style="font-weight:600;margin-bottom:6px">Документ</div>
         ${dokSection}
-      </div>${transferSection}`;
+      </div>${autoImportSection}${transferSection}`;
     } else {
       title = 'Движение';
       body = '<div class="v-stateempty">Данные не найдены</div>';
@@ -1282,6 +1291,21 @@ document.getElementById('app').addEventListener('click', async e => {
   }
 
   const scrollToModal = () => document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  if (act==='abhebungBestaetigen') {
+    try {
+      await api('POST', `abhebung/${b.dataset.id}/bestaetigen`, {});
+      await lageLaden(); closeModal(); toast('Снятие подтверждено'); renderApp();
+    } catch(e) { toast(e.message, 'err'); }
+    return;
+  }
+  if (act==='abhebungAblehnen') {
+    try {
+      await api('POST', `abhebung/${b.dataset.id}/ablehnen`, {});
+      await lageLaden(); closeModal(); toast('Снятие отклонено'); renderApp();
+    } catch(e) { toast(e.message, 'err'); }
+    return;
+  }
+
   if (act==='metrikNalichnye' || act==='kasseAusgeben') {
     const isGf = S.ich?.rolle === 'gf';
     const kasseHasGeld = (S.lage?.kasse?.hauptkasse||0) > 0;
