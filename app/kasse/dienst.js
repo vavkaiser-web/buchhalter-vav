@@ -55,6 +55,10 @@ async function kontoSicher(q, id, art, name, bei, login, personRef, n) {
            VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING`,
     [id, art, name, bei, login, personRef, n.login]);
 }
+/** Счета «деньги у ответственного» для всех входов с ролью disponent. */
+async function halterAlle(q, benutzer) {
+  for (const b of (benutzer || []).filter(x => x.rolle === 'disponent')) await halterFuer(q, b);
+}
 async function halterFuer(q, n) {
   const kurz = n.kurzname || String(n.name || n.login).split(/\s+/)[0];
   await kontoSicher(q, halterKonto(n.login), 'halter', kurz, n.bei || ('У ' + kurz), n.login, n.person || null, n);
@@ -63,7 +67,7 @@ async function halterFuer(q, n) {
 
 /** Расчётный остаток счёта. Уход считается сразу (gemeldet или bestaetigt),
     приход — только после подтверждения получателем. */
-async function saldo(q, konto) {
+async function saldo(q, konto, excludeQtId) {
   const r = await q(`SELECT
       COALESCE(SUM(betrag_cent) FILTER (WHERE an_konto = $1 AND status = 'bestaetigt'), 0)::bigint AS erhalten,
       COALESCE(SUM(betrag_cent) FILTER (WHERE von_konto = $1 AND art IN ('ausgabe','verbrauch','uebergabe') AND status IN ('gemeldet','bestaetigt')), 0)::bigint AS ausgaben,
@@ -75,18 +79,48 @@ async function saldo(q, konto) {
   const o = { erhalten: Number(x.erhalten), ausgaben: Number(x.ausgaben), zurueck: Number(x.zurueck),
     unterwegs: Number(x.unterwegs), eingehend: Number(x.eingehend) };
   o.saldo = o.erhalten - o.ausgaben - o.zurueck;
+  const rq = await q(
+    `SELECT COALESCE(SUM(qt.betrag_cent),0)::bigint AS reserviert
+     FROM ${S}buch_quittung qt JOIN ${S}buch_geldplan p ON p.id = qt.plan_id
+     WHERE qt.von_konto = $1 AND qt.status = 'vorbereitet' AND p.status = 'genehmigt'`
+    + (excludeQtId ? ' AND qt.id <> $2' : ''),
+    excludeQtId ? [konto, excludeQtId] : [konto]);
+  o.reserviert = Number(rq[0].reserviert);
+  o.frei = o.saldo - o.reserviert;
   return o;
 }
 
 /* ---------------- снятие и передачи ---------------- */
+
+// Слой 2: проверка дубликатов при снятии.
+// Если за ±3 дня уже есть abhebung на ту же сумму — возвращает 409 с деталями.
+// Флаг force=true в теле запроса позволяет явно переопределить.
 async function abhebung(n, b) {
   darf(istGf(n), 'Снятие в банке отмечает только Андрей');
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.datum || '')) ? b.datum : wt.berlinTag(Date.now());
+  // Слой 3: автоматически создаём idem из даты и суммы, если не передан.
+  // Это позволяет ON CONFLICT поймать дубликат при повторной отправке.
+  const idem = b.idem || `kasse-${datum}-${betrag}`;
   return tx(async q => {
+    // Слой 2: поиск существующих снятий на ту же сумму в диапазоне ±3 дня.
+    if (!b.force) {
+      const dup = await q(
+        `SELECT id, datum::text, betrag_cent FROM ${S}buch_bewegung
+         WHERE art = 'abhebung' AND betrag_cent = $1
+           AND datum BETWEEN $2::date - 3 AND $2::date + 3`,
+        [betrag, datum]
+      );
+      if (dup.length) {
+        throw new Fehler(409,
+          `Возможный дубликат: снятие ${euro(betrag)} уже есть от ${dup[0].datum} (id=${dup[0].id}).` +
+          ` Если это другое снятие — нажмите «Всё равно сохранить».`
+        );
+      }
+    }
     const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, finmap_op, notiz, von, bestaetigt_am, bestaetigt_von, idem)
       VALUES ('abhebung',$1,'bestaetigt',$2,$3,$4,$5,now(),$5,$6)
-      ON CONFLICT (idem) DO NOTHING RETURNING id`, [betrag, datum, txt(b.finmap_op, 80), txt(b.notiz), n.login, b.idem || null]);
+      ON CONFLICT (idem) DO NOTHING RETURNING id`, [betrag, datum, txt(b.finmap_op, 80), txt(b.notiz), n.login, idem]);
     if (!r.length) return { ok: true, wiederholt: true };
     await log(q, n, 'abhebung', 'bewegung:' + r[0].id, { betrag });
     return { ok: true, id: r[0].id };
@@ -94,10 +128,11 @@ async function abhebung(n, b) {
 }
 
 /** Передача наличных. Отдающий отмечает, получатель подтверждает отдельно. */
-async function uebergabe(n, b) {
+async function uebergabe(n, b, benutzer) {
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
   const an = String(b.an_konto || '');
   return tx(async q => {
+    await halterAlle(q, benutzer);
     const ziel = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [an]))[0];
     pruefe(ziel && ziel.art !== 'vorschuss', 'Получатель должен быть основной кассой или ответственным за наличные');
     let vonKonto = null, quelle = null;
@@ -120,11 +155,16 @@ async function uebergabe(n, b) {
       const s = await saldo(q, vonKonto);
       pruefe(betrag <= s.saldo, `Сумма превышает расчётный остаток (${euro(s.saldo)})`, 409);
     }
-    const r = await q(`INSERT INTO ${S}buch_bewegung (art, von_konto, an_konto, quelle_id, betrag_cent, status, notiz, von, idem)
-      VALUES ($1,$2,$3,$4,$5,'gemeldet',$6,$7,$8) ON CONFLICT (idem) DO NOTHING RETURNING id`,
-      [b.art === 'rueckgabe' ? 'rueckgabe' : 'uebergabe', vonKonto, an, quelle ? quelle.id : null, betrag, txt(b.notiz), n.login, b.idem || null]);
+    // При распределении из банковского снятия GF уже авторизовал: подтверждаем сразу.
+    const autoBestaetigt = !!quelle;
+    const status = autoBestaetigt ? 'bestaetigt' : 'gemeldet';
+    const r = await q(`INSERT INTO ${S}buch_bewegung (art, von_konto, an_konto, quelle_id, betrag_cent, status, notiz, von,
+        bestaetigt_am, bestaetigt_von, idem)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,${autoBestaetigt ? 'now()' : 'NULL'},$9,$10) ON CONFLICT (idem) DO NOTHING RETURNING id`,
+      [b.art === 'rueckgabe' ? 'rueckgabe' : 'uebergabe', vonKonto, an, quelle ? quelle.id : null, betrag, status, txt(b.notiz), n.login,
+        autoBestaetigt ? n.login : null, b.idem || null]);
     if (!r.length) return { ok: true, wiederholt: true };
-    await log(q, n, 'uebergabe_gemeldet', 'bewegung:' + r[0].id, { betrag, an, von: vonKonto, quelle: quelle && quelle.id });
+    await log(q, n, autoBestaetigt ? 'uebergabe_bestaetigt' : 'uebergabe_gemeldet', 'bewegung:' + r[0].id, { betrag, an, von: vonKonto, quelle: quelle && quelle.id });
     return { ok: true, id: r[0].id };
   });
 }
@@ -218,11 +258,18 @@ async function planEntscheiden(n, id, b) {
   return tx(async q => {
     const p = (await q(`SELECT * FROM ${S}buch_geldplan WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     pruefe(p, 'Заявка не найдена', 404);
-    const neu = b && b.genehmigt === false ? 'abgelehnt' : 'genehmigt';
+    const ablehnen = b && (b.aktion === 'ablehnen' || b.genehmigt === false);
+    const neu = ablehnen ? 'abgelehnt' : 'genehmigt';
     if (p.status === neu) return { ok: true, wiederholt: true };
     pruefe(p.status === 'eingereicht', 'Утверждается только поданная заявка', 409);
     await q(`UPDATE ${S}buch_geldplan SET status = $2, entschieden_am = now(), entschieden_von = $3 WHERE id = $1`, [p.id, neu, n.login]);
-    await log(q, n, 'plan_' + neu, 'plan:' + p.id, { notiz: txt(b && b.notiz) });
+    if (neu === 'genehmigt' && b && b.konto) {
+      const konto = String(b.konto);
+      const k = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [konto]))[0];
+      pruefe(k && (k.art === 'hauptkasse' || k.art === 'halter'), 'Неизвестный счёт кассира', 400);
+      await q(`UPDATE ${S}buch_quittung SET von_konto = $2 WHERE plan_id = $1 AND status = 'vorbereitet'`, [p.id, konto]);
+    }
+    await log(q, n, 'plan_' + neu, 'plan:' + p.id, { notiz: txt(b && b.notiz), konto: b && b.konto });
     return { ok: true, status: neu };
   });
 }
@@ -230,13 +277,19 @@ async function planEntscheiden(n, id, b) {
 /** Выдача по квитанции: только здесь уходят деньги. */
 async function ausgeben(q, n, qt) {
   let konto;
-  if (istDisp(n)) konto = await halterFuer(q, n);
-  else if (istBuch(n)) konto = 'hauptkasse';
+  if (qt.von_konto) {
+    konto = qt.von_konto;
+    const k = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [konto]))[0];
+    pruefe(k, 'Счёт кассира не найден', 404);
+    const darfKonto = (k.art === 'hauptkasse' && (istBuch(n) || istGf(n))) || (k.art === 'halter' && k.login === n.login);
+    darf(darfKonto, 'Выдачу с этого счёта выполняет другой ответственный');
+  } else if (istDisp(n)) konto = await halterFuer(q, n);
+  else if (istBuch(n) || istGf(n)) konto = 'hauptkasse';
   else darf(false, 'Выдаёт ответственный за наличные или бухгалтерия');
   await sperreKonto(q, konto);
-  const s = await saldo(q, konto);
-  pruefe(Number(qt.betrag_cent) <= s.saldo,
-    `Сумма превышает доступный остаток (${euro(s.saldo)})`, 409);
+  const s = await saldo(q, konto, qt.id);
+  pruefe(Number(qt.betrag_cent) <= s.frei,
+    `Сумма превышает свободный остаток (${euro(s.frei)})`, 409);
   let an = null;
   if (qt.zweck === 'vorschuss' && qt.empfaenger_ref) {
     an = vorschussKonto(qt.empfaenger_ref);
@@ -250,7 +303,7 @@ async function ausgeben(q, n, qt) {
     await q(`UPDATE ${S}buch_erstattung SET status = 'ausgezahlt', weg = 'bar', quittung_id = $2 WHERE id = $1`, [qt.erstattung_id, qt.id]);
   }
   await log(q, n, 'ausgabe', 'quittung:' + qt.id, { nr: qt.nr, betrag: Number(qt.betrag_cent), konto });
-  return { ok: true, nr: qt.nr, bewegung: m.id };
+  return { ok: true, nr: qt.nr, id: qt.id, bewegung: m.id };
 }
 
 async function quittungAusgeben(n, id) {
@@ -269,12 +322,12 @@ async function quittungAusgeben(n, id) {
     и зарплата, в пределах фактического остатка, квитанция — сразу.
     Для подрядчиков такое право не согласовано — не разрешаем. */
 async function dringendAusgeben(n, b) {
-  darf(istDisp(n), 'Срочную выдачу оформляет ответственный за наличные');
-  pruefe(['vorschuss', 'lohn'].includes(b.zweck), 'Срочно без согласования — только аванс или зарплата. Выплата подрядчику — через список, утверждённый Андреем.');
+  darf(istDisp(n) || istGf(n), 'Срочную выдачу оформляет ответственный за наличные или Андрей');
+  if (!istGf(n)) pruefe(['vorschuss', 'lohn'].includes(b.zweck), 'Срочно без согласования — только аванс или зарплата. Выплата подрядчику — через список, утверждённый Андреем.');
   return tx(async q => {
     if (b.idem) {
       const alt = (await q(`SELECT id, nr FROM ${S}buch_quittung WHERE idem = $1`, [b.idem]))[0];
-      if (alt) return { ok: true, wiederholt: true, nr: alt.nr };
+      if (alt) return { ok: true, wiederholt: true, nr: alt.nr, id: alt.id };
     }
     const z = await quittungZeile(q, n, null, b, true, null);
     const qt = (await q(`SELECT * FROM ${S}buch_quittung WHERE id = $1`, [z.id]))[0];
@@ -321,6 +374,18 @@ async function quittungNuBestaetigt(n, id, b) {
     if (qt.nu_bestaetigt_am) return { ok: true, wiederholt: true };
     await q(`UPDATE ${S}buch_quittung SET nu_bestaetigt_am = now(), nu_bestaetigt_von = $2, nu_bestaetigt_notiz = $3 WHERE id = $1`, [qt.id, n.login, notiz]);
     await log(q, n, 'nu_bestaetigt', 'quittung:' + qt.id, { notiz });
+    return { ok: true };
+  });
+}
+
+async function quittungUnterschrift(n, id, b) {
+  darf(istGf(n) || istDisp(n) || buero(n), 'Подпись принимает директор, ответственный или бухгалтерия');
+  const sig = String(b.unterschrift || '');
+  pruefe(sig.startsWith('data:image/png;base64,') && sig.length < 200000, 'Неверный формат подписи');
+  return tx(async q => {
+    const qt = (await q(`SELECT id FROM ${S}buch_quittung WHERE id = $1`, [idOf(id)]))[0];
+    pruefe(qt, 'Квитанция не найдена', 404);
+    await q(`UPDATE ${S}buch_quittung SET unterschrift = $2 WHERE id = $1`, [qt.id, sig]);
     return { ok: true };
   });
 }
@@ -375,6 +440,9 @@ const ZAHLARTEN = ['privat', 'vorschuss', 'firmenkarte', 'kasse'];
 async function belegAnlegen(n, b) {
   darf(istMa(n) || istDisp(n) || buero(n), 'Нет прав загружать чеки');
   pruefe(b.idem && String(b.idem).length >= 8, 'Нет ключа повторной отправки');
+  // Чек из очереди телефона несёт логин автора: если на телефоне уже вошёл
+  // другой человек, чек не записывается на него.
+  pruefe(!b.fuer_login || b.fuer_login === n.login, 'Чек из очереди другого сотрудника — войдите под своим логином', 409);
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля с точностью до цента');
   pruefe(ARTEN.includes(b.art), 'Выберите, что куплено');
   pruefe(ZAHLARTEN.includes(b.zahlart), 'Укажите, чем оплачено');
@@ -384,9 +452,13 @@ async function belegAnlegen(n, b) {
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.belegdatum || '')) ? b.belegdatum : wt.berlinTag(Date.now());
 
   return tx(async q => {
+    // Повторное нажатие и параллельная отправка: сначала блокировка по ключу
+    // отправки, затем по файлу — второй запрос ждёт и видит первый.
+    await q('SELECT pg_advisory_xact_lock(hashtext($1))', ['buch_beleg_idem:' + b.idem]);
     const alt = (await q(`SELECT id, nr FROM ${S}buch_beleg WHERE idem = $1`, [b.idem]))[0];
     if (alt) return { ok: true, wiederholt: true, id: alt.id, nr: alt.nr };
     await dateiPruefen(q, b.datei_sha);
+    await q('SELECT pg_advisory_xact_lock(hashtext($1))', ['buch_beleg_sha:' + b.datei_sha]);
     const dopp = (await q(`SELECT nr FROM ${S}buch_beleg WHERE datei_sha = $1 AND status <> 'storniert'`, [b.datei_sha]))[0];
     pruefe(!dopp, `Этот снимок уже загружен как ${dopp && dopp.nr}`, 409);
 
@@ -404,7 +476,7 @@ async function belegAnlegen(n, b) {
       pruefe(f, 'Выберите машину из списка');
       fahrzeugRef = f.id; fahrzeugText = f.text;
     }
-    if (verwendung === 'objekt') {
+    if (verwendung === 'objekt' || (verwendung === 'fahrzeug' && b.objekt_nr)) {
       const o = (await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr || '')]))[0];
       pruefe(o, 'Выберите объект из списка');
       objektNr = o.nummer; objektText = o.bez || o.nummer;
@@ -422,6 +494,17 @@ async function belegAnlegen(n, b) {
       }
     }
     if (b.zahlart === 'kasse') { darf(istBuch(n), 'Оплату из основной кассы отмечает бухгалтерия'); konto = 'hauptkasse'; }
+    if (konto) {
+      // Наличные в кассе и у ответственного не уходят в минус: блокировка
+      // счёта и проверка остатка в той же транзакции. Аванс сотрудника
+      // только блокируется: неучтённый аванс не должен мешать сдать чек,
+      // расхождение видит бухгалтер.
+      await sperreKonto(q, konto);
+      if (!konto.startsWith('vorschuss:')) {
+        const s = await saldo(q, konto);
+        pruefe(betrag <= s.saldo, `Сумма превышает расчётный остаток (${euro(s.saldo)})`, 409);
+      }
+    }
 
     const nr = await nummer(q, 'B');
     const r = (await q(`INSERT INTO ${S}buch_beleg (nr, art, kurztext, person_ref, person_name, eingereicht_von, betrag_cent, belegdatum,
@@ -446,7 +529,9 @@ async function belegPruefen(n, id, b) {
   return tx(async q => {
     const x = (await q(`SELECT * FROM ${S}buch_beleg WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     pruefe(x, 'Чек не найден', 404);
-    darf(x.eingereicht_von !== n.login, 'Собственный чек проверяет другой человек');
+    // Решает владелец расхода, а не автор записи: бухгалтер проверяет чек,
+    // который сам внёс за рабочего, но не свой собственный расход.
+    darf(!eigenerAufwand(n, x), 'Собственный расход проверяет другой человек');
     const ok = !(b && b.ergebnis === 'abgelehnt');
     const neu = ok ? 'geprueft' : 'abgelehnt';
     if (x.status === neu) return { ok: true, wiederholt: true };
@@ -454,7 +539,9 @@ async function belegPruefen(n, id, b) {
     if (!ok) pruefe(txt(b.notiz), 'Укажите причину отклонения');
     await q(`UPDATE ${S}buch_beleg SET status = $2, geprueft_am = now(), geprueft_von = $3, pruef_notiz = $4 WHERE id = $1`,
       [x.id, neu, n.login, txt(b && b.notiz)]);
-    if (!ok) await q(`UPDATE ${S}buch_bewegung SET status = 'storniert' WHERE beleg_id = $1 AND art = 'verbrauch'`, [x.id]);
+    // Отклонение чека не возвращает деньги: наличные потрачены физически.
+    // Расход со счёта остаётся, сумма становится вопросом к ответственному
+    // (виден в карточке как «отклонён, деньги потрачены»); касса не растёт.
     if (ok && x.zahlart === 'privat') {
       await q(`INSERT INTO ${S}buch_erstattung (beleg_id, betrag_cent, empfaenger_ref, empfaenger_name, von)
         VALUES ($1,$2,$3,$4,$5) ON CONFLICT (beleg_id) DO NOTHING`, [x.id, x.betrag_cent, x.person_ref, x.person_name, n.login]);
@@ -462,6 +549,11 @@ async function belegPruefen(n, id, b) {
     await log(q, n, 'beleg_' + neu, 'beleg:' + x.id, { notiz: txt(b && b.notiz) });
     return { ok: true, status: neu };
   });
+}
+
+function eigenerAufwand(n, x) {
+  if (x.person_ref) return !!n.person && x.person_ref === n.person;
+  return x.eingereicht_von === n.login && x.person_name === (n.name || n.login);
 }
 
 /* ---------------- возмещения ---------------- */
@@ -534,13 +626,14 @@ async function rueckfrageAnlegen(n, b, benutzerListe) {
       const alt = (await q(`SELECT id, nr FROM ${S}buch_rueckfrage WHERE idem = $1`, [b.idem]))[0];
       if (alt) return { ok: true, wiederholt: true, id: alt.id, nr: alt.nr };
     }
+    let belegArt = ['kraftstoff', 'material', 'sonstiges'].includes(b.beleg_art) ? b.beleg_art : null;
     let titel = txt(b.titel, 120), betrag = b.betrag ? centAus(b.betrag) : null, datum = null, zahl = txt(b.zahlart_text, 60), objekt = txt(b.objekt_text, 120);
     let personRef = txt(b.person_ref, 60), personName = null;
     if (art === 'beleg') {
       const x = (await q(`SELECT * FROM ${S}buch_beleg WHERE id = $1`, [idOf(b.bezug_id)]))[0];
       pruefe(x, 'Чек не найден', 404);
       titel = titel || belegTitel(x); betrag = Number(x.betrag_cent); datum = x.belegdatum;
-      personRef = x.person_ref; personName = x.person_name; objekt = x.fahrzeug_text || x.objekt_text;
+      personRef = x.person_ref; personName = x.person_name; objekt = x.fahrzeug_text || x.objekt_text; belegArt = x.art;
     }
     if (personRef) { const p = await personLesen(q, personRef); if (p) personName = p.name; }
     personName = personName || txt(b.person_name, 120);
@@ -548,11 +641,11 @@ async function rueckfrageAnlegen(n, b, benutzerListe) {
     pruefe(titel, 'Нужна короткая тема запроса');
     const login = (await benutzerFuerPerson(personRef, benutzerListe) || {}).login || null;
     const nr = await nummer(q, 'R');
-    const r = (await q(`INSERT INTO ${S}buch_rueckfrage (nr, bezug_art, bezug_id, titel, betrag_cent, bezugsdatum, zahlart_text, objekt_text,
+    const r = (await q(`INSERT INTO ${S}buch_rueckfrage (nr, beleg_art, bezug_art, bezug_id, titel, betrag_cent, bezugsdatum, zahlart_text, objekt_text,
         person_ref, person_name, person_login, text, von, idem)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      VALUES ($1,$15,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [nr, art, b.bezug_id != null ? String(b.bezug_id) : null, titel, betrag, datum || (/^\d{4}-\d{2}-\d{2}$/.test(String(b.bezugsdatum || '')) ? b.bezugsdatum : null),
-        zahl, objekt, personRef, personName, login, text, n.login, b.idem || null]))[0];
+        zahl, objekt, personRef, personName, login, text, n.login, b.idem || null, belegArt]))[0];
     await log(q, n, 'rueckfrage_angelegt', 'rueckfrage:' + r.id, { nr, an: personName, benachrichtigt: false });
     return { ok: true, id: r.id, nr, benachrichtigung: 'Уведомления не отправлялись: канал не согласован' };
   });
@@ -727,11 +820,14 @@ async function verrechnen(n, id, b) {
 async function verrechnungStorno(n, id) {
   darf(istBuch(n), 'Нет прав');
   return tx(async q => {
-    const v = (await q(`SELECT v.*, p.status AS paket_status FROM ${S}buch_verrechnung v JOIN ${S}buch_zahlpaket p ON p.id = v.paket_id
-      WHERE v.id = $1 FOR UPDATE OF v`, [idOf(id)]))[0];
-    pruefe(v, 'Зачёт не найден', 404);
+    // Порядок блокировок как в paketAnGf/verrechnen: сначала комплект, потом зачёт.
+    // Иначе отмена зачёта могла бы пройти одновременно с передачей Андрею.
+    const kopf = (await q(`SELECT paket_id FROM ${S}buch_verrechnung WHERE id = $1`, [idOf(id)]))[0];
+    pruefe(kopf, 'Зачёт не найден', 404);
+    const p = await paketLaden(q, kopf.paket_id);
+    const v = (await q(`SELECT * FROM ${S}buch_verrechnung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     if (v.storniert_am) return { ok: true, wiederholt: true };
-    pruefe(v.paket_status === 'entwurf', 'Комплект уже передан Андрею', 409);
+    pruefe(p.status === 'entwurf', 'Комплект уже передан Андрею', 409);
     await q(`UPDATE ${S}buch_verrechnung SET storniert_am = now(), storniert_von = $2 WHERE id = $1`, [v.id, n.login]);
     await log(q, n, 'verrechnung_storno', 'paket:' + v.paket_id, { verrechnung: v.id });
     return { ok: true };
@@ -792,16 +888,115 @@ async function paketBezahlt(n, id) {
 }
 
 /* ---------------- банк: только связи с операциями FinMap ---------------- */
-async function bankLink(n, b) {
+/** Связь операции банка с документом (это не полная банковская сверка). Операция ищется в источнике (FinMap,
+    только чтение), сумма сравнивается с документом. Совпало — «сверено».
+    Не совпало — связь только по явному решению бухгалтера с пояснением и
+    с пометкой «расхождение»; подтверждением банка она не считается.
+    finde(op) → { id, datum, betrag } | null — передаёт слой API. */
+async function bankLink(n, b, finde) {
   darf(istBuch(n), 'Связи с банком ведёт бухгалтерия');
-  const op = txt(b.finmap_op, 80); pruefe(op, 'Нет операции банка');
+  const opId = txt(b.finmap_op, 80); pruefe(opId, 'Нет операции банка');
   pruefe(['abhebung', 'paket', 'beleg', 'erstattung', 'rueckfrage'].includes(b.ziel_art), 'Неизвестная цель связи');
+  const quelle = await finde(opId);
+  pruefe(quelle && quelle.ok, (quelle && quelle.grund) || 'Банк недоступен — связь не ставится', 503);
+  const op = quelle.op;
+  pruefe(op, 'Операция не найдена в банке', 404);
+  // Все цели связи — исходящие деньги (снятие, оплата, возмещение, покупка).
+  // Входящий платёж или перевод между счетами сюда не подходят.
+  pruefe(String(op.typ || '').toLowerCase() === 'expense',
+    'Операция банка не является расходом — связать её со снятием или оплатой нельзя', 409);
   return tx(async q => {
-    const r = await q(`INSERT INTO ${S}buch_bank_link (finmap_op, ziel_art, ziel_id, von) VALUES ($1,$2,$3,$4)
-      ON CONFLICT DO NOTHING RETURNING id`, [op, b.ziel_art, String(b.ziel_id), n.login]);
+    const zid = idOf(b.ziel_id);
+    const ziel = {
+      abhebung: `SELECT betrag_cent AS b FROM ${S}buch_bewegung WHERE id = $1 AND art = 'abhebung'`,
+      paket: `SELECT brutto_cent - COALESCE((SELECT SUM(betrag_cent) FROM ${S}buch_verrechnung v WHERE v.paket_id = p.id AND v.storniert_am IS NULL), 0) AS b
+              FROM ${S}buch_zahlpaket p WHERE id = $1`,
+      beleg: `SELECT betrag_cent AS b FROM ${S}buch_beleg WHERE id = $1`,
+      erstattung: `SELECT betrag_cent AS b FROM ${S}buch_erstattung WHERE id = $1`,
+      rueckfrage: `SELECT betrag_cent AS b FROM ${S}buch_rueckfrage WHERE id = $1`,
+    }[b.ziel_art];
+    const z = (await q(ziel, [zid]))[0];
+    pruefe(z && z.b != null, 'Документ для связи не найден', 404);
+    const zielBetrag = Number(z.b), opBetrag = Number(op.betrag);
+    const gleich = zielBetrag === opBetrag;
+    if (!gleich) {
+      pruefe(b.trotz_abweichung === true && txt(b.notiz),
+        `Сумма в банке ${euro(opBetrag)} не совпадает с документом ${euro(zielBetrag)}. Связь при расхождении — только с пояснением.`, 409);
+    }
+    const r = await q(`INSERT INTO ${S}buch_bank_link (finmap_op, ziel_art, ziel_id, status, op_betrag_cent, ziel_betrag_cent, op_datum, op_quelle, notiz, von)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING RETURNING id`,
+      [opId, b.ziel_art, String(zid), gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag,
+        /^\d{4}-\d{2}-\d{2}$/.test(String(op.datum || '')) ? op.datum : null, quelle.quelle, txt(b.notiz), n.login]);
     if (!r.length) return { ok: true, wiederholt: true };
-    await log(q, n, 'bank_link', b.ziel_art + ':' + b.ziel_id, { op });
-    return { ok: true, id: r[0].id };
+    await log(q, n, 'bank_link', b.ziel_art + ':' + zid, { op: opId, status: gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag });
+    return { ok: true, id: r[0].id, status: gleich ? 'abgeglichen' : 'abweichung' };
+  });
+}
+
+/* Ручная привязка банковской транзакции — без FinMap.
+   Используется когда Qonto API недоступен, а документ подтверждает операцию.
+   Принимает: finmap_op (ID из CSV), ziel_art, ziel_id, op_betrag_cent, op_datum, quelle.
+   Доступно только бухгалтерии. */
+async function bankLinkManuell(n, b) {
+  darf(istBuch(n) || istGf(n), 'Ручные связи с банком ведёт бухгалтерия или Андрей');
+  const opId = txt(b.finmap_op, 80); pruefe(opId, 'Нет кода операции');
+  pruefe(['abhebung', 'paket', 'beleg', 'erstattung', 'rueckfrage'].includes(b.ziel_art), 'Неизвестная цель связи');
+  const opBetrag = Number(b.op_betrag_cent); pruefe(opBetrag > 0, 'Сумма операции не задана');
+  const opDatum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.op_datum || '')) ? b.op_datum : null;
+  pruefe(opDatum, 'Дата операции не задана (формат YYYY-MM-DD)');
+  const quelle = txt(b.quelle || b.op_quelle, 80) || 'Ручная привязка';
+  return tx(async q => {
+    const zid = idOf(b.ziel_id);
+    const ziel = {
+      abhebung: `SELECT betrag_cent AS b FROM ${S}buch_bewegung WHERE id = $1 AND art = 'abhebung'`,
+      paket: `SELECT brutto_cent AS b FROM ${S}buch_zahlpaket WHERE id = $1`,
+      beleg: `SELECT betrag_cent AS b FROM ${S}buch_beleg WHERE id = $1`,
+      erstattung: `SELECT betrag_cent AS b FROM ${S}buch_erstattung WHERE id = $1`,
+      rueckfrage: `SELECT betrag_cent AS b FROM ${S}buch_rueckfrage WHERE id = $1`,
+    }[b.ziel_art];
+    const z = (await q(ziel, [zid]))[0];
+    pruefe(z && z.b != null, 'Документ для связи не найден', 404);
+    const zielBetrag = Number(z.b);
+    const gleich = zielBetrag === opBetrag;
+    if (!gleich) {
+      pruefe(b.trotz_abweichung === true && txt(b.notiz),
+        `Сумма в банке ${euro(opBetrag)} не совпадает с документом ${euro(zielBetrag)}. Связь при расхождении — только с пояснением.`, 409);
+    }
+    // Установить finmap_op на движении если не задан
+    await q(`UPDATE ${S}buch_bewegung SET finmap_op = $1 WHERE id = $2 AND art = 'abhebung' AND finmap_op IS NULL`,
+      [opId, zid]);
+    const r = await q(`INSERT INTO ${S}buch_bank_link (finmap_op, ziel_art, ziel_id, status, op_betrag_cent, ziel_betrag_cent, op_datum, op_quelle, notiz, von)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING RETURNING id`,
+      [opId, b.ziel_art, String(zid), gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag,
+        opDatum, quelle, txt(b.notiz), n.login]);
+    if (!r.length) return { ok: true, wiederholt: true };
+    await log(q, n, 'bank_link_manuell', b.ziel_art + ':' + zid, { op: opId, status: gleich ? 'abgeglichen' : 'abweichung', opBetrag, zielBetrag });
+    return { ok: true, id: r[0].id, status: gleich ? 'abgeglichen' : 'abweichung' };
+  });
+}
+
+/* Создать beleg-заглушку для uebergabe без скана квитанции.
+   Используется когда передача уже подтверждена, но бумажной расписки нет.
+   Создаёт buch_beleg со статусом 'geprueft', обновляет buch_bewegung.beleg_id. */
+async function belegManuellFuerUebergabe(n, b) {
+  darf(istBuch(n) || istGf(n), 'Внутренний beleg создаёт бухгалтерия или Андрей');
+  return tx(async q => {
+    const zid = idOf(b.uebergabe_id);
+    const bew = (await q(`SELECT id, art, betrag_cent, datum, beleg_id, quittung_id FROM ${S}buch_bewegung WHERE id = $1`, [zid]))[0];
+    pruefe(bew, 'Движение не найдено', 404);
+    pruefe(bew.art === 'uebergabe', 'Только для передачи наличных', 409);
+    if (bew.beleg_id) return { ok: true, wiederholt: true, beleg_id: Number(bew.beleg_id) };
+    const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(bew.datum || '').slice(0, 10))
+      ? String(bew.datum).slice(0, 10) : wt.berlinTag(Date.now());
+    const nr = await nummer(q, 'B');
+    const r = (await q(
+      `INSERT INTO ${S}buch_beleg (nr, firma, art, kurztext, person_name, eingereicht_von, betrag_cent, belegdatum, verwendung, zahlart, status, notiz)
+       VALUES ($1,$2,'sonstiges',$3,$4,$5,$6,$7,'mehrere','privat','geprueft',$8) RETURNING id`,
+      [nr, FIRMA, 'Передача наличных', n.name || n.login, n.login, Number(bew.betrag_cent), datum, txt(b.notiz) || null]
+    ))[0];
+    await q(`UPDATE ${S}buch_bewegung SET beleg_id = $1 WHERE id = $2`, [r.id, zid]);
+    await log(q, n, 'beleg_manuell_uebergabe', 'bewegung:' + zid, { beleg_id: r.id, nr, betrag: Number(bew.betrag_cent) });
+    return { ok: true, id: r.id, nr };
   });
 }
 
@@ -816,10 +1011,21 @@ async function lage(n, benutzerListe, jetzt) {
   jetzt = jetzt || Date.now();
   darf(ROLLEN_KASSE.includes(n.rolle), 'У этой роли нет доступа к кассе');
   return lesen(async q => {
-    const demo = ((await q(`SELECT wert FROM vav_kern.einstellung WHERE schluessel = 'buch_demo'`).catch(() => []))[0] || {}).wert === 'ja';
+    const demo = await (async () => {
+      try {
+        await q('SAVEPOINT sp_demo');
+        const r = await q(`SELECT wert FROM vav_kern.einstellung WHERE schluessel = 'buch_demo'`);
+        await q('RELEASE SAVEPOINT sp_demo');
+        return ((r[0] || {}).wert === 'ja');
+      } catch (e) {
+        await q('ROLLBACK TO SAVEPOINT sp_demo').catch(() => {});
+        return false;
+      }
+    })();
+    if (buero(n)) await halterAlle(q, benutzerListe);
+    else if (istDisp(n)) await halterFuer(q, n);
     const ich = { login: n.login, name: n.name || n.login, rolle: n.rolle, kurz: n.kurz || initialen(n.name || n.login),
-      person: n.person || null, rollenname: n.rollenname || null };
-    if (istDisp(n)) await q('SELECT 1');   // счёт Олега создаётся при первом действии
+      person: n.person || null, rollenname: n.rollenname || null, vorname: String(n.name || n.login).split(/\s+/)[0] };
 
     const konten = await q(`SELECT * FROM ${S}buch_konto ORDER BY art, id`);
     const kontenMit = [];
@@ -837,11 +1043,12 @@ async function lage(n, benutzerListe, jetzt) {
     // Движения: бухгалтерия и Андрей — все; Олег — свои счета.
     const bew = (await q(`SELECT m.*, k1.name AS von_name, k2.name AS an_name, k2.art AS an_art, k2.login AS an_login
       FROM ${S}buch_bewegung m LEFT JOIN ${S}buch_konto k1 ON k1.id = m.von_konto LEFT JOIN ${S}buch_konto k2 ON k2.id = m.an_konto
+      WHERE m.status <> 'storniert'
       ORDER BY m.id DESC LIMIT 400`)).filter(m => buero(n) || kontoIds.includes(m.von_konto) || kontoIds.includes(m.an_konto));
     const bewegungen = bew.map(m => ({ id: Number(m.id), art: m.art, von_konto: m.von_konto, an_konto: m.an_konto, von_name: m.von_name,
       an_name: m.an_name, betrag: Number(m.betrag_cent), status: m.status, quelle_id: m.quelle_id && Number(m.quelle_id),
       quittung_id: m.quittung_id && Number(m.quittung_id), beleg_id: m.beleg_id && Number(m.beleg_id), datum: iso(m.datum),
-      angelegt: m.angelegt, von: m.von, bestaetigt_von: m.bestaetigt_von, finmap_op: m.finmap_op,
+      angelegt: m.angelegt, von: m.von, bestaetigt_von: m.bestaetigt_von, finmap_op: m.finmap_op, notiz: m.notiz,
       bestaetigen_darf: m.status === 'gemeldet' && m.von !== n.login &&
         ((m.an_art === 'hauptkasse' && istBuch(n)) || (m.an_art === 'halter' && m.an_login === n.login)) }));
 
@@ -855,7 +1062,8 @@ async function lage(n, benutzerListe, jetzt) {
       betrag: Number(b.betrag_cent), datum: iso(b.belegdatum), verwendung: b.verwendung, objekt: b.objekt_text, fahrzeug: b.fahrzeug_text,
       zahlart: b.zahlart, zahlart_text: ZAHL_TEXT[b.zahlart], konto_id: b.konto_id, datei: b.datei_sha, dokument: b.dokument_name,
       status: b.status, geprueft_von: b.geprueft_von, geprueft_am: b.geprueft_am, pruef_notiz: b.pruef_notiz, angelegt: b.angelegt,
-      eigen: b.eingereicht_von === n.login, dublette: b.dublette,
+      eigen: eigenerAufwand(n, b), dublette: b.dublette,
+      geld_ohne_beleg: b.status === 'abgelehnt' && !!b.konto_id,
       erstattung: b.e_id ? { id: Number(b.e_id), status: b.e_status, weg: b.e_weg } : null }));
 
     const erst = await q(`SELECT e.*, b.nr AS beleg_nr, b.belegdatum, b.art FROM ${S}buch_erstattung e JOIN ${S}buch_beleg b ON b.id = e.beleg_id
@@ -868,7 +1076,7 @@ async function lage(n, benutzerListe, jetzt) {
     const eintr = await q(`SELECT * FROM ${S}buch_rueckfrage_eintrag ORDER BY id`);
     const rueckfragen = rfRoh.filter(r => sichtbar(n, r, jetzt)).map(r => {
       const st = wt.stufe(r.frist_basis, jetzt, r.verlust);
-      return { id: Number(r.id), nr: r.nr, bezug_art: r.bezug_art, bezug_id: r.bezug_id, titel: r.titel, betrag: r.betrag_cent && Number(r.betrag_cent),
+      return { id: Number(r.id), nr: r.nr, beleg_art: r.beleg_art, bezug_art: r.bezug_art, bezug_id: r.bezug_id, titel: r.titel, betrag: r.betrag_cent && Number(r.betrag_cent),
         datum: iso(r.bezugsdatum), zahlart_text: r.zahlart_text, objekt: r.objekt_text, person: r.person_name, person_ref: r.person_ref,
         text: r.text, verlust: r.verlust, status: r.status, stufe: r.status === 'offen' || r.verlust ? st.stufe : null, frist: st.frist,
         angelegt: r.angelegt, schluss_notiz: r.schluss_notiz,
@@ -906,24 +1114,66 @@ async function lage(n, benutzerListe, jetzt) {
           objekt: p.objekt_text, datei: p.datei_sha, mail_item_id: p.mail_item_id, oleg_status: p.oleg_status, oleg_text: p.oleg_text,
           oleg_datei: p.oleg_datei_sha, oleg_von: p.oleg_von, geprueft_am: p.geprueft_am, status: p.status, iban: istGf(n) || istBuch(n) ? p.iban : null,
           iban_quelle: p.iban_quelle, bezahlt_gemeldet_am: p.bezahlt_gemeldet_am,
-          bank_op: (links.find(l => l.ziel_art === 'paket' && l.ziel_id === String(p.id)) || {}).finmap_op || null,
+          bank_op: (links.find(l => l.ziel_art === 'paket' && l.ziel_id === String(p.id) && l.status === 'abgeglichen') || {}).finmap_op || null,
+          bank_abweichung: links.some(l => l.ziel_art === 'paket' && l.ziel_id === String(p.id) && l.status === 'abweichung'),
           verrechnungen: v.map(x => ({ id: Number(x.id), quittung_id: Number(x.quittung_id), nr: x.nr, empfaenger: x.empfaenger_name,
             betrag: Number(x.betrag_cent), quittung_betrag: Number(x.q_betrag), foto: !!x.foto_sha, nu_bestaetigt: !!x.nu_bestaetigt_am,
             original: !!x.original_am })) };
       });
     }
 
-    const personen = (buero(n) || istDisp(n)) ? await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
-      FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
-      WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`) : [];
-    const objekte = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE firma = 'VAVK' AND COALESCE(status,'') <> 'zu' ORDER BY nummer DESC LIMIT 300`);
-    const fahrzeuge = await q(`SELECT id::text AS id, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
-      FROM vavapp_prod.vehicles WHERE active ORDER BY plate LIMIT 200`);
+    const personen = (buero(n) || istDisp(n)) ? await (async () => {
+      try {
+        await q('SAVEPOINT sp_personen');
+        const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
+          FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
+          WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`);
+        await q('RELEASE SAVEPOINT sp_personen');
+        return r;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_personen').catch(() => {}); return []; }
+    })() : [];
+    const objekte = await (async () => {
+      try {
+        await q('SAVEPOINT sp_objekte');
+        const r = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE firma = 'VAVK' AND COALESCE(status,'') <> 'zu' ORDER BY nummer DESC LIMIT 300`);
+        await q('RELEASE SAVEPOINT sp_objekte');
+        return r;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_objekte').catch(() => {}); return []; }
+    })();
+    const fahrzeuge = await (async () => {
+      try {
+        await q('SAVEPOINT sp_fahrzeuge');
+        const r = await q(`SELECT id::text AS id, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
+          FROM vavapp_prod.vehicles WHERE active ORDER BY plate LIMIT 200`);
+        await q('RELEASE SAVEPOINT sp_fahrzeuge');
+        return r;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_fahrzeuge').catch(() => {}); return []; }
+    })();
 
-    return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo,
+    // Имена для подписей («Андрей снял», «Передано Олегу»). Только отображаемые поля.
+    const namen = {};
+    for (const x of benutzerListe || []) {
+      const vor = String(x.name || x.login).split(/\s+/)[0];
+      namen[x.login] = { name: x.name || x.login, vorname: vor, dativ: x.dativ || vor, rolle: x.rolle };
+    }
+    const bankLinks = buero(n) ? (await q(`SELECT finmap_op, ziel_art, ziel_id, status, op_betrag_cent, ziel_betrag_cent
+      FROM ${S}buch_bank_link WHERE geloest_am IS NULL`)).map(l => ({ op: l.finmap_op, ziel_art: l.ziel_art, ziel_id: l.ziel_id,
+      status: l.status, op_betrag: Number(l.op_betrag_cent), ziel_betrag: Number(l.ziel_betrag_cent) })) : [];
+    // Входящие запросы от vavapp (только для бухгалтерии и GF).
+    let eingaenge = [];
+    if (buero(n)) {
+      const ea = await q(`SELECT id, kasse_ref, art, person_id, person_name, objekt_id, betrag_cent, zweck, erstellt_am, verarbeitet_am
+        FROM ${S}kasse_extern_anfrage ORDER BY id DESC LIMIT 100`);
+      eingaenge = ea.map(e => ({ id: Number(e.id), kasse_ref: e.kasse_ref, art: e.art,
+        person_id: e.person_id, person_name: e.person_name, objekt_id: e.objekt_id,
+        betrag: Number(e.betrag_cent), zweck: e.zweck,
+        erstellt_am: e.erstellt_am, verarbeitet_am: e.verarbeitet_am }));
+    }
+
+    return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
       konten: kontenMit, bewegungen, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
-      personen, objekte, fahrzeuge,
+      personen, objekte, fahrzeuge, eingaenge,
       offen: { benachrichtigungen: 'Каналы уведомлений не согласованы — сообщения никому не отправляются' } };
   });
 }
@@ -932,6 +1182,28 @@ function iso(d) { if (!d) return null; if (typeof d === 'string') return d.slice
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), t = String(d.getDate()).padStart(2, '0'); return `${y}-${m}-${t}`; }
 function initialen(s) { const w = String(s).trim().split(/\s+/); return ((w[0] || '')[0] + ((w[1] || '')[0] || (w[0] || '')[1] || '')).toUpperCase(); }
 
+/** Данные для печатного бланка квитанций: одна квитанция или все квитанции
+    заявки. Права — как на просмотр: бухгалтерия и Андрей — все; Олег — выданные
+    им и подготовленные по утверждённому списку; сотрудник — только свои. */
+async function quittungenDruck(n, was) {
+  return lesen(async q => {
+    const rows = await q(`SELECT qt.*, p.nr AS plan_nr, p.status AS plan_status, p.entschieden_von, p.entschieden_am
+      FROM ${S}buch_quittung qt LEFT JOIN ${S}buch_geldplan p ON p.id = qt.plan_id
+      WHERE ${was.plan ? 'qt.plan_id = $1' : 'qt.id = $1'} ORDER BY qt.id`, [idOf(was.plan || was.id)]);
+    pruefe(rows.length, 'Квитанция не найдена', 404);
+    const sicht = x => buero(n)
+      || (istDisp(n) && (x.ausgegeben_von === n.login || (x.status === 'vorbereitet' && x.plan_status === 'genehmigt')))
+      || (istMa(n) && x.empfaenger_ref === n.person && x.status !== 'storniert');
+    const erlaubt = rows.filter(sicht);
+    darf(erlaubt.length, 'Эта квитанция вам недоступна');
+    await log(q, n, 'quittung_gedruckt', was.plan ? 'plan:' + was.plan : 'quittung:' + was.id, { anzahl: erlaubt.length });
+    return erlaubt.map(x => ({ nr: x.nr, plan_nr: x.plan_nr, plan_status: x.plan_status, genehmigt_von: x.entschieden_von, genehmigt_am: x.entschieden_am,
+      empfaenger: x.empfaenger_name, nu_name: x.nu_name, zweck: x.zweck, betrag: Number(x.betrag_cent), notiz: x.notiz,
+      status: x.status, dringend: x.dringend, angelegt: x.angelegt, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von,
+      unterschrift: x.unterschrift || null }));
+  });
+}
+
 /** Журнал событий по записи — для истории в карточке. */
 async function verlauf(n, ziel) {
   darf(buero(n), 'История доступна бухгалтерии и Андрею');
@@ -939,15 +1211,59 @@ async function verlauf(n, ziel) {
   return lesen(q => q(`SELECT wann, wer, rolle, art, daten FROM ${S}buch_ereignis WHERE ziel = $1 ORDER BY id`, [ziel]));
 }
 
+/* ---------- Упрощённое создание аванса (одна строка, без zeilen) ---------- */
+async function planEinfach(n, b) {
+  darf(buero(n) || istDisp(n), 'Аванс создаёт бухгалтерия, Олег или Андрей');
+  const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
+  const zweck = String(b.zweck || '').trim(); pruefe(zweck.length >= 2, 'Укажите назначение аванса');
+  const empfaenger_ref = String(b.person_ref || '').trim() || null;
+  const empfaenger_name = String(b.person_name || b.empfaenger || '').trim() || n.name || n.login;
+  return planAnlegen(n, {
+    titel: zweck.slice(0, 160),
+    idem: b.idem || null,
+    zeilen: [{ betrag, zweck: 'vorschuss', empfaenger_ref, empfaenger_name }],
+  });
+}
+
+/* ---------- Одобрить / отклонить входящий запрос от vavapp ---------- */
+async function eingangBewilligen(n, id) {
+  darf(istGf(n), 'Одобряет Андрей');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
+    const integratsiya = require('./integratsiya.js');
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'BEWILLIGT', null);
+    await q(`UPDATE ${S}kasse_extern_anfrage SET verarbeitet_am = now() WHERE id = $1`, [ea.id]);
+    await log(q, n, 'eingang_bewilligt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref });
+    return { ok: true, kasse_ref: ea.kasse_ref };
+  });
+}
+
+async function eingangAblehnen(n, id, b) {
+  darf(istGf(n), 'Отклоняет Андрей');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
+    const integratsiya = require('./integratsiya.js');
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'ABGELEHNT', txt(b && b.grund, 300));
+    await q(`UPDATE ${S}kasse_extern_anfrage SET verarbeitet_am = now() WHERE id = $1`, [ea.id]);
+    await log(q, n, 'eingang_abgelehnt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b && b.grund, 300) });
+    return { ok: true, kasse_ref: ea.kasse_ref };
+  });
+}
+
 module.exports = {
-  ROLLEN_KASSE, lage, verlauf,
+  ROLLEN_KASSE, lage, verlauf, quittungenDruck,
   abhebung, uebergabe, rueckgabe, bestaetigen,
-  planAnlegen, planEinreichen, planEntscheiden,
-  quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno,
+  planAnlegen, planEinfach, planEinreichen, planEntscheiden,
+  quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
   dateiRegistrieren, dateiDarf,
   belegAnlegen, belegPruefen,
   erstattungWeg, erstattungBar, erstattungSchritt,
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
-  bankLink, ibanGueltig, Fehler,
+  bankLink, bankLinkManuell, belegManuellFuerUebergabe, ibanGueltig, Fehler,
+  eingangBewilligen, eingangAblehnen,
 };

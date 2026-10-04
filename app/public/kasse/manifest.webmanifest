@@ -1,0 +1,19 @@
+{
+  "name": "Касса VAV",
+  "short_name": "Касса",
+  "description": "Кассовые операции VAV Kaiser — авансы, квитанции, чеки",
+  "start_url": "/kasse/",
+  "scope": "/kasse/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#EBE7DF",
+  "theme_color": "#14455E",
+  "lang": "ru",
+  "icons": [
+    {"src":"/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"/icon-mask.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ],
+  "screenshots": [],
+  "categories": ["finance", "business"]
+}

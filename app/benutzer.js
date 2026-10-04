@@ -1,13 +1,13 @@
 /* Пользователи Buchhalter. Запускать на сервере:
      node /opt/buchhalter/benutzer.js liste
-     node /opt/buchhalter/benutzer.js add <логин> <роль>     роли: gf | buchhaltung | buero
+     node /opt/buchhalter/benutzer.js add <логин> <роль>     роли: gf | buchhaltung | buero | disponent | mitarbeiter
      node /opt/buchhalter/benutzer.js pin <логин>            сменить ПИН
      node /opt/buchhalter/benutzer.js weg <логин>
    ПИН вводится вслепую и никуда не передаётся — на диск ложится только хеш scrypt. */
 'use strict';
 const fs=require('fs'), path=require('path'), crypto=require('crypto'), readline=require('readline');
 const ZIEL=path.join(__dirname,'data','benutzer.json');
-const ROLLEN={gf:'владелец', buchhaltung:'бухгалтерия', buero:'офис'};
+const ROLLEN={gf:'владелец', buchhaltung:'бухгалтерия', buero:'офис', disponent:'ответственный за наличные', mitarbeiter:'сотрудник'};
 
 const lesen=()=>{ try{return JSON.parse(fs.readFileSync(ZIEL,'utf8'));}catch(e){return [];} };
 const schreiben=l=>{ fs.mkdirSync(path.dirname(ZIEL),{recursive:true});
@@ -62,5 +62,14 @@ async function neuerPin(){
     schreiben(rest);
     return console.log('Удалён '+l+'. Его открытая сессия перестанет работать сразу.');
   }
-  console.log('Команды: liste | add <логин> <роль> | pin <логин> | weg <логин>');
+  if(befehl==='person'){
+    // Связь входа с человеком из Учёта часов (vavapp_prod.persons.id) — для кассы и чеков.
+    const n=liste.find(x=>x.login===l);
+    if(!n) return console.log('Нет такого логина.');
+    const ref=String(rolle||'').trim();
+    if(!/^[0-9a-f-]{36}$/i.test(ref)) return console.log('Нужно: person <логин> <id человека из Учёта часов>');
+    n.person=ref.toLowerCase(); schreiben(liste);
+    return console.log('Связан '+l+' с человеком '+n.person+'.');
+  }
+  console.log('Команды: liste | add <логин> <роль> | pin <логин> | person <логин> <id> | weg <логин>');
 })();

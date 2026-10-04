@@ -1,0 +1,82 @@
+# Финальный прогон 2026-09-24T22:41:05Z
+## tests/migration.test.sh
+ok: миграция вверх
+ok: снятие вставлено (id 1, оба счёта NULL)
+ok: передача из снятия вставлена
+ok: расход со счёта без получателя вставлен
+ok (отклонено): передача самому себе
+ok (отклонено): снятие со счётом-получателем
+ok (отклонено): нулевая сумма
+ok (отклонено): удаление движения
+ok (отклонено): правка журнала
+ok: откат убрал все таблицы 001
+ok: повторная миграция вверх
+МИГРАЦИЯ: ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ
+migration exit=0
+## node --test tests/*.test.js
+(node:88117) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:5: NOTICE:  schema "mailops_prod" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:6: NOTICE:  schema "vav_kern" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:7: NOTICE:  schema "vavapp_prod" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:10: NOTICE:  relation "einstellung" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:13: NOTICE:  relation "objekt" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:14: NOTICE:  relation "orgs" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:16: NOTICE:  relation "persons" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:18: NOTICE:  relation "vehicles" already exists, skipping
+(node:88118) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✔ Офлайн: фото и чек сохраняются на телефоне → перезагрузка без сети → сеть → ровно один чек [90m(1497.859583ms)[39m[39m
+[32m✔ Фоновая отправка очереди и 30 секунд ожидания не стирают введённое в форме [90m(31502.647375ms)[39m[39m
+[32m✔ Черновик на общем телефоне не виден другому входу [90m(804.57825ms)[39m[39m
+[32m✔ Бухгалтер принимает чек в интерфейсе; двойное нажатие — одно событие; кнопки после действия в правильном состоянии [90m(354.019166ms)[39m[39m
+[32m✔ Печатный бланк: подготовленная квитанция до выдачи и срочная выдача Олегом сразу с бланком [90m(409.320083ms)[39m[39m
+[32m✔ Вход: /arbeit → /login?next=/arbeit → /arbeit; чужой next не принимается; выход возвращает на /arbeit-вход [90m(382.434417ms)[39m[39m
+[32m✔ Общий телефон: вход другого сотрудника в другой вкладке — очередь старого не уходит от нового [90m(510.750291ms)[39m[39m
+(node:88890) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✔ CSS эталона в arbeit.html — байт в байт [90m(2.2865ms)[39m[39m
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:5: NOTICE:  schema "mailops_prod" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:6: NOTICE:  schema "vav_kern" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:7: NOTICE:  schema "vavapp_prod" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:10: NOTICE:  relation "einstellung" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:13: NOTICE:  relation "objekt" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:14: NOTICE:  relation "orgs" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:16: NOTICE:  relation "persons" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:18: NOTICE:  relation "vehicles" already exists, skipping
+(node:88891) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✔ bigint-парсер действует только в пуле кассы [90m(125.211792ms)[39m[39m
+[32m✔ Связь с банком: только реальная операция; сумма сверяется; расхождение — явно и не как подтверждение [90m(155.549125ms)[39m[39m
+[32m✔ Отмена зачёта и передача Андрею не проходят одновременно [90m(358.539458ms)[39m[39m
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:5: NOTICE:  schema "mailops_prod" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:6: NOTICE:  schema "vav_kern" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:7: NOTICE:  schema "vavapp_prod" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:10: NOTICE:  relation "einstellung" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:13: NOTICE:  relation "objekt" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:14: NOTICE:  relation "orgs" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:16: NOTICE:  relation "persons" already exists, skipping
+psql:/Users/akais/Documents/agents/buchhalter-implementation/.claude/worktrees/kasse/dev/quellen-lokal.sql:18: NOTICE:  relation "vehicles" already exists, skipping
+(node:88945) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✔ 3. Наличные: заявка → утверждение → квитанция → выдача → подпись/фото → оригинал → чек → проверка → остаток/возврат [90m(307.656458ms)[39m[39m
+[32m✔ 4. Личный чек: проверка → наличное возмещение через Олега; перевод — через Андрея; двойного расхода нет [90m(72.67075ms)[39m[39m
+[32m✔ 5. Подрядчик: полный счёт → подтверждение Олега → квитанции → зачёт → остаток → отдельный комплект; повторный зачёт невозможен [90m(38.21125ms)[39m[39m
+[32m✔ 6a. Запросы: 2 рабочих дня сотруднику, 1 — Олегу, затем Андрей; потерянный чек — сразу бухгалтеру и Андрею [90m(73.996041ms)[39m[39m
+[32m✔ 6b. Двойное нажатие, отказ сети с повтором, одинаковый файл параллельно [90m(28.668292ms)[39m[39m
+[32m✔ 6c. Превышение остатка при параллельной выдаче [90m(10.607583ms)[39m[39m
+[32m✔ 6d. Права доступа [90m(39.505ms)[39m[39m
+[32m✔ Регресс: бухгалтер проверяет чек, который внёс за рабочего; свой расход — нет [90m(9.719041ms)[39m[39m
+[32m✔ Регресс: отклонение чека не возвращает деньги в остаток [90m(16.803209ms)[39m[39m
+[32m✔ Регресс: оплата из основной кассы проверяет остаток под блокировкой [90m(11.43975ms)[39m[39m
+[32m✔ Банк: без FinMap честно сообщает недоступность, данные не подставляются [90m(0.743125ms)[39m[39m
+[32m✔ Журнал: каждое действие записано с автором и временем [90m(28.110833ms)[39m[39m
+[34mℹ tests 23[39m
+[34mℹ suites 0[39m
+[34mℹ pass 23[39m
+[34mℹ fail 0[39m
+[34mℹ cancelled 0[39m
+[34mℹ skipped 0[39m
+[34mℹ todo 0[39m
+[34mℹ duration_ms 38054.58775[39m
+node-test exit=0

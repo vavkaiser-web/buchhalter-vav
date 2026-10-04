@@ -1,0 +1,396 @@
+{
+ "erstellt": "2026-09-24T22:36:49.293Z",
+ "faelle": {
+  "desktop-inbox-light": {
+   "abweichung_prozent": 0.9,
+   "groesse_referenz": [
+    1068,
+    945
+   ],
+   "groesse_umsetzung": [
+    1068,
+    945
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-cash-light": {
+   "abweichung_prozent": 0.88,
+   "groesse_referenz": [
+    1068,
+    913
+   ],
+   "groesse_umsetzung": [
+    1068,
+    1778
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-requests-light": {
+   "abweichung_prozent": 0.36,
+   "groesse_referenz": [
+    1068,
+    744
+   ],
+   "groesse_umsetzung": [
+    1068,
+    744
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-invoices-light": {
+   "abweichung_prozent": 0.64,
+   "groesse_referenz": [
+    1068,
+    891
+   ],
+   "groesse_umsetzung": [
+    1068,
+    891
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-bank-light": {
+   "abweichung_prozent": 0.86,
+   "groesse_referenz": [
+    1068,
+    744
+   ],
+   "groesse_umsetzung": [
+    1068,
+    744
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-archive-light": {
+   "abweichung_prozent": 0.71,
+   "groesse_referenz": [
+    1068,
+    744
+   ],
+   "groesse_umsetzung": [
+    1068,
+    744
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "mobile-worker-light": {
+   "abweichung_prozent": 0.4,
+   "groesse_referenz": [
+    368,
+    689
+   ],
+   "groesse_umsetzung": [
+    368,
+    689
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "mobile-oleg-light": {
+   "abweichung_prozent": 0.03,
+   "groesse_referenz": [
+    368,
+    652
+   ],
+   "groesse_umsetzung": [
+    368,
+    652
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "mobile-owner-light": {
+   "abweichung_prozent": 1.02,
+   "groesse_referenz": [
+    368,
+    573
+   ],
+   "groesse_umsetzung": [
+    368,
+    599
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-inbox-dark": {
+   "abweichung_prozent": 1.18,
+   "groesse_referenz": [
+    1068,
+    945
+   ],
+   "groesse_umsetzung": [
+    1068,
+    945
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-cash-dark": {
+   "abweichung_prozent": 1.11,
+   "groesse_referenz": [
+    1068,
+    913
+   ],
+   "groesse_umsetzung": [
+    1068,
+    1778
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-requests-dark": {
+   "abweichung_prozent": 0.37,
+   "groesse_referenz": [
+    1068,
+    744
+   ],
+   "groesse_umsetzung": [
+    1068,
+    744
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-invoices-dark": {
+   "abweichung_prozent": 0.81,
+   "groesse_referenz": [
+    1068,
+    891
+   ],
+   "groesse_umsetzung": [
+    1068,
+    891
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-bank-dark": {
+   "abweichung_prozent": 0.99,
+   "groesse_referenz": [
+    1068,
+    744
+   ],
+   "groesse_umsetzung": [
+    1068,
+    744
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "desktop-archive-dark": {
+   "abweichung_prozent": 0.82,
+   "groesse_referenz": [
+    1068,
+    744
+   ],
+   "groesse_umsetzung": [
+    1068,
+    744
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "mobile-worker-dark": {
+   "abweichung_prozent": 0.54,
+   "groesse_referenz": [
+    368,
+    689
+   ],
+   "groesse_umsetzung": [
+    368,
+    689
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "mobile-oleg-dark": {
+   "abweichung_prozent": 0.03,
+   "groesse_referenz": [
+    368,
+    652
+   ],
+   "groesse_umsetzung": [
+    368,
+    652
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  },
+  "mobile-owner-dark": {
+   "abweichung_prozent": 1.29,
+   "groesse_referenz": [
+    368,
+    573
+   ],
+   "groesse_umsetzung": [
+    368,
+    599
+   ],
+   "js_fehler": [],
+   "horizontaler_ueberlauf": false
+  }
+ },
+ "referenz_check": {
+  "desktop-inbox": 0,
+  "desktop-cash": 0,
+  "desktop-requests": 0,
+  "desktop-invoices": 1.54,
+  "desktop-bank": 0,
+  "desktop-archive": 0,
+  "mobile-worker": 0.08,
+  "mobile-oleg": 0.02,
+  "mobile-owner": 0.02
+ },
+ "breiten": {
+  "320-desktop-inbox": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "320-desktop-cash": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "320-desktop-invoices": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "320-mobile-worker": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "320-mobile-oleg": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "320-mobile-owner": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "340-desktop-inbox": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "340-desktop-cash": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "340-desktop-invoices": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "340-mobile-worker": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "340-mobile-oleg": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "340-mobile-owner": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "390-desktop-inbox": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "390-desktop-cash": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "390-desktop-invoices": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "390-mobile-worker": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "390-mobile-oleg": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "390-mobile-owner": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "768-desktop-inbox": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "768-desktop-cash": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "768-desktop-invoices": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "768-mobile-worker": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "768-mobile-oleg": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "768-mobile-owner": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1024-desktop-inbox": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1024-desktop-cash": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1024-desktop-invoices": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1024-mobile-worker": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1024-mobile-oleg": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1024-mobile-owner": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1440-desktop-inbox": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1440-desktop-cash": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1440-desktop-invoices": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1440-mobile-worker": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1440-mobile-oleg": {
+   "ueberlauf": false,
+   "js_fehler": []
+  },
+  "1440-mobile-owner": {
+   "ueberlauf": false,
+   "js_fehler": []
+  }
+ }
+}
