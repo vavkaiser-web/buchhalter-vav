@@ -194,6 +194,7 @@ const btn = (txt,act,cls='',extra='') => `<button type="button" class="v-button 
 const BEW_ART = {abhebung:'Снятие в банке',uebergabe:'Передача наличных',rueckgabe:'Возврат',ausgabe:'Расход из кассы',verbrauch:'Расход'};
 function bewArt(art){ return BEW_ART[art]||art; }
 function bewDatum(b){ return b.datum ? new Date(b.datum+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}) : '—'; }
+function wDatum(){ const d=new Date(); return d.toLocaleDateString('sv-SE'); }
 function bewDokInfo(b){
   const bl = S.lage?.bank_links||[];
   const bankLink = bl.find(l=>l.ziel_art==='abhebung'&&l.ziel_id===String(b.id)&&l.status==='abgeglichen');
@@ -371,14 +372,14 @@ function renderLage() {
   <div class="v-panelhead"><h2>Последние движения</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
   <div class="v-ledger">
     ${(l.bewegungen||[]).slice(0,8).reverse().map(b=>`
-    <div class="v-event">
+    <button class="v-event cursor-interaction" data-action="bewegungDetail" data-bew-id="${b.id}" style="width:100%;text-align:left">
       ${icon('arrow-right-left')}
       <span>
         <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
         <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
       </span>
       <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}</span>
-    </div>`).join('') || '<div class="v-stateempty">Движений нет</div>'}
+    </button>`).join('') || '<div class="v-stateempty">Движений нет</div>'}
   </div>
 </div>`;
 }
@@ -633,6 +634,7 @@ function renderKasse() {
   <div style="display:flex;gap:8px">
     ${istGf ? btn(icon('building-2')+' Снятие','neueAbhebung','') : ''}
     ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Передача','neueUebergabe','primary') : ''}
+    ${istGf ? btn(icon('scale')+' Сверка','kasseSverka','') : ''}
   </div>
 </div>
 <div class="v-metrics">
@@ -682,12 +684,47 @@ function renderModal(mod) {
   let title='', body='';
   if (mod==='neueAbhebung') {
     title = 'Снятие наличных';
-    body = `<form id="abhebung-form" class="v-form">
-      <div class="v-note">Фиксируем наличные, полученные из банка. После записи можно распределить в кассу.</div>
-      <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
-      <label>Примечание<input name="notiz" placeholder="Снятие в банке (необязательно)" maxlength="120"></label>
-      <button type="submit" class="v-button primary full">Записать снятие</button>
-    </form>`;
+    if (S.abhDupWarn) {
+      // Слой 2: показываем предупреждение о дубликате
+      body = `<div class="v-note" style="background:var(--v-warn-bg,#fff3cd);border:1px solid var(--v-warn,#f0ad4e);padding:12px;border-radius:6px;margin-bottom:12px">
+        ⚠️ ${esc(S.abhDupWarn.msg)}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="v-button full" data-action="abhDupCancel">Отмена</button>
+        <button class="v-button primary full" data-action="abhDupForce">Всё равно сохранить</button>
+      </div>`;
+    } else {
+      body = `<form id="abhebung-form" class="v-form">
+        <div class="v-note">Фиксируем наличные, полученные из банка. После записи можно распределить в кассу.</div>
+        <label>Дата снятия<input name="datum" type="date" value="${wDatum()}" required></label>
+        <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
+        <label>Примечание<input name="notiz" placeholder="Снятие в банке (необязательно)" maxlength="120"></label>
+        <button type="submit" class="v-button primary full">Записать снятие</button>
+      </form>`;
+    }
+  } else if (mod==='kasseSverka') {
+    // Слой 4: сверка снятий по месяцам
+    title = 'Сверка снятий';
+    const abh = (S.lage?.bewegungen||[]).filter(b=>b.art==='abhebung');
+    const byMonth = {};
+    abh.forEach(b => {
+      const m = (b.datum||'').slice(0,7);
+      if (!byMonth[m]) byMonth[m] = 0;
+      byMonth[m] += Number(b.betrag_cent||0);
+    });
+    const rows = Object.entries(byMonth).sort((a,b)=>b[0].localeCompare(a[0]));
+    body = `<div class="v-note">Суммы снятий из банка по месяцам. Сверьте с выпиской Qonto.</div>
+    <div class="v-ledger">
+      ${rows.length ? rows.map(([m,s])=>`
+        <div class="v-event">
+          <span style="flex:1">${m}</span>
+          <span class="v-num">${euro(s)}</span>
+        </div>`).join('') : '<div class="v-stateempty">Снятий нет</div>'}
+    </div>
+    <div class="v-event" style="font-weight:600;border-top:1px solid var(--v-brd);padding-top:8px;margin-top:4px">
+      <span style="flex:1">Итого</span>
+      <span class="v-num">${euro(abh.reduce((s,b)=>s+Number(b.betrag_cent||0),0))}</span>
+    </div>`;
   } else if (mod==='neueUebergabe') {
     title = 'Передача наличных';
     body = `<form id="uebergabe-form" class="v-form">
@@ -975,8 +1012,10 @@ async function formAbsenden(form) {
 
   try {
     if (form.id==='abhebung-form') {
-      await api('POST','abhebung',{betrag: parseEur(d.betrag), notiz: d.notiz||''});
-      toast('Снятие записано');
+      S.abhPending = { betrag: parseEur(d.betrag), notiz: d.notiz||'', datum: d.datum||'' };
+      await api('POST','abhebung', S.abhPending);
+      S.abhPending = null; S.modal = null;
+      await lageLaden(); toast('Снятие записано'); renderApp();
     } else if (form.id==='uebergabe-form') {
       await api('POST','uebergabe',{an_konto: d.an_konto, betrag: parseEur(d.betrag)});
       toast('Передача создана');
@@ -1030,7 +1069,16 @@ async function formAbsenden(form) {
     await lageLaden();
     renderApp();
   } catch (e) {
-    toast(e.message, 'err');
+    // Слой 2: 409 от abhebung — показываем предупреждение о дубликате
+    if (e.status === 409 && S.abhPending) {
+      S.abhDupWarn = { msg: e.message, ...S.abhPending };
+      S.abhPending = null;
+      renderApp();
+      document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+    } else {
+      S.abhPending = null;
+      toast(e.message, 'err');
+    }
   }
 }
 
@@ -1185,6 +1233,23 @@ document.getElementById('app').addEventListener('click', async e => {
     return;
   }
 
+  if (act==='abhDupCancel') {
+    S.abhDupWarn = null;
+    S.modal = null;
+    renderApp();
+    return;
+  }
+  if (act==='abhDupForce') {
+    try {
+      const w = S.abhDupWarn;
+      S.abhDupWarn = null;
+      await api('POST','abhebung',{ betrag: w.betrag, notiz: w.notiz, datum: w.datum, force: true });
+      S.modal = null;
+      await lageLaden(); toast('Снятие записано'); renderApp();
+    } catch(e2) { toast(e2.message,'err'); }
+    return;
+  }
+
   if (act==='bewegungDetail') {
     S.modalData = b.dataset.bewId || null;
     S.modal = 'bewegungDetail';
@@ -1194,7 +1259,7 @@ document.getElementById('app').addEventListener('click', async e => {
   }
 
   // Модальные окна.
-  if (['neueUebergabe','neuerBeleg','neuerPlan','ausgeben','rueckfrageNeu','ablehnen','neueAbhebung'].includes(act)) {
+  if (['neueUebergabe','neuerBeleg','neuerPlan','ausgeben','rueckfrageNeu','ablehnen','neueAbhebung','kasseSverka'].includes(act)) {
     S.modal = act;
     renderApp();
     document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});

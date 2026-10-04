@@ -91,14 +91,36 @@ async function saldo(q, konto, excludeQtId) {
 }
 
 /* ---------------- снятие и передачи ---------------- */
+
+// Слой 2: проверка дубликатов при снятии.
+// Если за ±3 дня уже есть abhebung на ту же сумму — возвращает 409 с деталями.
+// Флаг force=true в теле запроса позволяет явно переопределить.
 async function abhebung(n, b) {
   darf(istGf(n), 'Снятие в банке отмечает только Андрей');
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.datum || '')) ? b.datum : wt.berlinTag(Date.now());
+  // Слой 3: автоматически создаём idem из даты и суммы, если не передан.
+  // Это позволяет ON CONFLICT поймать дубликат при повторной отправке.
+  const idem = b.idem || `kasse-${datum}-${betrag}`;
   return tx(async q => {
+    // Слой 2: поиск существующих снятий на ту же сумму в диапазоне ±3 дня.
+    if (!b.force) {
+      const dup = await q(
+        `SELECT id, datum::text, betrag_cent FROM ${S}buch_bewegung
+         WHERE art = 'abhebung' AND betrag_cent = $1
+           AND datum BETWEEN $2::date - 3 AND $2::date + 3`,
+        [betrag, datum]
+      );
+      if (dup.length) {
+        throw new Fehler(409,
+          `Возможный дубликат: снятие ${euro(betrag)} уже есть от ${dup[0].datum} (id=${dup[0].id}).` +
+          ` Если это другое снятие — нажмите «Всё равно сохранить».`
+        );
+      }
+    }
     const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, finmap_op, notiz, von, bestaetigt_am, bestaetigt_von, idem)
       VALUES ('abhebung',$1,'bestaetigt',$2,$3,$4,$5,now(),$5,$6)
-      ON CONFLICT (idem) DO NOTHING RETURNING id`, [betrag, datum, txt(b.finmap_op, 80), txt(b.notiz), n.login, b.idem || null]);
+      ON CONFLICT (idem) DO NOTHING RETURNING id`, [betrag, datum, txt(b.finmap_op, 80), txt(b.notiz), n.login, idem]);
     if (!r.length) return { ok: true, wiederholt: true };
     await log(q, n, 'abhebung', 'bewegung:' + r[0].id, { betrag });
     return { ok: true, id: r[0].id };
