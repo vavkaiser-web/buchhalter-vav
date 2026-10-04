@@ -941,6 +941,31 @@ async function bankLinkManuell(n, b) {
   });
 }
 
+/* Создать beleg-заглушку для uebergabe без скана квитанции.
+   Используется когда передача уже подтверждена, но бумажной расписки нет.
+   Создаёт buch_beleg со статусом 'geprueft', обновляет buch_bewegung.beleg_id. */
+async function belegManuellFuerUebergabe(n, b) {
+  darf(istBuch(n) || istGf(n), 'Внутренний beleg создаёт бухгалтерия или Андрей');
+  return tx(async q => {
+    const zid = idOf(b.uebergabe_id);
+    const bew = (await q(`SELECT id, art, betrag_cent, datum, beleg_id, quittung_id FROM ${S}buch_bewegung WHERE id = $1`, [zid]))[0];
+    pruefe(bew, 'Движение не найдено', 404);
+    pruefe(bew.art === 'uebergabe', 'Только для передачи наличных', 409);
+    if (bew.beleg_id) return { ok: true, wiederholt: true, beleg_id: Number(bew.beleg_id) };
+    const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(bew.datum || '').slice(0, 10))
+      ? String(bew.datum).slice(0, 10) : wt.berlinTag(Date.now());
+    const nr = await nummer(q, 'B');
+    const r = (await q(
+      `INSERT INTO ${S}buch_beleg (nr, firma, art, kurztext, person_name, eingereicht_von, betrag_cent, belegdatum, verwendung, zahlart, status, notiz)
+       VALUES ($1,$2,'sonstiges',$3,$4,$5,$6,$7,'mehrere','privat','geprueft',$8) RETURNING id`,
+      [nr, FIRMA, 'Передача наличных', n.name || n.login, n.login, Number(bew.betrag_cent), datum, txt(b.notiz) || null]
+    ))[0];
+    await q(`UPDATE ${S}buch_bewegung SET beleg_id = $1 WHERE id = $2`, [r.id, zid]);
+    await log(q, n, 'beleg_manuell_uebergabe', 'bewegung:' + zid, { beleg_id: r.id, nr, betrag: Number(bew.betrag_cent) });
+    return { ok: true, id: r.id, nr };
+  });
+}
+
 /* ---------------- чтение: картина для экрана ---------------- */
 function belegTitel(x) {
   const k = { kraftstoff: 'Заправка', material: 'Материалы', sonstiges: 'Расход' }[x.art] || 'Расход';
@@ -1203,6 +1228,6 @@ module.exports = {
   erstattungWeg, erstattungBar, erstattungSchritt,
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
-  bankLink, bankLinkManuell, ibanGueltig, Fehler,
+  bankLink, bankLinkManuell, belegManuellFuerUebergabe, ibanGueltig, Fehler,
   eingangBewilligen, eingangAblehnen,
 };

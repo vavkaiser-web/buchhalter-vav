@@ -82,6 +82,7 @@ const POST = {
     return { ok: true, quelle: r.quelle, op: r.liste.find(o => String(o.id) === opId) || null };
   }),
   'bank/link-manuell': (n, b) => d.bankLinkManuell(n, b),
+  'uebergabe/beleg-manuell': (n, b) => d.belegManuellFuerUebergabe(n, b),
 };
 
 function finde(rest) {
