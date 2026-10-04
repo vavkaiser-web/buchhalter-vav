@@ -342,4 +342,7 @@ http.createServer(async (req, res) => {
     if (!res.headersSent) jsonAntwort(res, e.status || 500, { fehler: e.message || 'ошибка' });
   }
 
-}).listen(PORT, '127.0.0.1', () => console.log('Касса VAV слушает 127.0.0.1:' + PORT));
+}).listen(PORT, '127.0.0.1', () => {
+  console.log('Касса VAV слушает 127.0.0.1:' + PORT);
+  require('./kasse/auto-import.js').starten();
+});
