@@ -221,6 +221,19 @@ function adaptLage(raw) {
     von_konto_name: b.von_name, an_konto_name: b.an_name,
     wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
   }));
+  // Нераспределённые снятия — только те, у которых ещё есть остаток
+  const abhebungen_offen = (raw.bewegungen||[])
+    .filter(b => b.art === 'abhebung' && b.status !== 'storniert')
+    .map(b => {
+      const verteilt = (raw.bewegungen||[])
+        .filter(m => m.quelle_id === b.id && ['gemeldet','bestaetigt'].includes(m.status))
+        .reduce((s, m) => s + (m.betrag||0), 0);
+      const rest = Math.max(0, b.betrag - verteilt);
+      return { ...b, betrag_cent: b.betrag, verteilt, rest,
+        wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '' };
+    })
+    .filter(b => b.rest > 0)
+    .sort((a, b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : a.id - b.id);
   // Чеки: в очередь попадают ausstehend и rueckfrage
   const belege_queue = (raw.belege||[]).filter(b=>['ausstehend','rueckfrage'].includes(b.status)).map(b=>({
     ...b, ref: String(b.id), betrag_cent: b.betrag, person_name: b.person,
@@ -261,7 +274,7 @@ function adaptLage(raw) {
   // Объекты и машины для форм
   const objekte = (raw.objekte||[]).map(o=>({id: o.nummer, name: o.bez||o.nummer}));
   const fahrzeuge = (raw.fahrzeuge||[]).map(f=>({id: f.id, kennzeichen: f.text||f.id}));
-  return { ...raw, kasse: { hauptkasse, reserviert: hk?.reserviert||0, frei: hk?.frei ?? hauptkasse }, halter, firma, bewegungen, belege_queue, meine_belege,
+  return { ...raw, kasse: { hauptkasse, reserviert: hk?.reserviert||0, frei: hk?.frei ?? hauptkasse }, halter, firma, bewegungen, abhebungen_offen, belege_queue, meine_belege,
     plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge, eingaenge,
     quittungenVorbereitet, quittungenOriginalFehlt };
 }
@@ -392,17 +405,17 @@ ${isGf && hauptkasse > 0 ? `
   </div>
 </div>` : ''}
 <div class="v-panel">
-  <div class="v-panelhead"><h2>Последние движения</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
+  <div class="v-panelhead"><h2>Нераспределённые снятия</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
   <div class="v-ledger">
-    ${(l.bewegungen||[]).slice(0,8).reverse().map(b=>`
+    ${(l.abhebungen_offen||[]).map(b=>`
     <button class="v-event cursor-interaction" data-action="bewegungDetail" data-bew-id="${b.id}" style="width:100%;text-align:left">
-      ${icon('arrow-right-left')}
+      ${icon('banknote')}
       <span>
-        <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
-        <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
+        <span class="v-rowtitle">Снятие ${esc(b.wann_text||'')}</span>
+        <span class="v-small" style="display:block">Нераспределено: ${euro(b.rest)}</span>
       </span>
-      <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}</span>
-    </button>`).join('') || '<div class="v-stateempty">Движений нет</div>'}
+      <span class="v-num">${euro(b.betrag_cent)}</span>
+    </button>`).join('') || '<div class="v-stateempty">Все снятия распределены ✓</div>'}
   </div>
 </div>`;
 }
