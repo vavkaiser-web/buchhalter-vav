@@ -197,8 +197,8 @@ async function uebergabe(n, b, benutzer) {
       const s = await saldo(q, vonKonto);
       pruefe(betrag <= s.saldo, `Сумма превышает расчётный остаток (${euro(s.saldo)})`, 409);
     }
-    // При распределении из банковского снятия GF уже авторизовал: подтверждаем сразу.
-    const autoBestaetigt = !!quelle;
+    // GF/бухгалтерия авторизует напрямую — подтверждаем сразу; иначе требует ручного подтверждения.
+    const autoBestaetigt = !!quelle || buero(n);
     const status = autoBestaetigt ? 'bestaetigt' : 'gemeldet';
     const r = await q(`INSERT INTO ${S}buch_bewegung (art, von_konto, an_konto, quelle_id, betrag_cent, status, notiz, von,
         bestaetigt_am, bestaetigt_von, idem)
@@ -231,6 +231,20 @@ async function bestaetigen(n, id, b) {
     await q(`UPDATE ${S}buch_bewegung SET status = $2, bestaetigt_am = now(), bestaetigt_von = $3 WHERE id = $1`, [m.id, neu, n.login]);
     await log(q, n, neu === 'bestaetigt' ? 'empfang_bestaetigt' : 'empfang_abgelehnt', 'bewegung:' + m.id, { betrag: Number(m.betrag_cent), notiz: txt(b && b.notiz) });
     return { ok: true, status: neu };
+  });
+}
+
+/** ГФ/бухгалтерия отменяет ожидающую uebergabe. */
+async function bewegungStornieren(n, id) {
+  darf(buero(n), 'Отменить передачу может только директор или бухгалтерия');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Передача не найдена', 404);
+    pruefe(m.art === 'uebergabe', 'Эта операция не является передачей наличных', 400);
+    if (m.status !== 'gemeldet') return { ok: true, wiederholt: true, status: m.status };
+    await q(`UPDATE ${S}buch_bewegung SET status = 'storniert', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'uebergabe_storniert', 'bewegung:' + m.id, { betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'storniert' };
   });
 }
 
@@ -1342,7 +1356,7 @@ async function auftragnehmerhHinzufuegen(n, b) {
 
 module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
-  abhebung, abhebungBestaetigen, abhebungAblehnen, uebergabe, rueckgabe, bestaetigen,
+  abhebung, abhebungBestaetigen, abhebungAblehnen, uebergabe, rueckgabe, bestaetigen, bewegungStornieren,
   planAnlegen, planEinfach, planEinreichen, planEntscheiden,
   quittungAusgeben, dringendAusgeben, quittungAbbrechen, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
   dateiRegistrieren, dateiDarf,

@@ -984,7 +984,11 @@ function renderModal(mod) {
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
         <div class="v-small" style="font-weight:600;margin-bottom:6px">Документ</div>
         ${dokSection}
-      </div>${autoImportSection}${transferSection}`;
+      </div>${autoImportSection}${transferSection}${
+        (b.art==='uebergabe' && b.status==='gemeldet' && isGf) ? `
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
+        <button class="v-button" style="width:100%;justify-content:center;color:var(--v-err,#c62828)" data-action="bewegungStornieren" data-id="${b.id}">${icon('x-circle')} Отменить передачу</button>
+      </div>` : ''}`;
     } else {
       title = 'Движение';
       body = '<div class="v-stateempty">Данные не найдены</div>';
@@ -1494,6 +1498,15 @@ document.getElementById('app').addEventListener('click', async e => {
     try {
       await api('POST', `abhebung/${b.dataset.id}/ablehnen`, {});
       await lageLaden(); closeModal(); toast('Снятие отклонено'); renderApp();
+    } catch(e) { toast(e.message, 'err'); }
+    return;
+  }
+
+  if (act==='bewegungStornieren') {
+    if (!confirm('Отменить эту передачу наличных?')) return;
+    try {
+      await api('POST', `bewegung/${b.dataset.id}/stornieren`, {});
+      await lageLaden(); closeModal(); toast('Передача отменена'); renderApp();
     } catch(e) { toast(e.message, 'err'); }
     return;
   }

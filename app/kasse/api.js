@@ -43,6 +43,7 @@ const POST = {
   'uebergabe': (n, b, id, ctx) => d.uebergabe(n, b, ctx.benutzer),
   'rueckgabe': (n, b) => d.rueckgabe(n, b),
   'bewegung/:id/bestaetigen': (n, b, id) => d.bestaetigen(n, id, b),
+  'bewegung/:id/stornieren': (n, b, id) => d.bewegungStornieren(n, id),
   'abhebung/:id/bestaetigen': (n, b, id) => d.abhebungBestaetigen(n, id),
   'abhebung/:id/ablehnen': (n, b, id) => d.abhebungAblehnen(n, id),
   'plan': (n, b) => d.planAnlegen(n, b),
