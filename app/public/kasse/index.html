@@ -1126,6 +1126,8 @@ function renderModal(mod) {
 /* ---------- Сборка страницы ---------- */
 function istMobil() { return window.innerWidth < 620; }
 
+function closeModal() { S.modal = null; S.modalData = null; }
+
 function renderApp() {
   if (!S.ich) return;
   const r = S.ich.rolle;
