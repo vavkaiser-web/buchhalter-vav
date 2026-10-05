@@ -188,6 +188,10 @@ http.createServer(async (req, res) => {
 
     // Кассовый API — сессионная аутентификация.
     if (p.startsWith('/api/k/')) {
+      // Webhook от Make.com: API-ключ вместо сессии (проверяется в api.js).
+      if (req.method === 'POST' && p === '/api/k/webhook/abhebung') {
+        return void await kasse.handle(req, res, u, null, { benutzer: nutzerLesen() });
+      }
       const n = wer(req);
       if (!n) return jsonAntwort(res, 401, { fehler: 'нет сессии' });
       if (!ROLLEN_KASSE.includes(n.rolle)) return jsonAntwort(res, 403, { fehler: 'нет доступа к кассе' });
