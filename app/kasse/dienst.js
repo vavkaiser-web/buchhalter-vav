@@ -187,10 +187,10 @@ async function uebergabe(n, b, benutzer) {
       pruefe(verteilt + betrag <= Number(quelle.betrag_cent),
         `Из снятия осталось распределить ${euro(Number(quelle.betrag_cent) - verteilt)}`, 409);
     } else {
-      vonKonto = String(b.von_konto || '');
+      vonKonto = String(b.von_konto || '') || (buero(n) ? 'hauptkasse' : halterKonto(n.login));
       const k = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [vonKonto]))[0];
       pruefe(k, 'Счёт-источник не найден', 404);
-      darf((k.art === 'hauptkasse' && istBuch(n)) || (k.art === 'halter' && k.login === n.login),
+      darf((k.art === 'hauptkasse' && buero(n)) || (k.art === 'halter' && k.login === n.login),
         'Передать можно только деньги, за которые отвечаете вы');
       pruefe(vonKonto !== an, 'Источник и получатель совпадают');
       await sperreKonto(q, vonKonto);
