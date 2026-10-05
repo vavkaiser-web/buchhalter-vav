@@ -1237,11 +1237,19 @@ async function lage(n, benutzerListe, jetzt) {
         return r.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null }));
       } catch (e) { return []; }
     })();
+    const vavapp_nu = await (async () => {
+      try {
+        await q('SAVEPOINT sp_vavapp_nu');
+        const r = await q(`SELECT id::text AS id, name FROM vavapp_prod.orgs WHERE type='subcontractor' AND active ORDER BY name LIMIT 200`);
+        await q('RELEASE SAVEPOINT sp_vavapp_nu');
+        return r.map(x => ({ id: 'vav:' + x.id, name: x.name }));
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_vavapp_nu').catch(() => {}); return []; }
+    })();
 
     return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
       konten: kontenMit, bewegungen, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
-      personen, objekte, fahrzeuge, eingaenge, auftragnehmer,
+      personen, objekte, fahrzeuge, eingaenge, auftragnehmer, vavapp_nu,
       offen: { benachrichtigungen: 'Каналы уведомлений не согласованы — сообщения никому не отправляются' } };
   });
 }

@@ -1017,9 +1017,19 @@ function renderModal(mod) {
     title = 'Распределить деньги';
     const hauptkasse = S.lage?.kasse?.hauptkasse || 0;
     const frei = S.lage?.kasse?.frei ?? hauptkasse;
-    const auftragnehmerOpts = (S.lage?.auftragnehmer||[]).map(a =>
+    const kasseAT = (S.lage?.auftragnehmer||[]).map(a =>
       `<option value="at:${a.id}|${esc(a.name)}">${esc(a.name)}${a.art==='person'?' (физ.)':''}</option>`
     ).join('');
+    const kasseNames = new Set((S.lage?.auftragnehmer||[]).map(a => a.name.toLowerCase()));
+    const vavNuOpts = (S.lage?.vavapp_nu||[])
+      .filter(nu => !kasseNames.has(nu.name.toLowerCase()))
+      .map(nu => `<option value="${esc(nu.id)}|${esc(nu.name)}">${esc(nu.name)} (из учёта часов)</option>`)
+      .join('');
+    const auftragnehmerOpts = [
+      kasseAT ? `<optgroup label="Подрядчики (касса)">${kasseAT}</optgroup>` : '',
+      vavNuOpts ? `<optgroup label="Подрядчики (учёт часов)">${vavNuOpts}</optgroup>` : '',
+    ].join('');
+    const personenList = (S.lage?.personen||[]).map(p => `<option value="${esc(p.name)}"></option>`).join('');
     body = `
       <div class="v-note" style="margin-bottom:12px">${icon('wallet')} В кассе: <strong>${euro(hauptkasse)}</strong> · Свободно: <strong>${euro(frei)}</strong></div>
       <div class="v-upload" id="ocr-upload-area" style="margin-bottom:12px;padding:10px 12px;cursor:pointer;position:relative">
@@ -1045,8 +1055,9 @@ function renderModal(mod) {
             </optgroup>
           </select>
         </label>
+        <datalist id="ag-personen-list">${personenList}</datalist>
         <label id="ag-label-text">Кому
-          <input name="empfaenger_name" id="ag-empfaenger-text" placeholder="Имя получателя" required autofocus>
+          <input name="empfaenger_name" id="ag-empfaenger-text" placeholder="Имя получателя" list="ag-personen-list" required autofocus>
         </label>
         <div id="ag-label-select" style="display:none">
           <label>Подрядчик
@@ -1055,7 +1066,7 @@ function renderModal(mod) {
               <option value="__new__">＋ Добавить нового…</option>
             </select>
           </label>
-          <div id="ag-new-form" style="display:none;background:var(--v-bg2,#f5f5f5);border-radius:8px;padding:10px;margin-top:6px;gap:8px;display:none;flex-direction:column">
+          <div id="ag-new-form" style="display:none;flex-direction:column;gap:8px;background:var(--v-bg2,#f5f5f5);border-radius:8px;padding:10px;margin-top:6px">
             <label style="margin:0">Название фирмы / имя
               <input id="ag-new-name" placeholder="Firma GmbH" maxlength="200">
             </label>
@@ -1192,6 +1203,10 @@ function setupAusgebenForm() {
       labelText.style.display = 'none'; inputText.removeAttribute('required');
       labelSel.style.display = '';
       syncHidden();
+      // Если уже стоит «Добавить нового» (напр. список пуст) — сразу показать форму
+      const sel = document.getElementById('ag-auftragnehmer-sel');
+      const newForm = document.getElementById('ag-new-form');
+      if (sel && newForm && sel.value === '__new__') newForm.style.display = 'flex';
     } else {
       labelText.style.display = ''; inputText.setAttribute('required','');
       labelSel.style.display = 'none';
