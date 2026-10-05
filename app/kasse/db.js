@@ -66,4 +66,26 @@ const lesen = fn => tx(fn);
 
 async function ende() { if (pool) { const p = pool; pool = null; await p.end(); } }
 
-module.exports = { tx, lesen, Fehler, ende };
+/** Читающий запрос к vavapp DB (VAVAPP_ENV_FILE → DATABASE_URL). Без транзакции. */
+let vavPool = null;
+async function vavLesen(fn) {
+  if (!vavPool) {
+    const envFile = process.env.VAVAPP_ENV_FILE;
+    if (!Pool || !envFile) return null;
+    try {
+      const o = {};
+      for (const z of fs.readFileSync(envFile, 'utf8').split('\n')) {
+        const i = z.indexOf('='); if (i < 1 || z.trim().startsWith('#')) continue;
+        o[z.slice(0, i).trim()] = z.slice(i + 1).trim().replace(/^["']|["']$/g, '');
+      }
+      if (!o.DATABASE_URL) return null;
+      vavPool = new Pool({ connectionString: o.DATABASE_URL, max: 2, idleTimeoutMillis: 30000 });
+      vavPool.on('error', e => console.error('касса vavapp pool:', e.message));
+    } catch (e) { return null; }
+  }
+  const c = await vavPool.connect();
+  try { return await fn((sql, a) => c.query(sql, a || []).then(x => x.rows)); }
+  finally { c.release(); }
+}
+
+module.exports = { tx, lesen, vavLesen, Fehler, ende };

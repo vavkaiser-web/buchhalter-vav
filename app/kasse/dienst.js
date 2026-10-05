@@ -16,7 +16,7 @@
    - ничего никому не отправляется: каналы уведомлений не согласованы.
    ---------------------------------------------------------------- */
 'use strict';
-const { tx, lesen, Fehler } = require('./db.js');
+const { tx, lesen, vavLesen, Fehler } = require('./db.js');
 const { centAus, euro } = require('./geld.js');
 const wt = require('./werktage.js');
 
@@ -1183,16 +1183,10 @@ async function lage(n, benutzerListe, jetzt) {
       });
     }
 
-    const personen = await (async () => {
-      try {
-        await q('SAVEPOINT sp_personen');
-        const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
-          FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
-          WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`);
-        await q('RELEASE SAVEPOINT sp_personen');
-        return r;
-      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_personen').catch(() => {}); return []; }
-    })();
+    const personen = await vavLesen(async vq => vq(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
+        FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
+        WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`))
+      .catch(() => []) || [];
     const objekte = await (async () => {
       try {
         await q('SAVEPOINT sp_objekte');
@@ -1237,14 +1231,10 @@ async function lage(n, benutzerListe, jetzt) {
         return r.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null }));
       } catch (e) { return []; }
     })();
-    const vavapp_nu = await (async () => {
-      try {
-        await q('SAVEPOINT sp_vavapp_nu');
-        const r = await q(`SELECT id::text AS id, name FROM vavapp_prod.orgs WHERE type='subcontractor' AND active ORDER BY name LIMIT 200`);
-        await q('RELEASE SAVEPOINT sp_vavapp_nu');
-        return r.map(x => ({ id: 'vav:' + x.id, name: x.name }));
-      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_vavapp_nu').catch(() => {}); return []; }
-    })();
+    const vavapp_nu = await vavLesen(async vq => {
+      const r = await vq(`SELECT id::text AS id, name FROM vavapp_prod.orgs WHERE type='subcontractor' AND active ORDER BY name LIMIT 200`);
+      return r.map(x => ({ id: 'vav:' + x.id, name: x.name }));
+    }).catch(() => []) || [];
 
     return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
