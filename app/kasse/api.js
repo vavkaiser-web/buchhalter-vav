@@ -110,10 +110,45 @@ function finde(rest) {
   return null;
 }
 
-/** true — запрос обработан. n — вошедший пользователь (или null). */
+/** Webhook: auto-import abhebung from Make.com (no session, API key auth). */
+async function webhookAbhebung(req, res) {
+  try {
+    const whKey = process.env.KASSE_WEBHOOK_KEY;
+    if (!whKey || req.headers['x-webhook-key'] !== whKey) {
+      antwort(res, 401, { fehler: 'Ungültiger Schlüssel' }); return;
+    }
+    const b = await koerper(req);
+    const sysUser = { login: 'email-auto-import', rolle: 'gf' };
+    const result = await d.abhebung(sysUser, b);
+    // Telegram-уведомление
+    const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+    const tgChat = process.env.TELEGRAM_CHAT_ID;
+    if (tgToken && tgChat) {
+      const betrag = (Number(b.betrag || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+      const msg = result.wiederholt
+        ? `♻️ Касса: снятие ${betrag} уже записано (${b.datum || ''})`
+        : `✅ Касса: снятие ${betrag} ${b.datum || ''} авто-импорт (ID ${result.id})`;
+      fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: tgChat, text: msg })
+      }).catch(() => {});
+    }
+    antwort(res, 200, result);
+  } catch (e) {
+    const { Fehler: F } = require('./db.js');
+    if (e instanceof F) antwort(res, e.status, { fehler: e.message });
+    else antwort(res, 500, { fehler: e.message });
+  }
+}
+
+/** true — запрос обработан. n — вошедший пользователь (oder null). */
 async function handle(req, res, u, n, ctx) {
   const p = u.pathname;
   if (!p.startsWith('/api/k/')) return false;
+  // Webhook: без сессии, только API-ключ
+  if (req.method === 'POST' && p === '/api/k/webhook/abhebung') {
+    await webhookAbhebung(req, res); return true;
+  }
   if (!n) { antwort(res, 401, { fehler: 'нет сессии' }); return true; }
   if (!d.ROLLEN_KASSE.includes(n.rolle)) { antwort(res, 403, { fehler: 'У этой роли нет доступа к кассе' }); return true; }
   const rest = p.slice('/api/k/'.length);
