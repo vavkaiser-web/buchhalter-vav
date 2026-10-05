@@ -1627,11 +1627,15 @@ document.getElementById('app').addEventListener('click', async e => {
     return;
   }
   if (act==='eingangAblehnen') {
-    modal('ablehnen');
+    S.modal = 'ablehnen';
+    renderApp();
+    scrollToModal();
     return;
   }
   if (act==='eingangKlaeren') {
-    modal('eingangKlaeren');
+    S.modal = 'eingangKlaeren';
+    renderApp();
+    scrollToModal();
     return;
   }
   if (act==='fotoOeffnen') {
