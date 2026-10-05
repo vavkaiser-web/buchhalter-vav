@@ -184,8 +184,11 @@ async function uebergabe(n, b, benutzer) {
       pruefe(quelle, 'Снятие не найдено', 404);
       const verteilt = Number((await q(`SELECT COALESCE(SUM(betrag_cent),0) s FROM ${S}buch_bewegung
         WHERE quelle_id = $1 AND status IN ('gemeldet','bestaetigt')`, [quelle.id]))[0].s);
+      const restBetrag = Number(quelle.betrag_cent) - verteilt;
       pruefe(verteilt + betrag <= Number(quelle.betrag_cent),
-        `Из снятия осталось распределить ${euro(Number(quelle.betrag_cent) - verteilt)}`, 409);
+        `Из снятия осталось распределить ${euro(restBetrag)}`, 409);
+      pruefe(betrag === restBetrag,
+        `В кассу передаётся только полная нераспределённая сумма (${euro(restBetrag)})`, 409);
     } else {
       vonKonto = String(b.von_konto || '') || (buero(n) ? 'hauptkasse' : halterKonto(n.login));
       const k = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [vonKonto]))[0];
@@ -1168,6 +1171,13 @@ async function lage(n, benutzerListe, jetzt) {
     }
     const kontoIds = kontenMit.map(k => k.id);
 
+    // Распределение снятий: считается по всей таблице без LIMIT (чтобы не врать при большом объёме данных).
+    const avRows = await q(`SELECT quelle_id, COALESCE(SUM(betrag_cent),0)::bigint AS verteilt
+      FROM ${S}buch_bewegung WHERE art = 'uebergabe' AND status IN ('gemeldet','bestaetigt') AND quelle_id IS NOT NULL
+      GROUP BY quelle_id`);
+    const abhVerteilt = {};
+    for (const r of avRows) abhVerteilt[Number(r.quelle_id)] = Number(r.verteilt);
+
     // Движения: бухгалтерия и Андрей — все; Олег — свои счета.
     const bew = (await q(`SELECT m.*, k1.name AS von_name, k2.name AS an_name, k2.art AS an_art, k2.login AS an_login
       FROM ${S}buch_bewegung m LEFT JOIN ${S}buch_konto k1 ON k1.id = m.von_konto LEFT JOIN ${S}buch_konto k2 ON k2.id = m.an_konto
@@ -1309,7 +1319,7 @@ async function lage(n, benutzerListe, jetzt) {
 
     return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
-      konten: kontenMit, bewegungen, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
+      konten: kontenMit, bewegungen, abhebungen_verteilt: abhVerteilt, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
       personen, objekte, fahrzeuge, eingaenge, auftragnehmer, vavapp_nu,
       offen: { benachrichtigungen: 'Каналы уведомлений не согласованы — сообщения никому не отправляются' } };
   });

@@ -221,13 +221,13 @@ function adaptLage(raw) {
     von_konto_name: b.von_name, an_konto_name: b.an_name,
     wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
   }));
-  // Все снятия по датам (для ручного заведения в кассу)
+  // Все снятия по датам (для ручного заведения в кассу).
+  // verteilt берётся с сервера (по всей таблице без LIMIT), не из урезанного списка движений.
+  const _abhVerteilt = raw.abhebungen_verteilt || {};
   const abhebungen_alle = (raw.bewegungen||[])
     .filter(b => b.art === 'abhebung' && b.status !== 'storniert')
     .map(b => {
-      const verteilt = (raw.bewegungen||[])
-        .filter(m => m.quelle_id === b.id && ['gemeldet','bestaetigt'].includes(m.status))
-        .reduce((s, m) => s + (m.betrag||0), 0);
+      const verteilt = _abhVerteilt[b.id] ?? 0;
       const rest = Math.max(0, b.betrag - verteilt);
       return { ...b, betrag_cent: b.betrag, verteilt, rest,
         wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '' };
