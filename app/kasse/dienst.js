@@ -1323,21 +1323,23 @@ async function eingangAblehnen(n, id, b) {
 }
 
 async function auftragnehmerliste() {
-  const { pool } = require('./db.js');
-  const r = await pool.query(`SELECT id, name, art, iban, notiz FROM ${S}kasse_auftragnehmer WHERE aktiv ORDER BY name`);
-  return { liste: r.rows.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null })) };
+  return lesen(async q => {
+    const r = await q(`SELECT id, name, art, iban, notiz FROM ${S}kasse_auftragnehmer WHERE aktiv ORDER BY name`);
+    return { liste: r.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null })) };
+  });
 }
 
 async function auftragnehmerhHinzufuegen(n, b) {
   darf(istGf(n) || istBuch(n), 'Подрядчика добавляет директор или бухгалтерия');
   const name = txt(b.name, 200); pruefe(name, 'Укажите название');
   const art = ['firma', 'person'].includes(b.art) ? b.art : 'firma';
-  const { pool } = require('./db.js');
-  const r = await pool.query(
-    `INSERT INTO ${S}kasse_auftragnehmer (name, art, iban, notiz, von) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [name, art, txt(b.iban, 34) || null, txt(b.notiz, 200) || null, n.login]
-  );
-  return { ok: true, id: Number(r.rows[0].id), name };
+  return tx(async q => {
+    const r = await q(
+      `INSERT INTO ${S}kasse_auftragnehmer (name, art, iban, notiz, von) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [name, art, txt(b.iban, 34) || null, txt(b.notiz, 200) || null, n.login]
+    );
+    return { ok: true, id: Number(r[0].id), name };
+  });
 }
 
 module.exports = {
