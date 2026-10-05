@@ -1055,15 +1055,16 @@ function renderModal(mod) {
             </optgroup>
           </select>
         </label>
-        <label id="ag-label-text">Кому
-          <select id="ag-empfaenger-sel" autofocus>
+        <div id="ag-label-text" style="display:grid;gap:6px">
+          <span style="font-size:12px;color:var(--v-sub)">Кому</span>
+          <select id="ag-empfaenger-sel">
             <option value="">— Выберите получателя —</option>
             ${personenOpts}
             <option value="__manual__">✏ Ввести вручную…</option>
           </select>
-          <input id="ag-empfaenger-manual" placeholder="Имя получателя" style="display:none;margin-top:6px">
+          <input id="ag-empfaenger-manual" placeholder="Имя получателя" style="display:none">
           <input type="hidden" name="empfaenger_name" id="ag-empfaenger-text">
-        </label>
+        </div>
         <div id="ag-label-select" style="display:none">
           <label>Подрядчик
             <select id="ag-auftragnehmer-sel">
@@ -1215,7 +1216,7 @@ function setupAusgebenForm() {
       const newForm = document.getElementById('ag-new-form');
       if (sel && newForm && sel.value === '__new__') newForm.style.display = 'flex';
     } else {
-      labelText.style.display = '';
+      labelText.style.display = 'grid';
       if (hidPerson) hidPerson.disabled = false;
       if (hidAt) hidAt.disabled = true;
       labelSel.style.display = 'none';
