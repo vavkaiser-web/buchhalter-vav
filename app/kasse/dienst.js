@@ -248,6 +248,34 @@ async function bewegungStornieren(n, id) {
   });
 }
 
+/** ГФ аннулирует любое движение (включая подтверждённые снятия). Только для исправления ошибок. */
+async function bewegungGfStornieren(n, id) {
+  darf(istGf(n), 'Аннулировать любое движение может только директор');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Движение не найдено', 404);
+    if (m.status === 'storniert') return { ok: true, wiederholt: true };
+    await q(`UPDATE ${S}buch_bewegung SET status = 'storniert', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'bewegung_gf_storniert', 'bewegung:' + m.id, { art: m.art, betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'storniert', art: m.art, betrag: Number(m.betrag_cent) };
+  });
+}
+
+/** ГФ вносит банковское снятие уже подтверждённым (задним числом, исправление). */
+async function abhebungKorrektur(n, b) {
+  darf(istGf(n), 'Корректуру вносит только директор');
+  const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
+  const datum = b.datum ? String(b.datum).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return tx(async q => {
+    const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, notiz, bestaetigt_am, bestaetigt_von, von, idem)
+      VALUES ('abhebung',$1,'bestaetigt',$2,$3,now(),$4,$4,$5) ON CONFLICT(idem) DO NOTHING RETURNING id`,
+      [betrag, datum, txt(b.notiz, 200), n.login, b.idem || null]);
+    if (!r.length) return { ok: true, wiederholt: true };
+    await log(q, n, 'abhebung_korrektur', 'bewegung:' + r[0].id, { betrag, datum });
+    return { ok: true, id: r[0].id };
+  });
+}
+
 /* ---------------- заявка на наличные и квитанции ---------------- */
 const ZWECKE = ['vorschuss', 'lohn', 'erstattung', 'nu'];
 
@@ -1357,6 +1385,7 @@ async function auftragnehmerhHinzufuegen(n, b) {
 module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
   abhebung, abhebungBestaetigen, abhebungAblehnen, uebergabe, rueckgabe, bestaetigen, bewegungStornieren,
+  bewegungGfStornieren, abhebungKorrektur,
   planAnlegen, planEinfach, planEinreichen, planEntscheiden,
   quittungAusgeben, dringendAusgeben, quittungAbbrechen, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
   dateiRegistrieren, dateiDarf,
