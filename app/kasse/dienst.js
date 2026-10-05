@@ -356,24 +356,42 @@ async function quittungAusgeben(n, id) {
     if (qt.status === 'ausgegeben') return { ok: true, wiederholt: true, nr: qt.nr };
     pruefe(qt.status === 'vorbereitet', 'Квитанция аннулирована', 409);
     pruefe(!qt.plan_id || qt.plan_status === 'genehmigt', 'Список ещё не утверждён Андреем', 409);
+    // Финансовое правило: без подтверждённого документа деньги не выдаются.
+    pruefe(qt.unterschrift || qt.foto_sha, 'Нужна подпись получателя или фото квитанции — без документа выдача невозможна', 409);
     return ausgeben(q, n, qt);
   });
 }
 
 /** Срочная выдача Олегом без предварительного согласования: только авансы
     и зарплата, в пределах фактического остатка, квитанция — сразу.
-    Для подрядчиков такое право не согласовано — не разрешаем. */
+    Для подрядчиков такое право не согласовано — не разрешаем.
+    ВАЖНО: деньги НЕ выдаются здесь — только создаётся квитанция.
+    Движение происходит только после подтверждения документом (quittungAusgeben). */
 async function dringendAusgeben(n, b) {
   darf(istDisp(n) || istGf(n), 'Срочную выдачу оформляет ответственный за наличные или Андрей');
   if (!istGf(n)) pruefe(['vorschuss', 'lohn'].includes(b.zweck), 'Срочно без согласования — только аванс или зарплата. Выплата подрядчику — через список, утверждённый Андреем.');
   return tx(async q => {
     if (b.idem) {
-      const alt = (await q(`SELECT id, nr FROM ${S}buch_quittung WHERE idem = $1`, [b.idem]))[0];
-      if (alt) return { ok: true, wiederholt: true, nr: alt.nr, id: alt.id };
+      const alt = (await q(`SELECT id, nr, status FROM ${S}buch_quittung WHERE idem = $1`, [b.idem]))[0];
+      if (alt) return { ok: true, wiederholt: true, nr: alt.nr, id: alt.id, ausgegeben: alt.status === 'ausgegeben' };
     }
     const z = await quittungZeile(q, n, null, b, true, null);
-    const qt = (await q(`SELECT * FROM ${S}buch_quittung WHERE id = $1`, [z.id]))[0];
-    return ausgeben(q, n, qt);
+    return { ok: true, nr: z.nr, id: z.id };
+  });
+}
+
+/** Отмена незавершённой срочной квитанции (пока деньги не выданы). */
+async function quittungAbbrechen(n, id) {
+  return tx(async q => {
+    const qt = (await q(`SELECT * FROM ${S}buch_quittung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(qt, 'Квитанция не найдена', 404);
+    if (qt.status === 'storniert') return { ok: true, wiederholt: true };
+    pruefe(qt.status === 'vorbereitet', 'Выданную квитанцию нельзя отменить', 409);
+    pruefe(qt.dringend, 'Отменить можно только срочную незавершённую квитанцию');
+    darf(qt.von === n.login || buero(n), 'Отменить может тот, кто создал, или бухгалтерия');
+    await q(`UPDATE ${S}buch_quittung SET status = 'storniert' WHERE id = $1`, [qt.id]);
+    await log(q, n, 'quittung_abgebrochen', 'quittung:' + qt.id, {});
+    return { ok: true };
   });
 }
 
@@ -1326,7 +1344,7 @@ module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
   abhebung, abhebungBestaetigen, abhebungAblehnen, uebergabe, rueckgabe, bestaetigen,
   planAnlegen, planEinfach, planEinreichen, planEntscheiden,
-  quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
+  quittungAusgeben, dringendAusgeben, quittungAbbrechen, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
   dateiRegistrieren, dateiDarf,
   belegAnlegen, belegPruefen,
   erstattungWeg, erstattungBar, erstattungSchritt,

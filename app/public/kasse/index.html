@@ -991,22 +991,28 @@ function renderModal(mod) {
     }
   } else if (mod==='kasseAusgeben') {
     if (S.signaturStep) {
-      title = 'Подпись · ' + esc(S.signaturStep.nr);
+      title = 'Документ · ' + esc(S.signaturStep.nr);
       body = `
-        <div class="v-note" style="margin-bottom:12px">${icon('file-text')} Квитанция <strong>${esc(S.signaturStep.nr)}</strong> — ${esc(S.signaturStep.empfaenger||'')} — <strong>${euro(S.signaturStep.betrag||0)}</strong></div>
-        <div class="v-small" style="margin-bottom:6px;color:var(--v-muted)">Попросите расписаться пальцем или мышью:</div>
-        <canvas id="sig-canvas" width="700" height="160"
-          style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Очистить</button>
-          <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Сохранить подпись и открыть PDF</button>
+        <div class="v-note" style="margin-bottom:12px">${icon('file-text')} <strong>${esc(S.signaturStep.nr)}</strong> · ${esc(S.signaturStep.empfaenger||'')} · <strong>${euro(S.signaturStep.betrag||0)}</strong></div>
+        <div style="background:var(--v-warn-bg,#fff8e1);border:1px solid var(--v-warn,#e65100);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px;color:var(--v-warn,#e65100)">
+          ${icon('alert-triangle')} <strong>Без документа деньги не выдаются.</strong> Нужна подпись или фото квитанции.
         </div>
-        <button type="button" data-action="sigSkip" class="v-button" style="width:100%;margin-top:6px;justify-content:center">${icon('printer')} Открыть PDF без подписи</button>
-        <div id="chek-area" class="v-upload" style="margin:14px 0 0;padding:14px 12px;position:relative">
-          ${icon('paperclip')}<strong id="chek-status">Прикрепить чек / фото</strong>
-          <span class="v-small">Фото чека, PDF (необязательно)</span>
+        <div class="v-small" style="margin-bottom:6px;font-weight:600">Вариант 1 · Подпись получателя</div>
+        <canvas id="sig-canvas" width="700" height="140"
+          style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Очистить</button>
+          <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Подписать и выдать деньги</button>
+        </div>
+        <div style="margin:14px 0 6px;font-size:13px;color:var(--v-muted);text-align:center">— или —</div>
+        <div class="v-small" style="margin-bottom:6px;font-weight:600">Вариант 2 · Фото квитанции</div>
+        <div id="chek-area" class="v-upload" style="padding:14px 12px;position:relative">
+          ${icon('paperclip')}<strong id="chek-status">Прикрепить квитанцию / фото</strong>
+          <span class="v-small">Фото чека или PDF</span>
           <input type="file" id="chek-input" accept="image/*,application/pdf" capture="environment" style="position:absolute;opacity:0;inset:0;cursor:pointer">
-        </div>`;
+        </div>
+        <button type="button" id="chek-ausgeben" class="v-button primary full" style="display:none;margin-top:8px">${icon('send')} Выдать деньги по квитанции</button>
+        <button type="button" id="sig-abbrechen" class="v-button" style="width:100%;margin-top:14px;justify-content:center;color:var(--v-muted);font-size:13px">${icon('x-circle')} Отменить выдачу</button>`;
     } else {
     title = 'Распределить деньги';
     const hauptkasse = S.lage?.kasse?.hauptkasse || 0;
@@ -1415,12 +1421,13 @@ document.getElementById('app').addEventListener('click', async e => {
     window.location.reload();
     return;
   }
-  if (act==='modalClose') { S.modal = null; S.modalData = null; S.signaturStep = null; renderApp(); return; }
-  if (act==='sigSkip') {
-    window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
-    toast('Квитанция ' + S.signaturStep.nr + ' открыта для печати');
-    S.signaturStep = null; S.modal = null;
-    await lageLaden(); renderApp(); return;
+  if (act==='modalClose') {
+    if (S.signaturStep) {
+      // Квитанция vorbereitet — деньги ещё не выданы. Спрашиваем перед отменой.
+      if (!confirm('Выдача не завершена. Отменить квитанцию ' + S.signaturStep.nr + '?')) return;
+      try { await api('POST', 'quittung/' + S.signaturStep.id + '/abbrechen', {}); } catch(e) { /* игнорируем */ }
+    }
+    S.modal = null; S.modalData = null; S.signaturStep = null; await lageLaden(); renderApp(); return;
   }
 
   const scrollToModal = () => document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
@@ -1679,11 +1686,16 @@ function setupSigCanvas() {
   document.getElementById('sig-clear')?.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
   document.getElementById('sig-save')?.addEventListener('click', async () => {
     const sig = canvas.toDataURL('image/png');
+    // Проверяем что что-то нарисовано
+    const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+    if (canvas.toDataURL() === blank.toDataURL()) { toast('Нарисуйте подпись', 'err'); return; }
+    const btn = document.getElementById('sig-save'); if (btn) btn.disabled = true;
     try {
       await api('POST', 'quittung/' + S.signaturStep.id + '/unterschrift', { unterschrift: sig });
+      await api('POST', 'quittung/' + S.signaturStep.id + '/ausgeben', {});
       window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
-      toast('Подпись сохранена · Квитанция ' + S.signaturStep.nr);
-    } catch(err) { toast(err.message, 'err'); return; }
+      toast('Подпись сохранена · Деньги выданы · ' + S.signaturStep.nr);
+    } catch(err) { toast(err.message, 'err'); if (btn) btn.disabled = false; return; }
     S.signaturStep = null; S.modal = null;
     await lageLaden(); renderApp();
   });
@@ -1700,9 +1712,11 @@ function setupSigCanvas() {
       try {
         const sha = await uploadDatei(file);
         await api('POST', 'quittung/' + S.signaturStep.id + '/foto', { sha });
-        if (chekArea) { chekArea.style.background = '#e8f5e9'; chekArea.style.borderColor = '#35674e'; chekArea.style.opacity = '1'; }
+        if (chekArea) { chekArea.style.background = 'var(--v-ok-bg,#e8f5e9)'; chekArea.style.borderColor = '#35674e'; chekArea.style.opacity = '1'; }
         chekStatus.textContent = '✓ ' + file.name;
-        toast('Чек прикреплён к квитанции ' + S.signaturStep.nr);
+        const ausgBtn = document.getElementById('chek-ausgeben');
+        if (ausgBtn) ausgBtn.style.display = '';
+        toast('Квитанция прикреплена · ' + S.signaturStep.nr);
       } catch(err) {
         chekStatus.textContent = 'Ошибка: ' + err.message;
         if (chekArea) chekArea.style.opacity = '1';
@@ -1710,6 +1724,25 @@ function setupSigCanvas() {
       }
     });
   }
+
+  document.getElementById('chek-ausgeben')?.addEventListener('click', async () => {
+    const btn = document.getElementById('chek-ausgeben'); if (btn) btn.disabled = true;
+    try {
+      await api('POST', 'quittung/' + S.signaturStep.id + '/ausgeben', {});
+      window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
+      toast('Деньги выданы по квитанции · ' + S.signaturStep.nr);
+    } catch(err) { toast(err.message, 'err'); if (btn) btn.disabled = false; return; }
+    S.signaturStep = null; S.modal = null;
+    await lageLaden(); renderApp();
+  });
+
+  document.getElementById('sig-abbrechen')?.addEventListener('click', async () => {
+    if (!confirm('Отменить выдачу ' + S.signaturStep.nr + '?')) return;
+    try { await api('POST', 'quittung/' + S.signaturStep.id + '/abbrechen', {}); toast('Выдача отменена'); }
+    catch(err) { toast(err.message, 'err'); return; }
+    S.signaturStep = null; S.modal = null;
+    await lageLaden(); renderApp();
+  });
 }
 
 let pwaPrompt = null;

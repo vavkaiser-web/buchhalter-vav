@@ -57,6 +57,7 @@ const POST = {
   'quittung/:id/original': (n, b, id) => d.quittungOriginal(n, id),
   'quittung/:id/nu-bestaetigt': (n, b, id) => d.quittungNuBestaetigt(n, id, b),
   'quittung/:id/storno': (n, b, id) => d.quittungStorno(n, id, b),
+  'quittung/:id/abbrechen': (n, b, id) => d.quittungAbbrechen(n, id),
   'quittung/:id/unterschrift': (n, b, id) => d.quittungUnterschrift(n, id, b),
   'beleg': (n, b) => d.belegAnlegen(n, b),
   'beleg/:id/pruefen': (n, b, id) => d.belegPruefen(n, id, b),
