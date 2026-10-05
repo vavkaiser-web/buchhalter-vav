@@ -266,10 +266,11 @@ async function abhebungKorrektur(n, b) {
   darf(istGf(n), 'Корректуру вносит только директор');
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
   const datum = b.datum ? String(b.datum).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const finmapOp = b.finmap_op ? txt(b.finmap_op, 80) : null;
   return tx(async q => {
-    const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, notiz, bestaetigt_am, bestaetigt_von, von, idem)
-      VALUES ('abhebung',$1,'bestaetigt',$2,$3,now(),$4,$4,$5) ON CONFLICT(idem) DO NOTHING RETURNING id`,
-      [betrag, datum, txt(b.notiz, 200), n.login, b.idem || null]);
+    const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, notiz, finmap_op, bestaetigt_am, bestaetigt_von, von, idem)
+      VALUES ('abhebung',$1,'bestaetigt',$2,$3,$4,now(),$5,$5,$6) ON CONFLICT(idem) DO NOTHING RETURNING id`,
+      [betrag, datum, txt(b.notiz, 200), finmapOp, n.login, b.idem || null]);
     if (!r.length) return { ok: true, wiederholt: true };
     await log(q, n, 'abhebung_korrektur', 'bewegung:' + r[0].id, { betrag, datum });
     return { ok: true, id: r[0].id };
