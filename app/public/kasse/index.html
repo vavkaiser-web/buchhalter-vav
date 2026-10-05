@@ -257,14 +257,17 @@ function adaptLage(raw) {
   // Вопросы
   const rueckfragen_offen = (raw.rueckfragen||[]).filter(r=>r.status==='offen').length;
   // Входящие от vavapp
+  const ZAHLART_TEXT = {firmenkarte:'Карта фирмы',privatkarte:'Своя карта',bar:'Наличные'};
   const eingaenge = (raw.eingaenge||[]).map(e=>({
-    ...e, ref: String(e.id), ea_ref: e.kasse_ref,
+    ...e, ref: String(e.id), ea_ref: e.kasse_ref, _typ: 'ea',
     betrag_cent: e.betrag,
     bezeichnung: e.art==='vorschuss' ? 'Аванс от VAV App' : 'Чек от VAV App',
     person_name: e.person_name || e.person_id || '—',
     erstellt_text: e.erstellt_am ? new Date(e.erstellt_am).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
     erstellt_ts: e.id,
     erledigt: !!e.verarbeitet_am,
+    zahlart_text: e.zahlart ? (ZAHLART_TEXT[e.zahlart] || e.zahlart) : null,
+    foto_sha: e.datei_sha || null,
   }));
   // Квитанции: готовы к выдаче (план одобрен, кассир назначен)
   const quittungenVorbereitet = (raw.quittungen||[]).filter(q => q.status === 'vorbereitet' && q.plan_status === 'genehmigt');
@@ -556,8 +559,11 @@ function detailPanel(r) {
     <div class="v-small">${esc(r.erstellt_text||'')} · ${esc(r.person_name||r.login||'')}</div>
     ${keys([
       ['Статус', r.status||'?'],
+      ...(r.firma?[['Фирма',r.firma]]:[]),
       ...(r.objekt_name?[['Объект',r.objekt_name]]:[]),
       ...(r.fahrzeug?[['Автомобиль',r.fahrzeug]]:[]),
+      ...(r.fahrzeug_text?[['Машина',r.fahrzeug_text]]:[]),
+      ...(r.zahlart_text?[['Оплата',r.zahlart_text]]:[]),
       ...(r.zahlungsweg?[['Способ оплаты',r.zahlungsweg]]:[]),
     ])}
     ${r.nachricht_text ? `<div class="v-note">${esc(r.nachricht_text)}</div>` : ''}
@@ -568,7 +574,8 @@ function detailPanel(r) {
       ${istBuch && typ==='beleg' && r.status==='ausstehend' ? btn('Принять чек','belegPruefen','primary') : ''}
       ${(istBuch||istDisp) && typ==='plan' && r.status==='entwurf' ? btn('Подать на одобрение','planEinreichen','primary') : ''}
       ${istBuch && typ==='plan' && r.status==='eingereicht' ? btn('Одобрить','planBewilligen','primary') : ''}
-      ${istBuch && typ==='ea' && !r.erledigt ? btn('Одобрить запрос','eingangBewilligen','primary') : ''}
+      ${istBuch && typ==='ea' && !r.erledigt ? btn('Одобрить','eingangBewilligen','primary') : ''}
+      ${istBuch && typ==='ea' && !r.erledigt ? btn('Уточнить','eingangKlaeren','') : ''}
       ${istBuch && typ==='ea' && !r.erledigt ? btn('Отклонить','eingangAblehnen','') : ''}
       ${istBuch && typ==='plan' && r.status==='eingereicht' ? btn('Отклонить','ablehnen','') : ''}
       ${istBuch && typ==='beleg' && r.status==='ausstehend' ? btn('Отклонить','ablehnen','') : ''}
@@ -831,6 +838,13 @@ function renderModal(mod) {
     body = `<form id="ablehnen-form" class="v-form">
       <label>Причина<textarea name="grund" rows="3" required></textarea></label>
       <button type="submit" class="v-button primary full" style="background:var(--v-red);color:var(--v-on);border-color:var(--v-red)">Отклонить</button>
+    </form>`;
+  } else if (mod==='eingangKlaeren') {
+    title = 'Запросить уточнение';
+    body = `<form id="ea-klaeren-form" class="v-form">
+      <div class="v-note">Работник увидит этот текст в телефоне.</div>
+      <label>Что нужно уточнить<textarea name="grund" rows="3" required></textarea></label>
+      <button type="submit" class="v-button primary full">Запросить уточнение</button>
     </form>`;
   } else if (mod==='genehmigen') {
     title = 'Одобрить заявку';
@@ -1375,10 +1389,19 @@ async function formAbsenden(form) {
     } else if (form.id==='ablehnen-form') {
       const r = S.ausgewaehlt;
       if (r) {
-        const pfad = r.plan_ref ? `plan/${r.id}/entscheiden` : `beleg/${r.id}/pruefen`;
-        await api('POST', pfad, {aktion:'ablehnen', grund: d.grund});
-        toast('Документ отклонён');
+        if (r._typ === 'ea') {
+          await api('POST', `eingang/${r.id}/ablehnen`, {grund: d.grund});
+          toast('Запрос отклонён'); S.ausgewaehlt = null;
+        } else {
+          const pfad = r.plan_ref ? `plan/${r.id}/entscheiden` : `beleg/${r.id}/pruefen`;
+          await api('POST', pfad, {aktion:'ablehnen', grund: d.grund});
+          toast('Документ отклонён');
+        }
       }
+    } else if (form.id==='ea-klaeren-form') {
+      const r = S.ausgewaehlt;
+      if (r) { await api('POST', `eingang/${r.id}/klaeren`, {grund: d.grund}); toast('Запрос на уточнение отправлен'); }
+
     } else if (form.id==='genehmigen-form') {
       const r = S.ausgewaehlt;
       if (r) {
@@ -1604,11 +1627,11 @@ document.getElementById('app').addEventListener('click', async e => {
     return;
   }
   if (act==='eingangAblehnen') {
-    const r = S.ausgewaehlt;
-    if (r) {
-      try { await api('POST',`eingang/${r.id}/ablehnen`,{}); await lageLaden(); toast('Запрос отклонён'); S.ausgewaehlt = null; renderApp(); }
-      catch(e) { toast(e.message,'err'); }
-    }
+    modal('ablehnen');
+    return;
+  }
+  if (act==='eingangKlaeren') {
+    modal('eingangKlaeren');
     return;
   }
   if (act==='fotoOeffnen') {

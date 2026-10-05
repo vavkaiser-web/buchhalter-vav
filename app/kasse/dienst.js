@@ -1260,11 +1260,14 @@ async function lage(n, benutzerListe, jetzt) {
     // Входящие запросы от vavapp (только для бухгалтерии и GF).
     let eingaenge = [];
     if (buero(n)) {
-      const ea = await q(`SELECT id, kasse_ref, art, person_id, person_name, objekt_id, betrag_cent, zweck, erstellt_am, verarbeitet_am
+      const ea = await q(`SELECT id, kasse_ref, art, person_id, person_name, objekt_id, betrag_cent, zweck,
+        foto_url, fahrzeug_text, zahlart, firma, datei_sha, erstellt_am, verarbeitet_am
         FROM ${S}kasse_extern_anfrage ORDER BY id DESC LIMIT 100`);
       eingaenge = ea.map(e => ({ id: Number(e.id), kasse_ref: e.kasse_ref, art: e.art,
         person_id: e.person_id, person_name: e.person_name, objekt_id: e.objekt_id,
-        betrag: Number(e.betrag_cent), zweck: e.zweck,
+        betrag: Number(e.betrag_cent), zweck: e.zweck, foto_url: e.foto_url || null,
+        fahrzeug_text: e.fahrzeug_text || null, zahlart: e.zahlart || null, firma: e.firma || null,
+        datei_sha: e.datei_sha || null,
         erstellt_am: e.erstellt_am, verarbeitet_am: e.verarbeitet_am }));
     }
 
@@ -1351,14 +1354,29 @@ async function eingangBewilligen(n, id) {
 
 async function eingangAblehnen(n, id, b) {
   darf(istGf(n), 'Отклоняет Андрей');
+  pruefe(b && txt(b.grund, 300), 'Укажите причину отказа — работник увидит её в телефоне');
   return tx(async q => {
     const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     pruefe(ea, 'Запрос не найден', 404);
     pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
     const integratsiya = require('./integratsiya.js');
-    await integratsiya.ereignisAussenden(ea.kasse_ref, 'ABGELEHNT', txt(b && b.grund, 300));
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'ABGELEHNT', txt(b.grund, 300));
     await q(`UPDATE ${S}kasse_extern_anfrage SET verarbeitet_am = now() WHERE id = $1`, [ea.id]);
-    await log(q, n, 'eingang_abgelehnt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b && b.grund, 300) });
+    await log(q, n, 'eingang_abgelehnt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b.grund, 300) });
+    return { ok: true, kasse_ref: ea.kasse_ref };
+  });
+}
+
+async function eingangKlaeren(n, id, b) {
+  darf(istGf(n), 'Уточнение запрашивает Андрей');
+  pruefe(b && txt(b.grund, 300), 'Укажите, что нужно уточнить — работник увидит это в телефоне');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
+    const integratsiya = require('./integratsiya.js');
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'KLAEREN', txt(b.grund, 300));
+    await log(q, n, 'eingang_klaeren', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b.grund, 300) });
     return { ok: true, kasse_ref: ea.kasse_ref };
   });
 }
@@ -1396,5 +1414,5 @@ module.exports = {
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
   bankLink, bankLinkManuell, belegManuellFuerUebergabe, ibanGueltig, Fehler,
-  eingangBewilligen, eingangAblehnen,
+  eingangBewilligen, eingangAblehnen, eingangKlaeren,
 };

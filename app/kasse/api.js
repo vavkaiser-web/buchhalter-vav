@@ -54,6 +54,7 @@ const POST = {
   'plan/:id/entscheiden': (n, b, id) => d.planEntscheiden(n, id, b),
   'eingang/:id/bewilligen': (n, b, id) => d.eingangBewilligen(n, id),
   'eingang/:id/ablehnen': (n, b, id) => d.eingangAblehnen(n, id, b),
+  'eingang/:id/klaeren': (n, b, id) => d.eingangKlaeren(n, id, b),
   'quittung/dringend': (n, b) => d.dringendAusgeben(n, b),
   'quittung/:id/ausgeben': (n, b, id) => d.quittungAusgeben(n, id),
   'quittung/:id/foto': (n, b, id) => d.quittungFoto(n, id, b),
