@@ -221,8 +221,8 @@ function adaptLage(raw) {
     von_konto_name: b.von_name, an_konto_name: b.an_name,
     wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
   }));
-  // Нераспределённые снятия — только те, у которых ещё есть остаток
-  const abhebungen_offen = (raw.bewegungen||[])
+  // Все снятия по датам (для ручного заведения в кассу)
+  const abhebungen_alle = (raw.bewegungen||[])
     .filter(b => b.art === 'abhebung' && b.status !== 'storniert')
     .map(b => {
       const verteilt = (raw.bewegungen||[])
@@ -232,7 +232,6 @@ function adaptLage(raw) {
       return { ...b, betrag_cent: b.betrag, verteilt, rest,
         wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '' };
     })
-    .filter(b => b.rest > 0)
     .sort((a, b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : a.id - b.id);
   // Чеки: в очередь попадают ausstehend и rueckfrage
   const belege_queue = (raw.belege||[]).filter(b=>['ausstehend','rueckfrage'].includes(b.status)).map(b=>({
@@ -277,7 +276,7 @@ function adaptLage(raw) {
   // Объекты и машины для форм
   const objekte = (raw.objekte||[]).map(o=>({id: o.nummer, name: o.bez||o.nummer}));
   const fahrzeuge = (raw.fahrzeuge||[]).map(f=>({id: f.id, kennzeichen: f.text||f.id}));
-  return { ...raw, kasse: { hauptkasse, reserviert: hk?.reserviert||0, frei: hk?.frei ?? hauptkasse }, halter, firma, bewegungen, abhebungen_offen, belege_queue, meine_belege,
+  return { ...raw, kasse: { hauptkasse, reserviert: hk?.reserviert||0, frei: hk?.frei ?? hauptkasse }, halter, firma, bewegungen, abhebungen_alle, belege_queue, meine_belege,
     plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge, eingaenge,
     quittungenVorbereitet, quittungenOriginalFehlt };
 }
@@ -408,17 +407,19 @@ ${isGf && hauptkasse > 0 ? `
   </div>
 </div>` : ''}
 <div class="v-panel">
-  <div class="v-panelhead"><h2>Нераспределённые снятия</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
+  <div class="v-panelhead"><h2>Снятия из банка</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
   <div class="v-ledger">
-    ${(l.abhebungen_offen||[]).map(b=>`
-    <button class="v-event cursor-interaction" data-action="bewegungDetail" data-bew-id="${b.id}" style="width:100%;text-align:left">
+    ${(l.abhebungen_alle||[]).map(b=>`
+    <div class="v-event" style="display:flex;align-items:center;gap:8px;padding:10px 12px">
       ${icon('banknote')}
-      <span>
+      <span style="flex:1;min-width:0">
         <span class="v-rowtitle">Снятие ${esc(b.wann_text||'')}</span>
-        <span class="v-small" style="display:block">Нераспределено: ${euro(b.rest)}</span>
+        ${b.rest>0 ? `<span class="v-small" style="display:block;color:var(--v-warn,#b45309)">Не в кассе: ${euro(b.rest)}</span>`
+                   : `<span class="v-small" style="display:block;color:var(--v-ok,#15803d)">В кассе ✓</span>`}
       </span>
-      <span class="v-num">${euro(b.betrag_cent)}</span>
-    </button>`).join('') || '<div class="v-stateempty">Все снятия распределены ✓</div>'}
+      <span class="v-num" style="flex-shrink:0">${euro(b.betrag_cent)}</span>
+      ${b.rest>0 ? `<button class="v-button primary" style="flex-shrink:0" data-action="inKasse" data-bew-id="${b.id}" data-bew-betrag="${b.rest}">В кассу</button>` : ''}
+    </div>`).join('') || '<div class="v-stateempty">Нет снятий</div>'}
   </div>
 </div>`;
 }

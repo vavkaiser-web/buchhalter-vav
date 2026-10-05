@@ -282,9 +282,16 @@ const ZWECKE = ['vorschuss', 'lohn', 'erstattung', 'nu'];
 
 async function personLesen(q, ref) {
   if (!ref) return null;
-  const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ, p.org_id::text AS org_id
-    FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id WHERE p.id::text = $1`, [String(ref)]);
-  return r[0] || null;
+  try {
+    await q('SAVEPOINT sp_person');
+    const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ, p.org_id::text AS org_id
+      FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id WHERE p.id::text = $1`, [String(ref)]);
+    await q('RELEASE SAVEPOINT sp_person');
+    return r[0] || null;
+  } catch (e) {
+    await q('ROLLBACK TO SAVEPOINT sp_person').catch(() => {});
+    return null;
+  }
 }
 
 async function quittungZeile(q, n, planId, z, dringend, kontoId) {
@@ -574,13 +581,25 @@ async function belegAnlegen(n, b) {
     }
     let fahrzeugText = null, objektText = null, objektNr = null, fahrzeugRef = null;
     if (verwendung === 'fahrzeug') {
-      const f = (await q(`SELECT id::text, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
-        FROM vavapp_prod.vehicles WHERE id::text = $1 AND active`, [String(b.fahrzeug_ref || '')]))[0];
+      let f = null;
+      try {
+        await q('SAVEPOINT sp_fahr');
+        const r = await q(`SELECT id::text, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
+          FROM vavapp_prod.vehicles WHERE id::text = $1 AND active`, [String(b.fahrzeug_ref || '')]);
+        await q('RELEASE SAVEPOINT sp_fahr');
+        f = r[0] || null;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_fahr').catch(() => {}); }
       pruefe(f, 'Выберите машину из списка');
       fahrzeugRef = f.id; fahrzeugText = f.text;
     }
     if (verwendung === 'objekt' || (verwendung === 'fahrzeug' && b.objekt_nr)) {
-      const o = (await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr || '')]))[0];
+      let o = null;
+      try {
+        await q('SAVEPOINT sp_obj');
+        const r = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr || '')]);
+        await q('RELEASE SAVEPOINT sp_obj');
+        o = r[0] || null;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_obj').catch(() => {}); }
       pruefe(o, 'Выберите объект из списка');
       objektNr = o.nummer; objektText = o.bez || o.nummer;
     }
@@ -844,7 +863,13 @@ async function paketAnlegen(n, b) {
     await dateiPruefen(q, b.datei_sha);
     let objektNr = null, objektText = null;
     if (b.objekt_nr) {
-      const o = (await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr)]))[0];
+      let o = null;
+      try {
+        await q('SAVEPOINT sp_paket_obj');
+        const r = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr)]);
+        await q('RELEASE SAVEPOINT sp_paket_obj');
+        o = r[0] || null;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_paket_obj').catch(() => {}); }
       pruefe(o, 'Объект не найден'); objektNr = o.nummer; objektText = o.bez || o.nummer;
     }
     const nr = await nummer(q, 'Z');
@@ -1381,6 +1406,17 @@ async function eingangKlaeren(n, id, b) {
   });
 }
 
+async function eingangLoeschen(n, id) {
+  darf(istGf(n), 'Удалить запрос может только директор');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    await q(`DELETE FROM ${S}kasse_extern_anfrage WHERE id = $1`, [ea.id]);
+    await log(q, n, 'eingang_geloescht', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref });
+    return { ok: true };
+  });
+}
+
 async function auftragnehmerliste() {
   return lesen(async q => {
     const r = await q(`SELECT id, name, art, iban, notiz FROM ${S}kasse_auftragnehmer WHERE aktiv ORDER BY name`);
@@ -1414,5 +1450,5 @@ module.exports = {
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
   bankLink, bankLinkManuell, belegManuellFuerUebergabe, ibanGueltig, Fehler,
-  eingangBewilligen, eingangAblehnen, eingangKlaeren,
+  eingangBewilligen, eingangAblehnen, eingangKlaeren, eingangLoeschen,
 };
