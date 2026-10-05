@@ -1072,9 +1072,6 @@ function renderModal(mod) {
               <option value="__new__">＋ Добавить нового…</option>
             </select>
           </label>
-          <label style="margin-top:6px">Rechnungs-Nr. (необязательно)
-            <input name="rechnungs_nr" id="ag-rechnungs-nr" placeholder="2024-001" maxlength="50">
-          </label>
           <div id="ag-new-form" style="display:none;flex-direction:column;gap:8px;background:var(--v-bg2,#f5f5f5);border-radius:8px;padding:10px;margin-top:6px">
             <label style="margin:0">Название фирмы / имя
               <input id="ag-new-name" placeholder="Firma GmbH" maxlength="200">
@@ -1091,6 +1088,9 @@ function renderModal(mod) {
           </div>
           <input type="hidden" name="empfaenger_name" id="ag-empfaenger-hidden" disabled>
         </div>
+        <label>Rechnungs-Nr. (необязательно)
+          <input name="rechnungs_nr" id="ag-rechnungs-nr" placeholder="2024-001" maxlength="50">
+        </label>
         <label>Сумма (€)
           <input name="betrag" id="ag-betrag" inputmode="decimal" placeholder="0,00" required>
         </label>

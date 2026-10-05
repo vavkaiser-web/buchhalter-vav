@@ -1183,7 +1183,7 @@ async function lage(n, benutzerListe, jetzt) {
       });
     }
 
-    const personen = (buero(n) || istDisp(n)) ? await (async () => {
+    const personen = await (async () => {
       try {
         await q('SAVEPOINT sp_personen');
         const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
@@ -1192,7 +1192,7 @@ async function lage(n, benutzerListe, jetzt) {
         await q('RELEASE SAVEPOINT sp_personen');
         return r;
       } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_personen').catch(() => {}); return []; }
-    })() : [];
+    })();
     const objekte = await (async () => {
       try {
         await q('SAVEPOINT sp_objekte');
