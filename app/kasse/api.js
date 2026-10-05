@@ -86,6 +86,7 @@ const POST = {
   }),
   'bank/link-manuell': (n, b) => d.bankLinkManuell(n, b),
   'uebergabe/beleg-manuell': (n, b) => d.belegManuellFuerUebergabe(n, b),
+  'auftragnehmer': (n, b) => d.auftragnehmerhHinzufuegen(n, b),
 };
 
 function finde(rest) {
@@ -114,6 +115,7 @@ async function handle(req, res, u, n, ctx) {
     if (req.method === 'GET' && rest === 'ich') { antwort(res, 200, { login: n.login, rolle: n.rolle }); return true; }
     if (req.method === 'GET' && rest === 'lage') { // BUCH_JETZT — только локальная демо-база (сравнение с эталоном на фиксированную дату).
       antwort(res, 200, await d.lage(n, ctx.benutzer, process.env.BUCH_JETZT ? Date.parse(process.env.BUCH_JETZT) : undefined)); return true; }
+    if (req.method === 'GET' && rest === 'auftragnehmer') { antwort(res, 200, await d.auftragnehmerliste()); return true; }
     if (req.method === 'GET' && rest.startsWith('bank')) {
       if (!['gf', 'buchhaltung'].includes(n.rolle)) throw new Fehler(403, 'Банк видят бухгалтерия и Андрей');
       const monat = /^\d{4}-\d{2}$/.test(u.searchParams.get('monat') || '') ? u.searchParams.get('monat') : '';
@@ -137,6 +139,37 @@ async function handle(req, res, u, n, ctx) {
       res.writeHead(200, { 'Content-Type': info.mime, 'Content-Length': buf.length, 'Cache-Control': 'private, max-age=3600',
         'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' });
       res.end(buf); return true;
+    }
+    if (req.method === 'POST' && rest === 'beleg-scan') {
+      const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(mime)) throw new Fehler(400, 'Ожидается изображение (JPEG/PNG/WebP)');
+      let buf;
+      try { buf = await dateien.lesenKoerper(req); } catch (e) { throw new Fehler(413, 'Файл больше 15 МБ'); }
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) throw new Fehler(503, 'OCR не настроен (ANTHROPIC_API_KEY отсутствует)');
+      const b64 = buf.toString('base64');
+      const mediaType = mime === 'image/jpg' ? 'image/jpeg' : mime;
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+            { type: 'text', text: 'Это квитанция или чек. Извлеки: итоговая сумма в евро (число), название получателя/продавца, дата (YYYY-MM-DD). Ответь ТОЛЬКО JSON: {"betrag": 12.50, "empfaenger": "Firma GmbH", "datum": "2026-10-05"}. Если данных нет — null для поля.' }
+          ]}]
+        })
+      });
+      if (!resp.ok) throw new Fehler(502, 'OCR-сервис недоступен');
+      const data = await resp.json();
+      let result = {};
+      try {
+        const text = data.content[0].text.trim();
+        const match = text.match(/\{[\s\S]*\}/);
+        result = match ? JSON.parse(match[0]) : {};
+      } catch (e) { result = {}; }
+      antwort(res, 200, { ok: true, betrag: result.betrag || null, empfaenger: result.empfaenger || null, datum: result.datum || null }); return true;
     }
     if (req.method === 'POST' && rest === 'datei') {
       const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();

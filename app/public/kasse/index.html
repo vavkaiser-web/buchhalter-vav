@@ -1011,11 +1011,19 @@ function renderModal(mod) {
     title = 'Распределить деньги';
     const hauptkasse = S.lage?.kasse?.hauptkasse || 0;
     const frei = S.lage?.kasse?.frei ?? hauptkasse;
+    const auftragnehmerOpts = (S.lage?.auftragnehmer||[]).map(a =>
+      `<option value="at:${a.id}|${esc(a.name)}">${esc(a.name)}${a.art==='person'?' (физ.)':''}</option>`
+    ).join('');
     body = `
       <div class="v-note" style="margin-bottom:12px">${icon('wallet')} В кассе: <strong>${euro(hauptkasse)}</strong> · Свободно: <strong>${euro(frei)}</strong></div>
+      <div class="v-upload" id="ocr-upload-area" style="margin-bottom:12px;padding:10px 12px;cursor:pointer;position:relative">
+        ${icon('camera')}<strong id="ocr-status">Сфотографировать квитанцию</strong>
+        <span class="v-small" style="margin-top:2px">Сумма и получатель заполнятся автоматически</span>
+        <input type="file" id="ocr-input" accept="image/*" capture="environment" style="position:absolute;opacity:0;inset:0;cursor:pointer">
+      </div>
       <form id="kasse-ausgeben-form" class="v-form">
         <label>Назначение
-          <select name="kategorie" required>
+          <select name="kategorie" id="ag-kategorie" required>
             <optgroup label="— Аванс —">
               <option value="vorschuss|">Аванс (общий)</option>
               <option value="vorschuss|Бензин / Kraftstoff">Аванс · Бензин</option>
@@ -1031,11 +1039,37 @@ function renderModal(mod) {
             </optgroup>
           </select>
         </label>
-        <label>Кому
-          <input name="empfaenger_name" placeholder="Имя получателя" required autofocus>
+        <label id="ag-label-text">Кому
+          <input name="empfaenger_name" id="ag-empfaenger-text" placeholder="Имя получателя" required autofocus>
         </label>
+        <div id="ag-label-select" style="display:none">
+          <label>Подрядчик
+            <select id="ag-auftragnehmer-sel">
+              ${auftragnehmerOpts}
+              <option value="__new__">＋ Добавить нового…</option>
+            </select>
+          </label>
+          <div id="ag-new-form" style="display:none;background:var(--v-bg2,#f5f5f5);border-radius:8px;padding:10px;margin-top:6px;gap:8px;display:none;flex-direction:column">
+            <label style="margin:0">Название фирмы / имя
+              <input id="ag-new-name" placeholder="Firma GmbH" maxlength="200">
+            </label>
+            <label style="margin:0">IBAN (необязательно)
+              <input id="ag-new-iban" placeholder="DE00 0000 0000 0000 0000 00" maxlength="34">
+            </label>
+            <div style="display:flex;gap:8px">
+              <label style="margin:0;flex:1">Тип
+                <select id="ag-new-art">
+                  <option value="firma">Фирма</option>
+                  <option value="person">Физ. лицо</option>
+                </select>
+              </label>
+            </div>
+            <button type="button" id="ag-new-save" class="v-button primary">${icon('user-plus')} Сохранить подрядчика</button>
+          </div>
+          <input type="hidden" name="empfaenger_name" id="ag-empfaenger-hidden">
+        </div>
         <label>Сумма (€)
-          <input name="betrag" inputmode="decimal" placeholder="0,00" required>
+          <input name="betrag" id="ag-betrag" inputmode="decimal" placeholder="0,00" required>
         </label>
         <label>Примечание
           <input name="notiz" placeholder="Необязательно (автозаполнится по назначению)">
@@ -1135,6 +1169,105 @@ function renderApp() {
 
   if (window.lucide) lucide.createIcons();
   setupSigCanvas();
+  setupAusgebenForm();
+}
+
+function setupAusgebenForm() {
+  const kat = document.getElementById('ag-kategorie');
+  if (!kat) return;
+
+  function updateEmpfRow() {
+    const isAt = kat.value === 'lohn|Оплата подрядчика';
+    const labelText = document.getElementById('ag-label-text');
+    const labelSel = document.getElementById('ag-label-select');
+    const inputText = document.getElementById('ag-empfaenger-text');
+    if (!labelText || !labelSel) return;
+    if (isAt) {
+      labelText.style.display = 'none'; inputText.removeAttribute('required');
+      labelSel.style.display = '';
+      syncHidden();
+    } else {
+      labelText.style.display = ''; inputText.setAttribute('required','');
+      labelSel.style.display = 'none';
+    }
+  }
+
+  function syncHidden() {
+    const sel = document.getElementById('ag-auftragnehmer-sel');
+    const hid = document.getElementById('ag-empfaenger-hidden');
+    if (!sel || !hid) return;
+    if (sel.value === '__new__') { hid.value = ''; }
+    else { const parts = sel.value.split('|'); hid.value = parts.slice(1).join('|') || ''; }
+  }
+
+  kat.addEventListener('change', updateEmpfRow);
+  updateEmpfRow();
+
+  const atSel = document.getElementById('ag-auftragnehmer-sel');
+  if (atSel) {
+    atSel.addEventListener('change', () => {
+      syncHidden();
+      const newForm = document.getElementById('ag-new-form');
+      if (newForm) newForm.style.display = atSel.value === '__new__' ? 'flex' : 'none';
+    });
+  }
+
+  const saveBt = document.getElementById('ag-new-save');
+  if (saveBt) {
+    saveBt.addEventListener('click', async () => {
+      const name = (document.getElementById('ag-new-name')?.value||'').trim();
+      const iban = (document.getElementById('ag-new-iban')?.value||'').trim();
+      const art = document.getElementById('ag-new-art')?.value || 'firma';
+      if (!name) { toast('Введите название'); return; }
+      try {
+        saveBt.disabled = true;
+        const r = await api('POST','auftragnehmer',{name,iban:iban||null,art});
+        if (!S.lage) S.lage = {};
+        if (!S.lage.auftragnehmer) S.lage.auftragnehmer = [];
+        S.lage.auftragnehmer.push({id:r.id,name:r.name,art,iban:iban||null,notiz:null});
+        S.lage.auftragnehmer.sort((a,b)=>a.name.localeCompare(b.name,'de'));
+        const sel = document.getElementById('ag-auftragnehmer-sel');
+        if (sel) {
+          const opt = document.createElement('option');
+          opt.value = 'at:' + r.id + '|' + r.name;
+          opt.textContent = r.name + (art==='person'?' (физ.)':'');
+          sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+          sel.value = opt.value;
+          document.getElementById('ag-new-form').style.display = 'none';
+          syncHidden();
+        }
+        toast('Подрядчик добавлен: ' + r.name);
+      } catch(e) { toast('Ошибка: ' + e.message); } finally { saveBt.disabled = false; }
+    });
+  }
+
+  const ocrInput = document.getElementById('ocr-input');
+  if (ocrInput) {
+    ocrInput.addEventListener('change', async () => {
+      const file = ocrInput.files[0]; if (!file) return;
+      const status = document.getElementById('ocr-status');
+      if (status) status.textContent = 'Распознаю…';
+      try {
+        const buf = await file.arrayBuffer();
+        const resp = await fetch('/api/k/beleg-scan', {
+          method:'POST', headers:{'Content-Type': file.type},
+          body: buf, credentials: 'same-origin'
+        });
+        const r = await resp.json();
+        if (r.betrag != null) {
+          const betragEl = document.getElementById('ag-betrag');
+          if (betragEl) betragEl.value = String(r.betrag).replace('.',',');
+        }
+        if (r.empfaenger) {
+          const txtEl = document.getElementById('ag-empfaenger-text');
+          if (txtEl && txtEl.closest('label')?.style.display !== 'none') txtEl.value = r.empfaenger;
+          const hidEl = document.getElementById('ag-empfaenger-hidden');
+          if (hidEl && document.getElementById('ag-label-select')?.style.display !== 'none') hidEl.value = r.empfaenger;
+        }
+        if (status) status.textContent = r.betrag ? ('Распознано: ' + euro(Math.round(r.betrag*100))) : 'Квитанция загружена';
+      } catch(e) { if (status) status.textContent = 'Ошибка распознавания'; }
+    });
+  }
 }
 
 /* ---------- Обработка форм ---------- */

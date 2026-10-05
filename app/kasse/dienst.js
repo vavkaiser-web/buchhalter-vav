@@ -1213,10 +1213,17 @@ async function lage(n, benutzerListe, jetzt) {
         erstellt_am: e.erstellt_am, verarbeitet_am: e.verarbeitet_am }));
     }
 
+    const auftragnehmer = await (async () => {
+      try {
+        const r = await q(`SELECT id, name, art, iban, notiz FROM ${S}kasse_auftragnehmer WHERE aktiv ORDER BY name`);
+        return r.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null }));
+      } catch (e) { return []; }
+    })();
+
     return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
       konten: kontenMit, bewegungen, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
-      personen, objekte, fahrzeuge, eingaenge,
+      personen, objekte, fahrzeuge, eingaenge, auftragnehmer,
       offen: { benachrichtigungen: 'Каналы уведомлений не согласованы — сообщения никому не отправляются' } };
   });
 }
@@ -1297,6 +1304,24 @@ async function eingangAblehnen(n, id, b) {
   });
 }
 
+async function auftragnehmerliste() {
+  const { pool } = require('./db.js');
+  const r = await pool.query(`SELECT id, name, art, iban, notiz FROM ${S}kasse_auftragnehmer WHERE aktiv ORDER BY name`);
+  return { liste: r.rows.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null })) };
+}
+
+async function auftragnehmerhHinzufuegen(n, b) {
+  darf(istGf(n) || istBuch(n), 'Подрядчика добавляет директор или бухгалтерия');
+  const name = txt(b.name, 200); pruefe(name, 'Укажите название');
+  const art = ['firma', 'person'].includes(b.art) ? b.art : 'firma';
+  const { pool } = require('./db.js');
+  const r = await pool.query(
+    `INSERT INTO ${S}kasse_auftragnehmer (name, art, iban, notiz, von) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+    [name, art, txt(b.iban, 34) || null, txt(b.notiz, 200) || null, n.login]
+  );
+  return { ok: true, id: Number(r.rows[0].id), name };
+}
+
 module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
   abhebung, abhebungBestaetigen, abhebungAblehnen, uebergabe, rueckgabe, bestaetigen,
@@ -1305,6 +1330,7 @@ module.exports = {
   dateiRegistrieren, dateiDarf,
   belegAnlegen, belegPruefen,
   erstattungWeg, erstattungBar, erstattungSchritt,
+  auftragnehmerliste, auftragnehmerhHinzufuegen,
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
   bankLink, bankLinkManuell, belegManuellFuerUebergabe, ibanGueltig, Fehler,

@@ -3,7 +3,7 @@
    Окончательная выдача денег и проверка остатков — только при соединении с сервером.
    При выходе из аккаунта — очередь передаётся для ручного решения, не удаляется молча.
 */
-const CACHE = 'kasse-vav-v16';
+const CACHE = 'kasse-vav-v17';
 const OFFLINE_ASSETS = ['/kasse/', '/kasse/index.html', '/icon-192.png', '/vendor/lucide.min.js'];
 
 self.addEventListener('install', e => {
