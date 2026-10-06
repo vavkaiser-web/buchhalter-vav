@@ -40,6 +40,7 @@ async function bankOps(monat) {
 
 const POST = {
   'abhebung': (n, b) => d.abhebung(n, b),
+  'einzahlung': (n, b) => d.einzahlung(n, b),
   'uebergabe': (n, b, id, ctx) => d.uebergabe(n, b, ctx.benutzer),
   'rueckgabe': (n, b) => d.rueckgabe(n, b),
   'bewegung/:id/bestaetigen': (n, b, id) => d.bestaetigen(n, id, b),

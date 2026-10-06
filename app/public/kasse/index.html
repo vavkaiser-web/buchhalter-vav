@@ -191,8 +191,12 @@ const icon = n => `<i data-lucide="${n}" aria-hidden="true"></i>`;
 const keys = rows => rows.filter(r=>r&&r[0]&&r[1]!=null).map(([k,v])=>`<div class="v-keyvalue"><span>${esc(k)}</span><span>${v}</span></div>`).join('');
 const btn = (txt,act,cls='',extra='') => `<button type="button" class="v-button ${cls}" data-action="${act}" ${extra}>${txt}</button>`;
 
-const BEW_ART = {abhebung:'Снятие в банке',uebergabe:'Передача наличных',rueckgabe:'Возврат',ausgabe:'Расход из кассы',verbrauch:'Расход'};
-function bewArt(art){ return BEW_ART[art]||art; }
+const BEW_ART = {abhebung:'Bankabhebung',uebergabe:'Übergabe Bargeld',rueckgabe:'Rückgabe',ausgabe:'Kassenausgabe',verbrauch:'Verbrauch'};
+function bewArtText(b) {
+  if (b.art === 'abhebung' && b.notiz && b.notiz.startsWith('Einzahlung:')) return 'Einzahlung';
+  return BEW_ART[b.art] || b.art;
+}
+function bewArt(art, b){ if (b) return bewArtText(b); return BEW_ART[art]||art; }
 function bewDatum(b){ return b.datum ? new Date(b.datum+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}) : '—'; }
 function wDatum(){ const d=new Date(); return d.toLocaleDateString('sv-SE'); }
 function bewDokInfo(b){
@@ -217,7 +221,7 @@ function adaptLage(raw) {
   const firma = raw.firma || 'VAV Kaiser GmbH';
   // Движения: добавляем человекочитаемые поля
   const bewegungen = (raw.bewegungen||[]).slice(0,30).map(b=>({
-    ...b, betrag_cent: b.betrag, bezeichnung: b.art==='uebergabe'?'Передача наличных':b.art==='abhebung'?'Снятие':b.art==='rueckgabe'?'Возврат в кассу':b.art,
+    ...b, betrag_cent: b.betrag, bezeichnung: bewArtText(b),
     von_konto_name: b.von_name, an_konto_name: b.an_name,
     wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
   }));
@@ -286,7 +290,7 @@ const TRANS = {
   ru: {
     header: 'КАССА VAV', lang_btn: 'DE', logout: 'Выйти',
     nav_desk:'Рабочий стол', nav_eingang:'Очередь', nav_kasse:'Касса', nav_req:'Запросы',
-    nav_mein:'Мой кабинет', nav_avans:'Авансы', nav_fragen:'Вопросы',
+    nav_mein:'Мой кабинет', nav_avans:'Авансы', nav_fragen:'Вопросы', nav_quittungen:'Квитанции',
     bank_panel:'Снятия из банка', in_kasse:'В кассу', not_in_kasse:'Не в кассе',
     in_kasse_ok:'В кассе ✓', no_abh:'Нет снятий', distribute:'Распределить деньги',
     journal:'Журнал движений', sidebar_foot:'Касса VAV',
@@ -299,11 +303,14 @@ const TRANS = {
     modal_close:'Закрыть', cancel:'Отмена',
     save_abh:'Записать снятие', transfer_btn:'Передать деньги', zaehlen:'Пересчёт',
     beweg_work:'Работающие данные',
+    einzahlung_btn:'Einzahlung', einzahlung_title:'Einzahlung / Rückzahlung bar',
+    einzahlung_grund_kredit:'Kreditrückzahlung', einzahlung_grund_vorschuss:'Vorschussrückgabe',
+    einzahlung_grund_kunde:'Kundenzahlung', einzahlung_grund_sonst:'Sonstiges',
   },
   de: {
     header: 'KASSE VAV', lang_btn: 'RU', logout: 'Abmelden',
     nav_desk:'Übersicht', nav_eingang:'Warteschlange', nav_kasse:'Kasse', nav_req:'Rückfragen',
-    nav_mein:'Mein Bereich', nav_avans:'Vorschüsse', nav_fragen:'Rückfragen',
+    nav_mein:'Mein Bereich', nav_avans:'Vorschüsse', nav_fragen:'Rückfragen', nav_quittungen:'Quittungen',
     bank_panel:'Bankabhebungen', in_kasse:'In Kasse', not_in_kasse:'Nicht in Kasse',
     in_kasse_ok:'In Kasse ✓', no_abh:'Keine Abhebungen', distribute:'Geld aufteilen',
     journal:'Buchungsjournal', sidebar_foot:'Kasse VAV',
@@ -316,6 +323,9 @@ const TRANS = {
     modal_close:'Schließen', cancel:'Abbrechen',
     save_abh:'Abhebung erfassen', transfer_btn:'Geld übergeben', zaehlen:'Kassenprüfung',
     beweg_work:'Laufende Daten',
+    einzahlung_btn:'Einzahlung', einzahlung_title:'Einzahlung / Rückzahlung bar',
+    einzahlung_grund_kredit:'Kreditrückzahlung', einzahlung_grund_vorschuss:'Vorschussrückgabe',
+    einzahlung_grund_kunde:'Kundenzahlung', einzahlung_grund_sonst:'Sonstiges',
   },
 };
 
@@ -677,6 +687,40 @@ ${qtOrigFehlt.length ? `<div class="v-panel">
 </div>`;
 }
 
+function renderQuittungen() {
+  const qt = S.lage?.quittungen || [];
+  const r = S.ich?.rolle;
+  const isBuch = r === 'buchhaltung' || r === 'gf';
+  const isDisp = r === 'disponent';
+  const statusLabel = { vorbereitet:'Vorbereitet', ausgegeben:'Ausgegeben', storniert:'Storniert' };
+  return `
+<div class="v-head">
+  <div>
+    <div class="v-label">Quittungsarchiv</div>
+    <h1>${t('nav_quittungen')}</h1>
+    <p>Alle Quittungen – hier ablesen, prüfen und bei Bedarf drucken.</p>
+  </div>
+</div>
+<div class="v-panel">
+  <div class="v-panelhead"><h2>${t('nav_quittungen')} (${qt.length})</h2></div>
+  ${qt.length ? qt.map(q=>`
+  <div class="v-row" style="cursor:default">
+    <span class="v-file">${icon('receipt')}</span>
+    <span class="v-rowmain" style="flex:1;min-width:0">
+      <span class="v-rowline">
+        <span class="v-rowtitle">${esc(q.nr||'—')} · ${esc(q.empfaenger||'—')}</span>
+        <span class="v-num">${euro(q.betrag)}</span>
+      </span>
+      <span class="v-small" style="display:block">${esc(statusLabel[q.status]||q.status)} · ${q.ausgegeben_am ? new Date(q.ausgegeben_am).toLocaleDateString('de-DE') : '—'}</span>
+    </span>
+    <span style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+      ${statusTag(q.status)}
+      ${(isBuch || isDisp) && q.status !== 'storniert' ? `<button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">${t('drucken')}</button>` : ''}
+    </span>
+  </div>`).join('') : '<div class="v-stateempty">Keine Quittungen vorhanden</div>'}
+</div>`;
+}
+
 function renderRueckfragen() {
   const list = S.lage?.rueckfragen||[];
   return `
@@ -715,9 +759,10 @@ function renderKasse() {
     <p>Показаны только подтверждённые движения.</p>
   </div>
   <div style="display:flex;gap:8px">
-    ${istGf ? btn(icon('building-2')+' Снятие','neueAbhebung','') : ''}
-    ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Передача','neueUebergabe','primary') : ''}
-    ${istGf ? btn(icon('scale')+' Сверка','kasseSverka','') : ''}
+    ${istGf ? btn(icon('building-2')+' Abhebung','neueAbhebung','') : ''}
+    ${(istGf || S.ich?.rolle === 'disponent' || S.ich?.rolle === 'buchhaltung') ? btn(icon('arrow-down-circle')+' '+t('einzahlung_btn'),'neueEinzahlung','') : ''}
+    ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Übergabe','neueUebergabe','primary') : ''}
+    ${istGf ? btn(icon('scale')+' Kassenprüfung','kasseSverka','') : ''}
   </div>
 </div>
 <div class="v-metrics">
@@ -746,7 +791,7 @@ function renderKasse() {
         ${icon('arrow-right-left')}
         <span class="v-rowmain" style="flex:1;min-width:0">
           <span class="v-rowline">
-            <span class="v-rowtitle">${esc(bewArt(b.art))}</span>
+            <span class="v-rowtitle">${esc(bewArt(b.art,b))}</span>
             <span class="v-num">${euro(b.betrag)}</span>
           </span>
           <span class="v-small" style="display:block">${bewDatum(b)} · ${esc(b.von_name||'—')} → ${esc(b.an_name||'—')}</span>
@@ -809,14 +854,30 @@ function renderModal(mod) {
       <span class="v-num">${euro(abh.reduce((s,b)=>s+Number(b.betrag_cent||0),0))}</span>
     </div>`;
   } else if (mod==='neueUebergabe') {
-    title = 'Передача наличных';
+    title = 'Übergabe Bargeld';
     body = `<form id="uebergabe-form" class="v-form">
-      <label>Получатель<select name="an_konto">
+      <label>Empfänger<select name="an_konto">
         ${(S.lage?.halter||[]).map(h=>`<option value="${esc(h.id)}">${esc(h.kurzname||h.name||h.login)}</option>`).join('')}
-        <option value="hauptkasse">Основная касса</option>
+        <option value="hauptkasse">Hauptkasse</option>
       </select></label>
-      <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
-      <button type="submit" class="v-button primary full">Создать передачу</button>
+      <label>Betrag, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
+      <button type="submit" class="v-button primary full">Übergabe erstellen</button>
+    </form>`;
+  } else if (mod==='neueEinzahlung') {
+    title = t('einzahlung_title');
+    body = `<form id="einzahlung-form" class="v-form">
+      <div class="v-note">Bargeld kommt in die Kasse: Kreditrückzahlung, Vorschussrückgabe oder Kundenzahlung.</div>
+      <label>Datum<input name="datum" type="date" value="${wDatum()}" required></label>
+      <label>Betrag, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
+      <label>Grund<select name="grund">
+        <option value="kredit">${t('einzahlung_grund_kredit')}</option>
+        <option value="vorschuss">${t('einzahlung_grund_vorschuss')}</option>
+        <option value="kunde">${t('einzahlung_grund_kunde')}</option>
+        <option value="sonstiges">${t('einzahlung_grund_sonst')}</option>
+      </select></label>
+      <label>Person / Firma<input name="person" placeholder="Name des Einzahlers" maxlength="120"></label>
+      <label>Notiz<input name="notiz" placeholder="Zusatzinfo (optional)" maxlength="100"></label>
+      <button type="submit" class="v-button primary full">Einzahlung erfassen</button>
     </form>`;
   } else if (mod==='neuerBeleg') {
     title = 'Добавить чек';
@@ -1204,15 +1265,18 @@ function renderApp() {
 
   const navLinks = isMa ? [
     ['mein','house',t('nav_mein')],
+    ['quittungen','receipt',t('nav_quittungen')],
     ['rueckfragen','message-circle',t('nav_fragen')],
   ] : isDisp ? [
     ['lage','wallet',t('nav_kasse')],
     ['eingang','inbox',t('nav_avans')],
+    ['quittungen','receipt',t('nav_quittungen')],
     ['rueckfragen','message-circle',t('nav_fragen')],
   ] : [
     ['lage','layout-dashboard',t('nav_desk')],
     ['eingang','inbox',t('nav_eingang')],
     ['kasse','wallet',t('nav_kasse')],
+    ['quittungen','receipt',t('nav_quittungen')],
     ['rueckfragen','message-square',t('nav_req')],
   ];
 
@@ -1222,6 +1286,7 @@ function renderApp() {
   else if (S.seite==='kasse') hauptinhalt = renderKasse();
   else if (S.seite==='rueckfragen') hauptinhalt = renderRueckfragen();
   else if (S.seite==='mein') hauptinhalt = renderMeinBereich();
+  else if (S.seite==='quittungen') hauptinhalt = renderQuittungen();
   else hauptinhalt = renderLage();
 
   const syncInfo = S.sync.wann
@@ -1412,7 +1477,11 @@ async function formAbsenden(form) {
       await lageLaden(); toast('Снятие записано'); renderApp();
     } else if (form.id==='uebergabe-form') {
       await api('POST','uebergabe',{an_konto: d.an_konto, betrag: parseEur(d.betrag)});
-      toast('Передача создана');
+      toast('Übergabe erstellt');
+    } else if (form.id==='einzahlung-form') {
+      await api('POST','einzahlung',{betrag: parseEur(d.betrag), datum: d.datum||'', grund: d.grund||'sonstiges', person: d.person||'', notiz: d.notiz||''});
+      S.modal = null;
+      await lageLaden(); toast('Einzahlung erfasst'); renderApp(); return;
     } else if (form.id==='beleg-form') {
       await api('POST','beleg',{betrag: parseEur(d.betrag), art: d.art||'sonstig', objekt: d.objekt||null, fahrzeug: d.fahrzeug||null, zahlungsweg: d.zahlungsweg||'eigen'});
       toast('Чек отправлен на проверку');

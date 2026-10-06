@@ -127,6 +127,26 @@ async function abhebung(n, b) {
   });
 }
 
+/** Einzahlung: bar in die Kasse (Rückzahlung Kredit/Vorschuss, Kundenzahlung).
+    Wird wie abhebung als externer Zufluss gebucht. */
+async function einzahlung(n, b) {
+  darf(istGf(n) || istDisp(n) || istBuch(n), 'Einzahlung erfassen: GF, Disponent oder Buchhaltung');
+  const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
+  const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.datum || '')) ? b.datum : wt.berlinTag(Date.now());
+  const grund = ['kredit', 'vorschuss', 'kunde', 'sonstiges'].includes(b.grund) ? b.grund : 'sonstiges';
+  const person = txt(b.person, 120);
+  const notizText = `Einzahlung:${grund}|${person ? person + '|' : ''}${txt(b.notiz, 100) || ''}`.replace(/\|+$/, '');
+  const idem = b.idem || `einzahlung-${datum}-${betrag}-${(person || 'x').slice(0,20)}`;
+  return tx(async q => {
+    const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, notiz, von, bestaetigt_am, bestaetigt_von, idem)
+      VALUES ('abhebung',$1,'bestaetigt',$2,$3,$4,now(),$4,$5)
+      ON CONFLICT (idem) DO NOTHING RETURNING id`, [betrag, datum, notizText, n.login, idem]);
+    if (!r.length) return { ok: true, wiederholt: true };
+    await log(q, n, 'einzahlung', 'bewegung:' + r[0].id, { betrag, grund, person });
+    return { ok: true, id: r[0].id };
+  });
+}
+
 /** Подтверждение авто-импортированного снятия наличных (abhebung gemeldet → bestaetigt).
     Уровень 3: хронологический замок — дата снятия не может быть раньше последнего подтверждённого. */
 async function abhebungBestaetigen(n, id) {
@@ -286,15 +306,12 @@ const ZWECKE = ['vorschuss', 'lohn', 'erstattung', 'nu'];
 async function personLesen(q, ref) {
   if (!ref) return null;
   try {
-    await q('SAVEPOINT sp_person');
-    const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ, p.org_id::text AS org_id
-      FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id WHERE p.id::text = $1`, [String(ref)]);
-    await q('RELEASE SAVEPOINT sp_person');
-    return r[0] || null;
-  } catch (e) {
-    await q('ROLLBACK TO SAVEPOINT sp_person').catch(() => {});
-    return null;
-  }
+    const r = await vavLesen(async vq => vq(
+      `SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ, p.org_id::text AS org_id
+       FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id WHERE p.id::text = $1`,
+      [String(ref)]));
+    return r?.[0] || null;
+  } catch (e) { return null; }
 }
 
 async function quittungZeile(q, n, planId, z, dringend, kontoId) {
@@ -1449,7 +1466,7 @@ async function auftragnehmerhHinzufuegen(n, b) {
 
 module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
-  abhebung, abhebungBestaetigen, abhebungAblehnen, uebergabe, rueckgabe, bestaetigen, bewegungStornieren,
+  abhebung, abhebungBestaetigen, abhebungAblehnen, einzahlung, uebergabe, rueckgabe, bestaetigen, bewegungStornieren,
   bewegungGfStornieren, abhebungKorrektur,
   planAnlegen, planEinfach, planEinreichen, planEntscheiden,
   quittungAusgeben, dringendAusgeben, quittungAbbrechen, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
