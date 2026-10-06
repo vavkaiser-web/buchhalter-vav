@@ -16,7 +16,7 @@
    - ничего никому не отправляется: каналы уведомлений не согласованы.
    ---------------------------------------------------------------- */
 'use strict';
-const { tx, lesen, Fehler } = require('./db.js');
+const { tx, lesen, vavLesen, Fehler } = require('./db.js');
 const { centAus, euro } = require('./geld.js');
 const wt = require('./werktage.js');
 
@@ -127,6 +127,68 @@ async function abhebung(n, b) {
   });
 }
 
+/** Einzahlung: bar in die Kasse (Rückzahlung Kredit/Vorschuss, Kundenzahlung).
+    Wird wie abhebung als externer Zufluss gebucht. */
+async function einzahlung(n, b) {
+  darf(istGf(n) || istDisp(n) || istBuch(n), 'Einzahlung erfassen: GF, Disponent oder Buchhaltung');
+  const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
+  const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(b.datum || '')) ? b.datum : wt.berlinTag(Date.now());
+  const grund = ['kredit', 'vorschuss', 'kunde', 'sonstiges'].includes(b.grund) ? b.grund : 'sonstiges';
+  const person = txt(b.person, 120);
+  const notizText = `Einzahlung:${grund}|${person ? person + '|' : ''}${txt(b.notiz, 100) || ''}`.replace(/\|+$/, '');
+  const idem = b.idem || `einzahlung-${datum}-${betrag}-${(person || 'x').slice(0,20)}`;
+  return tx(async q => {
+    const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, notiz, von, bestaetigt_am, bestaetigt_von, idem)
+      VALUES ('abhebung',$1,'bestaetigt',$2,$3,$4,now(),$4,$5)
+      ON CONFLICT (idem) DO NOTHING RETURNING id`, [betrag, datum, notizText, n.login, idem]);
+    if (!r.length) return { ok: true, wiederholt: true };
+    await log(q, n, 'einzahlung', 'bewegung:' + r[0].id, { betrag, grund, person });
+    return { ok: true, id: r[0].id };
+  });
+}
+
+/** Подтверждение авто-импортированного снятия наличных (abhebung gemeldet → bestaetigt).
+    Уровень 3: хронологический замок — дата снятия не может быть раньше последнего подтверждённого. */
+async function abhebungBestaetigen(n, id) {
+  darf(istGf(n) || istBuch(n), 'Подтверждает снятие только директор или бухгалтерия');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Снятие не найдено', 404);
+    pruefe(m.art === 'abhebung', 'Операция не является снятием наличных', 400);
+    if (m.status !== 'gemeldet') return { ok: true, wiederholt: true, status: m.status };
+
+    // Уровень 3: дата новой записи должна быть >= даты последнего подтверждённого снятия
+    const letzt = (await q(
+      `SELECT datum::text FROM ${S}buch_bewegung WHERE art = 'abhebung' AND status = 'bestaetigt' ORDER BY datum DESC, id DESC LIMIT 1`
+    ))[0];
+    if (letzt && String(m.datum).slice(0, 10) < String(letzt.datum).slice(0, 10)) {
+      throw new Fehler(409,
+        `Хронологическая ошибка: последнее подтверждённое снятие от ${letzt.datum}. ` +
+        `Это снятие (${iso(m.datum)}) раньше — подтверждение заблокировано. ` +
+        `Сначала занесите все операции в хронологическом порядке.`
+      );
+    }
+
+    await q(`UPDATE ${S}buch_bewegung SET status = 'bestaetigt', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'abhebung_bestaetigt', 'bewegung:' + m.id, { betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'bestaetigt' };
+  });
+}
+
+/** Отклонение авто-импортированного снятия. */
+async function abhebungAblehnen(n, id) {
+  darf(istGf(n) || istBuch(n), 'Отклоняет снятие только директор или бухгалтерия');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Снятие не найдено', 404);
+    pruefe(m.art === 'abhebung', 'Операция не является снятием наличных', 400);
+    if (m.status !== 'gemeldet') return { ok: true, wiederholt: true, status: m.status };
+    await q(`UPDATE ${S}buch_bewegung SET status = 'storniert', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'abhebung_abgelehnt', 'bewegung:' + m.id, { betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'storniert' };
+  });
+}
+
 /** Передача наличных. Отдающий отмечает, получатель подтверждает отдельно. */
 async function uebergabe(n, b, benutzer) {
   const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
@@ -142,21 +204,24 @@ async function uebergabe(n, b, benutzer) {
       pruefe(quelle, 'Снятие не найдено', 404);
       const verteilt = Number((await q(`SELECT COALESCE(SUM(betrag_cent),0) s FROM ${S}buch_bewegung
         WHERE quelle_id = $1 AND status IN ('gemeldet','bestaetigt')`, [quelle.id]))[0].s);
+      const restBetrag = Number(quelle.betrag_cent) - verteilt;
       pruefe(verteilt + betrag <= Number(quelle.betrag_cent),
-        `Из снятия осталось распределить ${euro(Number(quelle.betrag_cent) - verteilt)}`, 409);
+        `Из снятия осталось распределить ${euro(restBetrag)}`, 409);
+      pruefe(betrag === restBetrag,
+        `В кассу передаётся только полная нераспределённая сумма (${euro(restBetrag)})`, 409);
     } else {
-      vonKonto = String(b.von_konto || '');
+      vonKonto = String(b.von_konto || '') || (buero(n) ? 'hauptkasse' : halterKonto(n.login));
       const k = (await q(`SELECT * FROM ${S}buch_konto WHERE id = $1`, [vonKonto]))[0];
       pruefe(k, 'Счёт-источник не найден', 404);
-      darf((k.art === 'hauptkasse' && istBuch(n)) || (k.art === 'halter' && k.login === n.login),
+      darf((k.art === 'hauptkasse' && buero(n)) || (k.art === 'halter' && k.login === n.login),
         'Передать можно только деньги, за которые отвечаете вы');
       pruefe(vonKonto !== an, 'Источник и получатель совпадают');
       await sperreKonto(q, vonKonto);
       const s = await saldo(q, vonKonto);
       pruefe(betrag <= s.saldo, `Сумма превышает расчётный остаток (${euro(s.saldo)})`, 409);
     }
-    // При распределении из банковского снятия GF уже авторизовал: подтверждаем сразу.
-    const autoBestaetigt = !!quelle;
+    // GF/бухгалтерия авторизует напрямую — подтверждаем сразу; иначе требует ручного подтверждения.
+    const autoBestaetigt = !!quelle || buero(n);
     const status = autoBestaetigt ? 'bestaetigt' : 'gemeldet';
     const r = await q(`INSERT INTO ${S}buch_bewegung (art, von_konto, an_konto, quelle_id, betrag_cent, status, notiz, von,
         bestaetigt_am, bestaetigt_von, idem)
@@ -192,14 +257,61 @@ async function bestaetigen(n, id, b) {
   });
 }
 
+/** ГФ/бухгалтерия отменяет ожидающую uebergabe. */
+async function bewegungStornieren(n, id) {
+  darf(buero(n), 'Отменить передачу может только директор или бухгалтерия');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Передача не найдена', 404);
+    pruefe(m.art === 'uebergabe', 'Эта операция не является передачей наличных', 400);
+    if (m.status !== 'gemeldet') return { ok: true, wiederholt: true, status: m.status };
+    await q(`UPDATE ${S}buch_bewegung SET status = 'storniert', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'uebergabe_storniert', 'bewegung:' + m.id, { betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'storniert' };
+  });
+}
+
+/** ГФ аннулирует любое движение (включая подтверждённые снятия). Только для исправления ошибок. */
+async function bewegungGfStornieren(n, id) {
+  darf(istGf(n), 'Аннулировать любое движение может только директор');
+  return tx(async q => {
+    const m = (await q(`SELECT * FROM ${S}buch_bewegung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(m, 'Движение не найдено', 404);
+    if (m.status === 'storniert') return { ok: true, wiederholt: true };
+    await q(`UPDATE ${S}buch_bewegung SET status = 'storniert', bestaetigt_am = now(), bestaetigt_von = $2 WHERE id = $1`, [m.id, n.login]);
+    await log(q, n, 'bewegung_gf_storniert', 'bewegung:' + m.id, { art: m.art, betrag: Number(m.betrag_cent) });
+    return { ok: true, status: 'storniert', art: m.art, betrag: Number(m.betrag_cent) };
+  });
+}
+
+/** ГФ вносит банковское снятие уже подтверждённым (задним числом, исправление). */
+async function abhebungKorrektur(n, b) {
+  darf(istGf(n), 'Корректуру вносит только директор');
+  const betrag = centAus(b.betrag); pruefe(betrag, 'Введите сумму больше нуля');
+  const datum = b.datum ? String(b.datum).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const finmapOp = b.finmap_op ? txt(b.finmap_op, 80) : null;
+  return tx(async q => {
+    const r = await q(`INSERT INTO ${S}buch_bewegung (art, betrag_cent, status, datum, notiz, finmap_op, bestaetigt_am, bestaetigt_von, von, idem)
+      VALUES ('abhebung',$1,'bestaetigt',$2,$3,$4,now(),$5,$5,$6) ON CONFLICT(idem) DO NOTHING RETURNING id`,
+      [betrag, datum, txt(b.notiz, 200), finmapOp, n.login, b.idem || null]);
+    if (!r.length) return { ok: true, wiederholt: true };
+    await log(q, n, 'abhebung_korrektur', 'bewegung:' + r[0].id, { betrag, datum });
+    return { ok: true, id: r[0].id };
+  });
+}
+
 /* ---------------- заявка на наличные и квитанции ---------------- */
 const ZWECKE = ['vorschuss', 'lohn', 'erstattung', 'nu'];
 
 async function personLesen(q, ref) {
   if (!ref) return null;
-  const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ, p.org_id::text AS org_id
-    FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id WHERE p.id::text = $1`, [String(ref)]);
-  return r[0] || null;
+  try {
+    const r = await vavLesen(async vq => vq(
+      `SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ, p.org_id::text AS org_id
+       FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id WHERE p.id::text = $1`,
+      [String(ref)]));
+    return r?.[0] || null;
+  } catch (e) { return null; }
 }
 
 async function quittungZeile(q, n, planId, z, dringend, kontoId) {
@@ -314,24 +426,42 @@ async function quittungAusgeben(n, id) {
     if (qt.status === 'ausgegeben') return { ok: true, wiederholt: true, nr: qt.nr };
     pruefe(qt.status === 'vorbereitet', 'Квитанция аннулирована', 409);
     pruefe(!qt.plan_id || qt.plan_status === 'genehmigt', 'Список ещё не утверждён Андреем', 409);
+    // Финансовое правило: без подтверждённого документа деньги не выдаются.
+    pruefe(qt.unterschrift || qt.foto_sha, 'Нужна подпись получателя или фото квитанции — без документа выдача невозможна', 409);
     return ausgeben(q, n, qt);
   });
 }
 
 /** Срочная выдача Олегом без предварительного согласования: только авансы
     и зарплата, в пределах фактического остатка, квитанция — сразу.
-    Для подрядчиков такое право не согласовано — не разрешаем. */
+    Для подрядчиков такое право не согласовано — не разрешаем.
+    ВАЖНО: деньги НЕ выдаются здесь — только создаётся квитанция.
+    Движение происходит только после подтверждения документом (quittungAusgeben). */
 async function dringendAusgeben(n, b) {
   darf(istDisp(n) || istGf(n), 'Срочную выдачу оформляет ответственный за наличные или Андрей');
   if (!istGf(n)) pruefe(['vorschuss', 'lohn'].includes(b.zweck), 'Срочно без согласования — только аванс или зарплата. Выплата подрядчику — через список, утверждённый Андреем.');
   return tx(async q => {
     if (b.idem) {
-      const alt = (await q(`SELECT id, nr FROM ${S}buch_quittung WHERE idem = $1`, [b.idem]))[0];
-      if (alt) return { ok: true, wiederholt: true, nr: alt.nr, id: alt.id };
+      const alt = (await q(`SELECT id, nr, status FROM ${S}buch_quittung WHERE idem = $1`, [b.idem]))[0];
+      if (alt) return { ok: true, wiederholt: true, nr: alt.nr, id: alt.id, ausgegeben: alt.status === 'ausgegeben' };
     }
     const z = await quittungZeile(q, n, null, b, true, null);
-    const qt = (await q(`SELECT * FROM ${S}buch_quittung WHERE id = $1`, [z.id]))[0];
-    return ausgeben(q, n, qt);
+    return { ok: true, nr: z.nr, id: z.id };
+  });
+}
+
+/** Отмена незавершённой срочной квитанции (пока деньги не выданы). */
+async function quittungAbbrechen(n, id) {
+  return tx(async q => {
+    const qt = (await q(`SELECT * FROM ${S}buch_quittung WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(qt, 'Квитанция не найдена', 404);
+    if (qt.status === 'storniert') return { ok: true, wiederholt: true };
+    pruefe(qt.status === 'vorbereitet', 'Выданную квитанцию нельзя отменить', 409);
+    pruefe(qt.dringend, 'Отменить можно только срочную незавершённую квитанцию');
+    darf(qt.von === n.login || buero(n), 'Отменить может тот, кто создал, или бухгалтерия');
+    await q(`UPDATE ${S}buch_quittung SET status = 'storniert' WHERE id = $1`, [qt.id]);
+    await log(q, n, 'quittung_abgebrochen', 'quittung:' + qt.id, {});
+    return { ok: true };
   });
 }
 
@@ -382,10 +512,13 @@ async function quittungUnterschrift(n, id, b) {
   darf(istGf(n) || istDisp(n) || buero(n), 'Подпись принимает директор, ответственный или бухгалтерия');
   const sig = String(b.unterschrift || '');
   pruefe(sig.startsWith('data:image/png;base64,') && sig.length < 200000, 'Неверный формат подписи');
+  const sigAusgabe = b.ausgabe_unterschrift ? String(b.ausgabe_unterschrift) : null;
+  if (sigAusgabe) pruefe(sigAusgabe.startsWith('data:image/png;base64,') && sigAusgabe.length < 200000, 'Неверный формат подписи выдающего');
   return tx(async q => {
     const qt = (await q(`SELECT id FROM ${S}buch_quittung WHERE id = $1`, [idOf(id)]))[0];
     pruefe(qt, 'Квитанция не найдена', 404);
-    await q(`UPDATE ${S}buch_quittung SET unterschrift = $2 WHERE id = $1`, [qt.id, sig]);
+    await q(`UPDATE ${S}buch_quittung SET unterschrift = $2, ausgabe_unterschrift = COALESCE($3, ausgabe_unterschrift) WHERE id = $1`,
+      [qt.id, sig, sigAusgabe]);
     return { ok: true };
   });
 }
@@ -471,13 +604,25 @@ async function belegAnlegen(n, b) {
     }
     let fahrzeugText = null, objektText = null, objektNr = null, fahrzeugRef = null;
     if (verwendung === 'fahrzeug') {
-      const f = (await q(`SELECT id::text, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
-        FROM vavapp_prod.vehicles WHERE id::text = $1 AND active`, [String(b.fahrzeug_ref || '')]))[0];
+      let f = null;
+      try {
+        await q('SAVEPOINT sp_fahr');
+        const r = await q(`SELECT id::text, COALESCE(NULLIF(concat_ws(' · ', plate, model), ''), nummer) AS text
+          FROM vavapp_prod.vehicles WHERE id::text = $1 AND active`, [String(b.fahrzeug_ref || '')]);
+        await q('RELEASE SAVEPOINT sp_fahr');
+        f = r[0] || null;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_fahr').catch(() => {}); }
       pruefe(f, 'Выберите машину из списка');
       fahrzeugRef = f.id; fahrzeugText = f.text;
     }
     if (verwendung === 'objekt' || (verwendung === 'fahrzeug' && b.objekt_nr)) {
-      const o = (await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr || '')]))[0];
+      let o = null;
+      try {
+        await q('SAVEPOINT sp_obj');
+        const r = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr || '')]);
+        await q('RELEASE SAVEPOINT sp_obj');
+        o = r[0] || null;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_obj').catch(() => {}); }
       pruefe(o, 'Выберите объект из списка');
       objektNr = o.nummer; objektText = o.bez || o.nummer;
     }
@@ -741,7 +886,13 @@ async function paketAnlegen(n, b) {
     await dateiPruefen(q, b.datei_sha);
     let objektNr = null, objektText = null;
     if (b.objekt_nr) {
-      const o = (await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr)]))[0];
+      let o = null;
+      try {
+        await q('SAVEPOINT sp_paket_obj');
+        const r = await q(`SELECT nummer, bez FROM vav_kern.objekt WHERE nummer = $1`, [String(b.objekt_nr)]);
+        await q('RELEASE SAVEPOINT sp_paket_obj');
+        o = r[0] || null;
+      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_paket_obj').catch(() => {}); }
       pruefe(o, 'Объект не найден'); objektNr = o.nummer; objektText = o.bez || o.nummer;
     }
     const nr = await nummer(q, 'Z');
@@ -1040,6 +1191,13 @@ async function lage(n, benutzerListe, jetzt) {
     }
     const kontoIds = kontenMit.map(k => k.id);
 
+    // Распределение снятий: считается по всей таблице без LIMIT (чтобы не врать при большом объёме данных).
+    const avRows = await q(`SELECT quelle_id, COALESCE(SUM(betrag_cent),0)::bigint AS verteilt
+      FROM ${S}buch_bewegung WHERE art = 'uebergabe' AND status IN ('gemeldet','bestaetigt') AND quelle_id IS NOT NULL
+      GROUP BY quelle_id`);
+    const abhVerteilt = {};
+    for (const r of avRows) abhVerteilt[Number(r.quelle_id)] = Number(r.verteilt);
+
     // Движения: бухгалтерия и Андрей — все; Олег — свои счета.
     const bew = (await q(`SELECT m.*, k1.name AS von_name, k2.name AS an_name, k2.art AS an_art, k2.login AS an_login
       FROM ${S}buch_bewegung m LEFT JOIN ${S}buch_konto k1 ON k1.id = m.von_konto LEFT JOIN ${S}buch_konto k2 ON k2.id = m.an_konto
@@ -1050,7 +1208,8 @@ async function lage(n, benutzerListe, jetzt) {
       quittung_id: m.quittung_id && Number(m.quittung_id), beleg_id: m.beleg_id && Number(m.beleg_id), datum: iso(m.datum),
       angelegt: m.angelegt, von: m.von, bestaetigt_von: m.bestaetigt_von, finmap_op: m.finmap_op, notiz: m.notiz,
       bestaetigen_darf: m.status === 'gemeldet' && m.von !== n.login &&
-        ((m.an_art === 'hauptkasse' && istBuch(n)) || (m.an_art === 'halter' && m.an_login === n.login)) }));
+        ((m.an_art === 'hauptkasse' && istBuch(n)) || (m.an_art === 'halter' && m.an_login === n.login)),
+      abhebung_bestaetigen_darf: m.status === 'gemeldet' && m.art === 'abhebung' && m.von === 'auto-import' && (istGf(n) || istBuch(n)) }));
 
     const belegeRoh = await q(`SELECT b.*, e.id AS e_id, e.status AS e_status, e.weg AS e_weg,
         (SELECT nr FROM ${S}buch_beleg d WHERE d.id <> b.id AND d.status <> 'storniert' AND d.person_ref IS NOT DISTINCT FROM b.person_ref
@@ -1093,7 +1252,8 @@ async function lage(n, benutzerListe, jetzt) {
       .map(x => ({ id: Number(x.id), nr: x.nr, plan_id: x.plan_id && Number(x.plan_id), plan_nr: x.plan_nr, plan_status: x.plan_status,
         empfaenger: x.empfaenger_name, empfaenger_ref: x.empfaenger_ref, nu_name: x.nu_name, zweck: x.zweck, betrag: Number(x.betrag_cent),
         verrechnet: Number(x.verrechnet), status: x.status, dringend: x.dringend, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von,
-        foto: x.foto_sha, original_am: x.original_am, nu_bestaetigt_am: x.nu_bestaetigt_am, nu_bestaetigt_notiz: x.nu_bestaetigt_notiz }));
+        foto: x.foto_sha, original_am: x.original_am, nu_bestaetigt_am: x.nu_bestaetigt_am, nu_bestaetigt_notiz: x.nu_bestaetigt_notiz,
+        unterschrift: x.unterschrift || null, ausgabe_unterschrift: x.ausgabe_unterschrift || null }));
 
     const plaene = buero(n) || istDisp(n) ? (await q(`SELECT * FROM ${S}buch_geldplan ORDER BY id DESC LIMIT 60`)).map(p => ({
       id: Number(p.id), nr: p.nr, titel: p.titel, status: p.status, initiator: p.initiator, angelegt: p.angelegt,
@@ -1122,16 +1282,10 @@ async function lage(n, benutzerListe, jetzt) {
       });
     }
 
-    const personen = (buero(n) || istDisp(n)) ? await (async () => {
-      try {
-        await q('SAVEPOINT sp_personen');
-        const r = await q(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
-          FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
-          WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`);
-        await q('RELEASE SAVEPOINT sp_personen');
-        return r;
-      } catch (e) { await q('ROLLBACK TO SAVEPOINT sp_personen').catch(() => {}); return []; }
-    })() : [];
+    const personen = await vavLesen(async vq => vq(`SELECT p.id::text AS id, p.full_name AS name, o.name AS org, o.type::text AS org_typ
+        FROM vavapp_prod.persons p LEFT JOIN vavapp_prod.orgs o ON o.id = p.org_id
+        WHERE p.active AND NOT COALESCE(p.is_test, false) ORDER BY p.full_name LIMIT 500`))
+      .catch(() => []) || [];
     const objekte = await (async () => {
       try {
         await q('SAVEPOINT sp_objekte');
@@ -1162,18 +1316,32 @@ async function lage(n, benutzerListe, jetzt) {
     // Входящие запросы от vavapp (только для бухгалтерии и GF).
     let eingaenge = [];
     if (buero(n)) {
-      const ea = await q(`SELECT id, kasse_ref, art, person_id, person_name, objekt_id, betrag_cent, zweck, erstellt_am, verarbeitet_am
+      const ea = await q(`SELECT id, kasse_ref, art, person_id, person_name, objekt_id, betrag_cent, zweck,
+        foto_url, fahrzeug_text, zahlart, firma, datei_sha, erstellt_am, verarbeitet_am
         FROM ${S}kasse_extern_anfrage ORDER BY id DESC LIMIT 100`);
       eingaenge = ea.map(e => ({ id: Number(e.id), kasse_ref: e.kasse_ref, art: e.art,
         person_id: e.person_id, person_name: e.person_name, objekt_id: e.objekt_id,
-        betrag: Number(e.betrag_cent), zweck: e.zweck,
+        betrag: Number(e.betrag_cent), zweck: e.zweck, foto_url: e.foto_url || null,
+        fahrzeug_text: e.fahrzeug_text || null, zahlart: e.zahlart || null, firma: e.firma || null,
+        datei_sha: e.datei_sha || null,
         erstellt_am: e.erstellt_am, verarbeitet_am: e.verarbeitet_am }));
     }
 
+    const auftragnehmer = await (async () => {
+      try {
+        const r = await q(`SELECT id, name, art, iban, notiz FROM ${S}kasse_auftragnehmer WHERE aktiv ORDER BY name`);
+        return r.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null }));
+      } catch (e) { return []; }
+    })();
+    const vavapp_nu = await vavLesen(async vq => {
+      const r = await vq(`SELECT id::text AS id, name FROM vavapp_prod.orgs WHERE type='subcontractor' AND active ORDER BY name LIMIT 200`);
+      return r.map(x => ({ id: 'vav:' + x.id, name: x.name }));
+    }).catch(() => []) || [];
+
     return { ich, jetzt: new Date(jetzt).toISOString(), heute: wt.berlinTag(jetzt), demo, namen, bank_links: bankLinks,
       quelle: { stand: new Date(jetzt).toISOString(), text: 'База Бухгалтера' },
-      konten: kontenMit, bewegungen, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
-      personen, objekte, fahrzeuge, eingaenge,
+      konten: kontenMit, bewegungen, abhebungen_verteilt: abhVerteilt, belege, erstattungen, rueckfragen, quittungen, plaene, pakete,
+      personen, objekte, fahrzeuge, eingaenge, auftragnehmer, vavapp_nu,
       offen: { benachrichtigungen: 'Каналы уведомлений не согласованы — сообщения никому не отправляются' } };
   });
 }
@@ -1200,7 +1368,7 @@ async function quittungenDruck(n, was) {
     return erlaubt.map(x => ({ nr: x.nr, plan_nr: x.plan_nr, plan_status: x.plan_status, genehmigt_von: x.entschieden_von, genehmigt_am: x.entschieden_am,
       empfaenger: x.empfaenger_name, nu_name: x.nu_name, zweck: x.zweck, betrag: Number(x.betrag_cent), notiz: x.notiz,
       status: x.status, dringend: x.dringend, angelegt: x.angelegt, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von,
-      unterschrift: x.unterschrift || null }));
+      unterschrift: x.unterschrift || null, ausgabe_unterschrift: x.ausgabe_unterschrift || null }));
   });
 }
 
@@ -1242,28 +1410,76 @@ async function eingangBewilligen(n, id) {
 
 async function eingangAblehnen(n, id, b) {
   darf(istGf(n), 'Отклоняет Андрей');
+  pruefe(b && txt(b.grund, 300), 'Укажите причину отказа — работник увидит её в телефоне');
   return tx(async q => {
     const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
     pruefe(ea, 'Запрос не найден', 404);
     pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
     const integratsiya = require('./integratsiya.js');
-    await integratsiya.ereignisAussenden(ea.kasse_ref, 'ABGELEHNT', txt(b && b.grund, 300));
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'ABGELEHNT', txt(b.grund, 300));
     await q(`UPDATE ${S}kasse_extern_anfrage SET verarbeitet_am = now() WHERE id = $1`, [ea.id]);
-    await log(q, n, 'eingang_abgelehnt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b && b.grund, 300) });
+    await log(q, n, 'eingang_abgelehnt', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b.grund, 300) });
     return { ok: true, kasse_ref: ea.kasse_ref };
+  });
+}
+
+async function eingangKlaeren(n, id, b) {
+  darf(istGf(n), 'Уточнение запрашивает Андрей');
+  pruefe(b && txt(b.grund, 300), 'Укажите, что нужно уточнить — работник увидит это в телефоне');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    pruefe(!ea.verarbeitet_am, 'Запрос уже обработан', 409);
+    const integratsiya = require('./integratsiya.js');
+    await integratsiya.ereignisAussenden(ea.kasse_ref, 'KLAEREN', txt(b.grund, 300));
+    await log(q, n, 'eingang_klaeren', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref, grund: txt(b.grund, 300) });
+    return { ok: true, kasse_ref: ea.kasse_ref };
+  });
+}
+
+async function eingangLoeschen(n, id) {
+  darf(istGf(n), 'Удалить запрос может только директор');
+  return tx(async q => {
+    const ea = (await q(`SELECT * FROM ${S}kasse_extern_anfrage WHERE id = $1 FOR UPDATE`, [idOf(id)]))[0];
+    pruefe(ea, 'Запрос не найден', 404);
+    await q(`DELETE FROM ${S}kasse_extern_anfrage WHERE id = $1`, [ea.id]);
+    await log(q, n, 'eingang_geloescht', 'eingang:' + ea.id, { kasse_ref: ea.kasse_ref });
+    return { ok: true };
+  });
+}
+
+async function auftragnehmerliste() {
+  return lesen(async q => {
+    const r = await q(`SELECT id, name, art, iban, notiz FROM ${S}kasse_auftragnehmer WHERE aktiv ORDER BY name`);
+    return { liste: r.map(x => ({ id: Number(x.id), name: x.name, art: x.art, iban: x.iban || null, notiz: x.notiz || null })) };
+  });
+}
+
+async function auftragnehmerhHinzufuegen(n, b) {
+  darf(istGf(n) || istBuch(n), 'Подрядчика добавляет директор или бухгалтерия');
+  const name = txt(b.name, 200); pruefe(name, 'Укажите название');
+  const art = ['firma', 'person'].includes(b.art) ? b.art : 'firma';
+  return tx(async q => {
+    const r = await q(
+      `INSERT INTO ${S}kasse_auftragnehmer (name, art, iban, notiz, von) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [name, art, txt(b.iban, 34) || null, txt(b.notiz, 200) || null, n.login]
+    );
+    return { ok: true, id: Number(r[0].id), name };
   });
 }
 
 module.exports = {
   ROLLEN_KASSE, lage, verlauf, quittungenDruck,
-  abhebung, uebergabe, rueckgabe, bestaetigen,
+  abhebung, abhebungBestaetigen, abhebungAblehnen, einzahlung, uebergabe, rueckgabe, bestaetigen, bewegungStornieren,
+  bewegungGfStornieren, abhebungKorrektur,
   planAnlegen, planEinfach, planEinreichen, planEntscheiden,
-  quittungAusgeben, dringendAusgeben, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
+  quittungAusgeben, dringendAusgeben, quittungAbbrechen, quittungFoto, quittungOriginal, quittungNuBestaetigt, quittungStorno, quittungUnterschrift,
   dateiRegistrieren, dateiDarf,
   belegAnlegen, belegPruefen,
   erstattungWeg, erstattungBar, erstattungSchritt,
+  auftragnehmerliste, auftragnehmerhHinzufuegen,
   rueckfrageAnlegen, rueckfrageAntwort, rueckfrageVerlust, rueckfrageSchliessen, rueckfrageWieder,
   paketAnlegen, paketOleg, paketIban, verrechnen, verrechnungStorno, paketPruefen, paketAnGf, paketGesehen, paketBezahlt,
   bankLink, bankLinkManuell, belegManuellFuerUebergabe, ibanGueltig, Fehler,
-  eingangBewilligen, eingangAblehnen,
+  eingangBewilligen, eingangAblehnen, eingangKlaeren, eingangLoeschen,
 };

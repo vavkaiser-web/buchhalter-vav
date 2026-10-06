@@ -40,21 +40,30 @@ async function bankOps(monat) {
 
 const POST = {
   'abhebung': (n, b) => d.abhebung(n, b),
+  'einzahlung': (n, b) => d.einzahlung(n, b),
   'uebergabe': (n, b, id, ctx) => d.uebergabe(n, b, ctx.benutzer),
   'rueckgabe': (n, b) => d.rueckgabe(n, b),
   'bewegung/:id/bestaetigen': (n, b, id) => d.bestaetigen(n, id, b),
+  'bewegung/:id/stornieren': (n, b, id) => d.bewegungStornieren(n, id),
+  'bewegung/:id/gf-stornieren': (n, b, id) => d.bewegungGfStornieren(n, id),
+  'abhebung-korrektur': (n, b) => d.abhebungKorrektur(n, b),
+  'abhebung/:id/bestaetigen': (n, b, id) => d.abhebungBestaetigen(n, id),
+  'abhebung/:id/ablehnen': (n, b, id) => d.abhebungAblehnen(n, id),
   'plan': (n, b) => d.planAnlegen(n, b),
   'plan/einfach': (n, b) => d.planEinfach(n, b),
   'plan/:id/einreichen': (n, b, id) => d.planEinreichen(n, id),
   'plan/:id/entscheiden': (n, b, id) => d.planEntscheiden(n, id, b),
   'eingang/:id/bewilligen': (n, b, id) => d.eingangBewilligen(n, id),
   'eingang/:id/ablehnen': (n, b, id) => d.eingangAblehnen(n, id, b),
+  'eingang/:id/klaeren': (n, b, id) => d.eingangKlaeren(n, id, b),
+  'eingang/:id/loeschen': (n, b, id) => d.eingangLoeschen(n, id),
   'quittung/dringend': (n, b) => d.dringendAusgeben(n, b),
   'quittung/:id/ausgeben': (n, b, id) => d.quittungAusgeben(n, id),
   'quittung/:id/foto': (n, b, id) => d.quittungFoto(n, id, b),
   'quittung/:id/original': (n, b, id) => d.quittungOriginal(n, id),
   'quittung/:id/nu-bestaetigt': (n, b, id) => d.quittungNuBestaetigt(n, id, b),
   'quittung/:id/storno': (n, b, id) => d.quittungStorno(n, id, b),
+  'quittung/:id/abbrechen': (n, b, id) => d.quittungAbbrechen(n, id),
   'quittung/:id/unterschrift': (n, b, id) => d.quittungUnterschrift(n, id, b),
   'beleg': (n, b) => d.belegAnlegen(n, b),
   'beleg/:id/pruefen': (n, b, id) => d.belegPruefen(n, id, b),
@@ -84,6 +93,7 @@ const POST = {
   }),
   'bank/link-manuell': (n, b) => d.bankLinkManuell(n, b),
   'uebergabe/beleg-manuell': (n, b) => d.belegManuellFuerUebergabe(n, b),
+  'auftragnehmer': (n, b) => d.auftragnehmerhHinzufuegen(n, b),
 };
 
 function finde(rest) {
@@ -101,10 +111,45 @@ function finde(rest) {
   return null;
 }
 
-/** true — запрос обработан. n — вошедший пользователь (или null). */
+/** Webhook: auto-import abhebung from Make.com (no session, API key auth). */
+async function webhookAbhebung(req, res) {
+  try {
+    const whKey = process.env.KASSE_WEBHOOK_KEY;
+    if (!whKey || req.headers['x-webhook-key'] !== whKey) {
+      antwort(res, 401, { fehler: 'Ungültiger Schlüssel' }); return;
+    }
+    const b = await koerper(req);
+    const sysUser = { login: 'email-auto-import', rolle: 'gf' };
+    const result = await d.abhebung(sysUser, b);
+    // Telegram-уведомление
+    const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+    const tgChat = process.env.TELEGRAM_CHAT_ID;
+    if (tgToken && tgChat) {
+      const betrag = (Number(b.betrag || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+      const msg = result.wiederholt
+        ? `♻️ Касса: снятие ${betrag} уже записано (${b.datum || ''})`
+        : `✅ Касса: снятие ${betrag} ${b.datum || ''} авто-импорт (ID ${result.id})`;
+      fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: tgChat, text: msg })
+      }).catch(() => {});
+    }
+    antwort(res, 200, result);
+  } catch (e) {
+    const { Fehler: F } = require('./db.js');
+    if (e instanceof F) antwort(res, e.status, { fehler: e.message });
+    else antwort(res, 500, { fehler: e.message });
+  }
+}
+
+/** true — запрос обработан. n — вошедший пользователь (oder null). */
 async function handle(req, res, u, n, ctx) {
   const p = u.pathname;
   if (!p.startsWith('/api/k/')) return false;
+  // Webhook: без сессии, только API-ключ
+  if (req.method === 'POST' && p === '/api/k/webhook/abhebung') {
+    await webhookAbhebung(req, res); return true;
+  }
   if (!n) { antwort(res, 401, { fehler: 'нет сессии' }); return true; }
   if (!d.ROLLEN_KASSE.includes(n.rolle)) { antwort(res, 403, { fehler: 'У этой роли нет доступа к кассе' }); return true; }
   const rest = p.slice('/api/k/'.length);
@@ -112,6 +157,7 @@ async function handle(req, res, u, n, ctx) {
     if (req.method === 'GET' && rest === 'ich') { antwort(res, 200, { login: n.login, rolle: n.rolle }); return true; }
     if (req.method === 'GET' && rest === 'lage') { // BUCH_JETZT — только локальная демо-база (сравнение с эталоном на фиксированную дату).
       antwort(res, 200, await d.lage(n, ctx.benutzer, process.env.BUCH_JETZT ? Date.parse(process.env.BUCH_JETZT) : undefined)); return true; }
+    if (req.method === 'GET' && rest === 'auftragnehmer') { antwort(res, 200, await d.auftragnehmerliste()); return true; }
     if (req.method === 'GET' && rest.startsWith('bank')) {
       if (!['gf', 'buchhaltung'].includes(n.rolle)) throw new Fehler(403, 'Банк видят бухгалтерия и Андрей');
       const monat = /^\d{4}-\d{2}$/.test(u.searchParams.get('monat') || '') ? u.searchParams.get('monat') : '';
@@ -135,6 +181,37 @@ async function handle(req, res, u, n, ctx) {
       res.writeHead(200, { 'Content-Type': info.mime, 'Content-Length': buf.length, 'Cache-Control': 'private, max-age=3600',
         'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' });
       res.end(buf); return true;
+    }
+    if (req.method === 'POST' && rest === 'beleg-scan') {
+      const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(mime)) throw new Fehler(400, 'Ожидается изображение (JPEG/PNG/WebP)');
+      let buf;
+      try { buf = await dateien.lesenKoerper(req); } catch (e) { throw new Fehler(413, 'Файл больше 15 МБ'); }
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) throw new Fehler(503, 'OCR не настроен (ANTHROPIC_API_KEY отсутствует)');
+      const b64 = buf.toString('base64');
+      const mediaType = mime === 'image/jpg' ? 'image/jpeg' : mime;
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+            { type: 'text', text: 'Это квитанция или чек. Извлеки: итоговая сумма в евро (число), название получателя/продавца, дата (YYYY-MM-DD). Ответь ТОЛЬКО JSON: {"betrag": 12.50, "empfaenger": "Firma GmbH", "datum": "2026-10-05"}. Если данных нет — null для поля.' }
+          ]}]
+        })
+      });
+      if (!resp.ok) throw new Fehler(502, 'OCR-сервис недоступен');
+      const data = await resp.json();
+      let result = {};
+      try {
+        const text = data.content[0].text.trim();
+        const match = text.match(/\{[\s\S]*\}/);
+        result = match ? JSON.parse(match[0]) : {};
+      } catch (e) { result = {}; }
+      antwort(res, 200, { ok: true, betrag: result.betrag || null, empfaenger: result.empfaenger || null, datum: result.datum || null }); return true;
     }
     if (req.method === 'POST' && rest === 'datei') {
       const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();

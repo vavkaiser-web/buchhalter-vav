@@ -13,8 +13,11 @@
 const crypto = require('crypto');
 const { tx, lesen, Fehler } = require('./db.js');
 const dienst = require('./dienst.js');
+const dateien = require('./dateien.js');
 const https = require('https');
 const http = require('http');
+
+const BEKANNTE_ZAHLARTEN = ['firmenkarte', 'privatkarte', 'bar'];
 
 const S = 'mailops_prod.';
 
@@ -74,6 +77,11 @@ async function queueSichern() {
       erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       verarbeitet_am TIMESTAMPTZ
     )`);
+    // Новые поля — добавляем к существующей таблице без потери данных.
+    await q(`ALTER TABLE ${S}kasse_extern_anfrage ADD COLUMN IF NOT EXISTS fahrzeug_text TEXT`);
+    await q(`ALTER TABLE ${S}kasse_extern_anfrage ADD COLUMN IF NOT EXISTS zahlart TEXT`);
+    await q(`ALTER TABLE ${S}kasse_extern_anfrage ADD COLUMN IF NOT EXISTS firma TEXT`);
+    await q(`ALTER TABLE ${S}kasse_extern_anfrage ADD COLUMN IF NOT EXISTS datei_sha TEXT`);
   });
 }
 // Инициализация при запуске (без сбоя, если таблицы уже есть).
@@ -81,59 +89,82 @@ queueSichern().catch(e => console.error('kasse integration init:', e.message));
 
 /* ---------- Приём заявки на аванс ---------- */
 async function empfangeVorschuss(body) {
-  const { ereignis_id, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck } = body;
+  const { ereignis_id, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck, firma } = body;
   if (!ereignis_id || !/^[0-9a-f-]{36}$/.test(String(ereignis_id))) throw new Fehler(400, 'ereignis_id обязателен (UUID)');
   if (!person_id) throw new Fehler(400, 'person_id обязателен');
   if (!betrag_cent || betrag_cent <= 0 || betrag_cent > 1e9) throw new Fehler(400, 'betrag_cent: 1–10 000 000');
 
   return await tx(async q => {
-    // Идемпотентность: повторная отправка с тем же ereignis_id.
     const existiert = await q(`SELECT kasse_ref FROM ${S}kasse_extern_anfrage WHERE ereignis_id = $1`, [ereignis_id]);
     if (existiert.length) return { ok: true, kasse_ref: existiert[0].kasse_ref, bereits_vorhanden: true };
 
-    // Запись во входящей очереди — бухгалтер увидит её в разделе "Входящие".
-    // kasse_ref = EA-<id> (не buch_geldplan — бухгалтер создаст план сам).
     const ins = await q(`INSERT INTO ${S}kasse_extern_anfrage
-      (ereignis_id, quelle, art, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck, rohdaten)
-      VALUES ($1,'vavapp','vorschuss',$2,$3,$4,$5,$6,$7,$8::jsonb)
+      (ereignis_id, quelle, art, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck, firma, rohdaten)
+      VALUES ($1,'vavapp','vorschuss',$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
       RETURNING id`,
-      [ereignis_id, person_id, person_name || null, objekt_id || null, fahrzeug_id || null, betrag_cent, zweck || null, JSON.stringify(body)]);
+      [ereignis_id, person_id, person_name || null, objekt_id || null, fahrzeug_id || null,
+       betrag_cent, zweck || null, firma || null, JSON.stringify(body)]);
     const kasseRef = `EA-${ins[0].id}`;
-
-    // Обновляем kasse_ref в той же транзакции.
     await q(`UPDATE ${S}kasse_extern_anfrage SET kasse_ref = $1 WHERE id = $2`, [kasseRef, ins[0].id]);
-
-    // Поставить в очередь начальный статус EMPFANGEN (отправим обратно в vavapp).
     await einreihen(q, kasseRef, crypto.randomUUID(), 'EMPFANGEN', null);
-
     return { ok: true, kasse_ref: kasseRef };
   });
 }
 
 /* ---------- Приём чека ---------- */
 async function empfangeBeleg(body) {
-  const { ereignis_id, person_id, betrag_cent, art, objekt_id, fahrzeug_id, foto_url } = body;
+  const { ereignis_id, person_id, person_name, betrag_cent, zweck,
+          objekt_id, fahrzeug_id, foto_url,
+          fahrzeug_text, zahlart, firma } = body;
   if (!ereignis_id || !/^[0-9a-f-]{36}$/.test(String(ereignis_id))) throw new Fehler(400, 'ereignis_id обязателен (UUID)');
   if (!person_id) throw new Fehler(400, 'person_id обязателен');
   if (!betrag_cent || betrag_cent <= 0) throw new Fehler(400, 'betrag_cent > 0');
+
+  // Незнакомое значение zahlart → принять, поставить на разбор (KLAEREN).
+  const zahlartUnbekannt = zahlart && !BEKANNTE_ZAHLARTEN.includes(zahlart);
+  const initialZustand = zahlartUnbekannt ? 'KLAEREN' : 'EMPFANGEN';
+  const initialNachricht = zahlartUnbekannt ? `Неизвестный способ оплаты: ${zahlart}` : null;
 
   return await tx(async q => {
     const existiert = await q(`SELECT kasse_ref FROM ${S}kasse_extern_anfrage WHERE ereignis_id = $1`, [ereignis_id]);
     if (existiert.length) return { ok: true, kasse_ref: existiert[0].kasse_ref, bereits_vorhanden: true };
 
     const ins = await q(`INSERT INTO ${S}kasse_extern_anfrage
-      (ereignis_id, quelle, art, person_id, objekt_id, fahrzeug_id, betrag_cent, foto_url, rohdaten)
-      VALUES ($1,'vavapp','beleg',$2,$3,$4,$5,$6,$7::jsonb)
+      (ereignis_id, quelle, art, person_id, person_name, objekt_id, fahrzeug_id, betrag_cent, zweck,
+       foto_url, fahrzeug_text, zahlart, firma, rohdaten)
+      VALUES ($1,'vavapp','beleg',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
       RETURNING id`,
-      [ereignis_id, person_id, objekt_id || null, fahrzeug_id || null,
-       betrag_cent, foto_url || null, JSON.stringify(body)]);
+      [ereignis_id, person_id, person_name || null, objekt_id || null, fahrzeug_id || null,
+       betrag_cent, zweck || null, foto_url || null,
+       fahrzeug_text ? String(fahrzeug_text).slice(0, 200) : null,
+       zahlart ? String(zahlart).slice(0, 50) : null,
+       firma ? String(firma).slice(0, 200) : null,
+       JSON.stringify(body)]);
     const kasseRef = `EA-${ins[0].id}`;
-
     await q(`UPDATE ${S}kasse_extern_anfrage SET kasse_ref = $1 WHERE id = $2`, [kasseRef, ins[0].id]);
-    await einreihen(q, kasseRef, crypto.randomUUID(), 'EMPFANGEN', null);
+    await einreihen(q, kasseRef, crypto.randomUUID(), initialZustand, initialNachricht);
+
+    // Асинхронно загружаем снимок чека с vavapp и храним локально.
+    if (foto_url || ereignis_id) setImmediate(() => fotoLaden(ereignis_id, ins[0].id));
 
     return { ok: true, kasse_ref: kasseRef };
   });
+}
+
+/* ---------- Загрузка снимка чека с vavapp ---------- */
+async function fotoLaden(ereignisId, anfragenId) {
+  const baseUrl = (process.env.VAVAPP_INTEGRATION_URL || '').replace(/\/$/, '');
+  const token = process.env.VAVAPP_INTEGRATION_TOKEN;
+  if (!baseUrl || !token) return;
+  try {
+    const { buf, mime } = await httpGet(`${baseUrl}/integration/beleg-foto/${ereignisId}`, token);
+    if (!buf || !buf.length) return;
+    const info = dateien.speichern(buf, mime || 'image/jpeg');
+    await tx(async q => q(`UPDATE ${S}kasse_extern_anfrage SET datei_sha=$1 WHERE id=$2`, [info.sha, anfragenId]));
+  } catch (e) {
+    // Фото недоступно — не критично, продолжаем без него.
+    console.error('beleg foto:', ereignisId, e.message);
+  }
 }
 
 /* ---------- Статус по kasse_ref ---------- */
@@ -251,6 +282,32 @@ function httpPost(url, body, token) {
     r.on('error', fehler);
     r.setTimeout(10000, () => { r.destroy(new Error('timeout')); });
     r.write(body);
+    r.end();
+  });
+}
+
+function httpGet(url, token) {
+  return new Promise((ok, fehler) => {
+    const u = new URL(url);
+    const opts = {
+      hostname: u.hostname, port: u.port || (u.protocol === 'https:' ? 443 : 80),
+      path: u.pathname, method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + token },
+    };
+    const mod = u.protocol === 'https:' ? https : http;
+    const r = mod.request(opts, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          ok({ buf: Buffer.concat(chunks), mime: String(res.headers['content-type'] || '').split(';')[0].trim() });
+        } else {
+          fehler(new Error('HTTP ' + res.statusCode));
+        }
+      });
+    });
+    r.on('error', fehler);
+    r.setTimeout(15000, () => { r.destroy(new Error('timeout')); });
     r.end();
   });
 }

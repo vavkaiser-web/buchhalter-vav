@@ -191,8 +191,12 @@ const icon = n => `<i data-lucide="${n}" aria-hidden="true"></i>`;
 const keys = rows => rows.filter(r=>r&&r[0]&&r[1]!=null).map(([k,v])=>`<div class="v-keyvalue"><span>${esc(k)}</span><span>${v}</span></div>`).join('');
 const btn = (txt,act,cls='',extra='') => `<button type="button" class="v-button ${cls}" data-action="${act}" ${extra}>${txt}</button>`;
 
-const BEW_ART = {abhebung:'Снятие в банке',uebergabe:'Передача наличных',rueckgabe:'Возврат',ausgabe:'Расход из кассы',verbrauch:'Расход'};
-function bewArt(art){ return BEW_ART[art]||art; }
+const BEW_ART = {abhebung:'Bankabhebung',uebergabe:'Übergabe Bargeld',rueckgabe:'Rückgabe',ausgabe:'Kassenausgabe',verbrauch:'Verbrauch'};
+function bewArtText(b) {
+  if (b.art === 'abhebung' && b.notiz && b.notiz.startsWith('Einzahlung:')) return 'Einzahlung';
+  return BEW_ART[b.art] || b.art;
+}
+function bewArt(art, b){ if (b) return bewArtText(b); return BEW_ART[art]||art; }
 function bewDatum(b){ return b.datum ? new Date(b.datum+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}) : '—'; }
 function wDatum(){ const d=new Date(); return d.toLocaleDateString('sv-SE'); }
 function bewDokInfo(b){
@@ -217,10 +221,22 @@ function adaptLage(raw) {
   const firma = raw.firma || 'VAV Kaiser GmbH';
   // Движения: добавляем человекочитаемые поля
   const bewegungen = (raw.bewegungen||[]).slice(0,30).map(b=>({
-    ...b, betrag_cent: b.betrag, bezeichnung: b.art==='uebergabe'?'Передача наличных':b.art==='abhebung'?'Снятие':b.art==='rueckgabe'?'Возврат в кассу':b.art,
+    ...b, betrag_cent: b.betrag, bezeichnung: bewArtText(b),
     von_konto_name: b.von_name, an_konto_name: b.an_name,
     wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
   }));
+  // Все снятия по датам (для ручного заведения в кассу).
+  // verteilt берётся с сервера (по всей таблице без LIMIT), не из урезанного списка движений.
+  const _abhVerteilt = raw.abhebungen_verteilt || {};
+  const abhebungen_alle = (raw.bewegungen||[])
+    .filter(b => b.art === 'abhebung' && b.status !== 'storniert')
+    .map(b => {
+      const verteilt = _abhVerteilt[b.id] ?? 0;
+      const rest = Math.max(0, b.betrag - verteilt);
+      return { ...b, betrag_cent: b.betrag, verteilt, rest,
+        wann_text: b.datum ? new Date(b.datum).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '' };
+    })
+    .sort((a, b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : a.id - b.id);
   // Чеки: в очередь попадают ausstehend и rueckfrage
   const belege_queue = (raw.belege||[]).filter(b=>['ausstehend','rueckfrage'].includes(b.status)).map(b=>({
     ...b, ref: String(b.id), betrag_cent: b.betrag, person_name: b.person,
@@ -244,14 +260,17 @@ function adaptLage(raw) {
   // Вопросы
   const rueckfragen_offen = (raw.rueckfragen||[]).filter(r=>r.status==='offen').length;
   // Входящие от vavapp
+  const ZAHLART_TEXT = {firmenkarte:'Карта фирмы',privatkarte:'Своя карта',bar:'Наличные'};
   const eingaenge = (raw.eingaenge||[]).map(e=>({
-    ...e, ref: String(e.id), ea_ref: e.kasse_ref,
+    ...e, ref: String(e.id), ea_ref: e.kasse_ref, _typ: 'ea',
     betrag_cent: e.betrag,
     bezeichnung: e.art==='vorschuss' ? 'Аванс от VAV App' : 'Чек от VAV App',
     person_name: e.person_name || e.person_id || '—',
     erstellt_text: e.erstellt_am ? new Date(e.erstellt_am).toLocaleDateString('de-DE',{day:'numeric',month:'short'}) : '',
     erstellt_ts: e.id,
     erledigt: !!e.verarbeitet_am,
+    zahlart_text: e.zahlart ? (ZAHLART_TEXT[e.zahlart] || e.zahlart) : null,
+    foto_sha: e.datei_sha || null,
   }));
   // Квитанции: готовы к выдаче (план одобрен, кассир назначен)
   const quittungenVorbereitet = (raw.quittungen||[]).filter(q => q.status === 'vorbereitet' && q.plan_status === 'genehmigt');
@@ -261,12 +280,55 @@ function adaptLage(raw) {
   // Объекты и машины для форм
   const objekte = (raw.objekte||[]).map(o=>({id: o.nummer, name: o.bez||o.nummer}));
   const fahrzeuge = (raw.fahrzeuge||[]).map(f=>({id: f.id, kennzeichen: f.text||f.id}));
-  return { ...raw, kasse: { hauptkasse, reserviert: hk?.reserviert||0, frei: hk?.frei ?? hauptkasse }, halter, firma, bewegungen, belege_queue, meine_belege,
+  return { ...raw, kasse: { hauptkasse, reserviert: hk?.reserviert||0, frei: hk?.frei ?? hauptkasse }, halter, firma, bewegungen, abhebungen_alle, belege_queue, meine_belege,
     plaene_offen, meine_plaene, rueckfragen_offen, eingang_anzahl, objekte, fahrzeuge, eingaenge,
     quittungenVorbereitet, quittungenOriginalFehlt };
 }
 
 /* ---------- Состояние приложения ---------- */
+const TRANS = {
+  ru: {
+    header: 'КАССА VAV', lang_btn: 'DE', logout: 'Выйти',
+    nav_desk:'Рабочий стол', nav_eingang:'Очередь', nav_kasse:'Касса', nav_req:'Запросы',
+    nav_mein:'Мой кабинет', nav_avans:'Авансы', nav_fragen:'Вопросы', nav_quittungen:'Квитанции',
+    bank_panel:'Снятия из банка', in_kasse:'В кассу', not_in_kasse:'Не в кассе',
+    in_kasse_ok:'В кассе ✓', no_abh:'Нет снятий', distribute:'Распределить деньги',
+    journal:'Журнал движений', sidebar_foot:'Касса VAV',
+    eingang_vav:'От VAV App', eingang_belege:'Чеки и заявки',
+    zur_ausgabe:'К выдаче', ausgegeben:'Выдано',
+    ausgeben_btn:'Выдать', drucken:'Печать', original:'Оригинал', original_ok:'Оригинал получен',
+    print_all:'Печать всех', positions:'позиций',
+    mein_vorschuesse:'Полученные авансы', mein_original:'Нужен оригинал', mein_docs:'Мои документы',
+    rueck_title:'Открытые вопросы', rueck_offen:'открытых',
+    modal_close:'Закрыть', cancel:'Отмена',
+    save_abh:'Записать снятие', transfer_btn:'Передать деньги', zaehlen:'Пересчёт',
+    beweg_work:'Работающие данные',
+    einzahlung_btn:'Einzahlung', einzahlung_title:'Einzahlung / Rückzahlung bar',
+    einzahlung_grund_kredit:'Kreditrückzahlung', einzahlung_grund_vorschuss:'Vorschussrückgabe',
+    einzahlung_grund_kunde:'Kundenzahlung', einzahlung_grund_sonst:'Sonstiges',
+  },
+  de: {
+    header: 'KASSE VAV', lang_btn: 'RU', logout: 'Abmelden',
+    nav_desk:'Übersicht', nav_eingang:'Warteschlange', nav_kasse:'Kasse', nav_req:'Rückfragen',
+    nav_mein:'Mein Bereich', nav_avans:'Vorschüsse', nav_fragen:'Rückfragen', nav_quittungen:'Quittungen',
+    bank_panel:'Bankabhebungen', in_kasse:'In Kasse', not_in_kasse:'Nicht in Kasse',
+    in_kasse_ok:'In Kasse ✓', no_abh:'Keine Abhebungen', distribute:'Geld aufteilen',
+    journal:'Buchungsjournal', sidebar_foot:'Kasse VAV',
+    eingang_vav:'Von VAV App', eingang_belege:'Belege & Anträge',
+    zur_ausgabe:'Zur Auszahlung', ausgegeben:'Ausgegeben',
+    ausgeben_btn:'Auszahlen', drucken:'Drucken', original:'Original', original_ok:'Original erhalten',
+    print_all:'Alle drucken', positions:'Positionen',
+    mein_vorschuesse:'Erhaltene Vorschüsse', mein_original:'Original fehlt', mein_docs:'Meine Belege',
+    rueck_title:'Offene Rückfragen', rueck_offen:'offen',
+    modal_close:'Schließen', cancel:'Abbrechen',
+    save_abh:'Abhebung erfassen', transfer_btn:'Geld übergeben', zaehlen:'Kassenprüfung',
+    beweg_work:'Laufende Daten',
+    einzahlung_btn:'Einzahlung', einzahlung_title:'Einzahlung / Rückzahlung bar',
+    einzahlung_grund_kredit:'Kreditrückzahlung', einzahlung_grund_vorschuss:'Vorschussrückgabe',
+    einzahlung_grund_kunde:'Kundenzahlung', einzahlung_grund_sonst:'Sonstiges',
+  },
+};
+
 const S = {
   ich: null,          // { login, rolle, name }
   seite: 'lage',      // текущий раздел
@@ -278,7 +340,9 @@ const S = {
   modal: null,
   mobilTab: 'home',
   sync: { ok: true, wann: null, fehler: null },
+  lang: (() => { try { return localStorage.getItem('v_lang') || 'ru'; } catch(e) { return 'ru'; } })(),
 };
+const t = key => (TRANS[S.lang] || TRANS.ru)[key] || key;
 
 /* ---------- API ---------- */
 async function api(methode, pfad, koerper) {
@@ -388,21 +452,23 @@ ${isGf && hauptkasse > 0 ? `
       <div style="font-weight:600;font-size:15px">${icon('wallet')} В кассе ${euro(hauptkasse)} — нераспределено</div>
       <div class="v-small" style="margin-top:2px">Выдайте деньги людям и получите квитанции</div>
     </div>
-    <button class="v-button primary" data-action="kasseAusgeben">${icon('send')} Распределить деньги</button>
+    <button class="v-button primary" data-action="kasseAusgeben">${icon('send')} ${t('distribute')}</button>
   </div>
 </div>` : ''}
 <div class="v-panel">
-  <div class="v-panelhead"><h2>Последние движения</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
+  <div class="v-panelhead"><h2>${t('bank_panel')}</h2><span class="v-small">${esc(l.firma||'VAV Kaiser GmbH')}</span></div>
   <div class="v-ledger">
-    ${(l.bewegungen||[]).slice(0,8).reverse().map(b=>`
-    <button class="v-event cursor-interaction" data-action="bewegungDetail" data-bew-id="${b.id}" style="width:100%;text-align:left">
-      ${icon('arrow-right-left')}
-      <span>
-        <span class="v-rowtitle">${esc(b.bezeichnung||b.art)}</span>
-        <span class="v-small" style="display:block">${esc(b.wann_text||'')} · ${esc(b.von_konto_name||'')} → ${esc(b.an_konto_name||'')}</span>
+    ${(l.abhebungen_alle||[]).map(b=>`
+    <div class="v-event" style="display:flex;align-items:center;gap:8px;padding:10px 12px">
+      ${icon('banknote')}
+      <span style="flex:1;min-width:0">
+        <span class="v-rowtitle">Снятие ${esc(b.wann_text||'')}</span>
+        ${b.rest>0 ? `<span class="v-small" style="display:block;color:var(--v-warn,#b45309)">${t('not_in_kasse')}: ${euro(b.rest)}</span>`
+                   : `<span class="v-small" style="display:block;color:var(--v-ok,#15803d)">${t('in_kasse_ok')}</span>`}
       </span>
-      <span class="v-num">${euro(b.betrag_cent)} ${statusTag(b.status)}</span>
-    </button>`).join('') || '<div class="v-stateempty">Движений нет</div>'}
+      <span class="v-num" style="flex-shrink:0">${euro(b.betrag_cent)}</span>
+      ${b.rest>0 ? `<button class="v-button primary" style="flex-shrink:0" data-action="inKasse" data-bew-id="${b.id}" data-bew-betrag="${b.rest}">${t('in_kasse')}</button>` : ''}
+    </div>`).join('') || `<div class="v-stateempty">${t('no_abh')}</div>`}
   </div>
 </div>`;
 }
@@ -433,22 +499,22 @@ function renderEingang() {
     const gefiltert = sortiert.filter(r => S.filter==='alle' || r.status===S.filter);
     listContent = `
       ${ea.length ? `<div class="v-panel" style="margin-bottom:12px">
-        <div class="v-panelhead"><h2>От VAV App</h2><span class="v-small">${ea.length} позиций</span></div>
+        <div class="v-panelhead"><h2>${t('eingang_vav')}</h2><span class="v-small">${ea.length} ${t('positions')}</span></div>
         ${ea.map(r => itemZeile(r, 'ea')).join('')}
       </div>` : ''}
       <div class="v-panel">
-        <div class="v-panelhead"><h2>Чеки и заявки</h2><span class="v-small">${sortiert.length}</span></div>
+        <div class="v-panelhead"><h2>${t('eingang_belege')}</h2><span class="v-small">${sortiert.length}</span></div>
         <div class="v-tabs">
-          ${[['alle','Все'],['ausstehend','Новые'],['rueckfrage','Вопросы']].map(([id,t])=>
-            `<button class="${S.filter===id?'active':''}" data-filter="${id}">${t}</button>`).join('')}
+          ${[['alle','Все / Alle'],['ausstehend','Новые / Neue'],['rueckfrage',t('nav_fragen')]].map(([id,lbl])=>
+            `<button class="${S.filter===id?'active':''}" data-filter="${id}">${lbl}</button>`).join('')}
         </div>
-        ${gefiltert.length ? gefiltert.map(r => itemZeile(r)).join('') : '<div class="v-stateempty">Очередь пуста</div>'}
+        ${gefiltert.length ? gefiltert.map(r => itemZeile(r)).join('') : '<div class="v-stateempty">Очередь пуста / Warteschlange leer</div>'}
       </div>`;
   } else if (tab === 'ready') {
     listContent = `<div class="v-panel">
       <div class="v-panelhead">
-        <h2>К выдаче</h2>
-        ${quittVorb.length > 1 ? `<button class="v-button small" data-action="druckenAlle">Печать всех</button>` : ''}
+        <h2>${t('zur_ausgabe')}</h2>
+        ${quittVorb.length > 1 ? `<button class="v-button small" data-action="druckenAlle">${t('print_all')}</button>` : ''}
       </div>
       ${quittVorb.length ? quittVorb.map(q=>`
       <div class="v-event" style="gap:8px">
@@ -458,14 +524,14 @@ function renderEingang() {
           <span class="v-small" style="display:block">${esc(q.nr||'')} · ${esc(q.plan_nr||'')} · ${euro(q.betrag)}</span>
         </span>
         <span style="white-space:nowrap;display:flex;gap:4px;align-items:center">
-          <button class="v-button small primary" data-action="quittungAusgeben" data-qt-id="${q.id}">Выдать</button>
-          <button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">Печать</button>
+          <button class="v-button small primary" data-action="quittungAusgeben" data-qt-id="${q.id}">${t('ausgeben_btn')}</button>
+          <button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">${t('drucken')}</button>
         </span>
-      </div>`).join('') : '<div class="v-stateempty">Нет готовых к выдаче</div>'}
+      </div>`).join('') : '<div class="v-stateempty">—</div>'}
     </div>`;
   } else {
     listContent = `<div class="v-panel">
-      <div class="v-panelhead"><h2>Выдано</h2><span class="v-small">${ausgegeben.length}</span></div>
+      <div class="v-panelhead"><h2>${t('ausgegeben')}</h2><span class="v-small">${ausgegeben.length}</span></div>
       ${ausgegeben.length ? ausgegeben.map(q=>`
       <div class="v-event" style="gap:8px">
         ${icon('check-circle')}
@@ -473,8 +539,8 @@ function renderEingang() {
           <span class="v-rowtitle">${esc(q.empfaenger||'—')}</span>
           <span class="v-small" style="display:block">${esc(q.nr||'')} · ${esc(q.ausgegeben_text||q.plan_nr||'')}</span>
         </span>
-        <span class="v-num" style="white-space:nowrap">${euro(q.betrag)}${!q.original_am ? `&nbsp;<button class="v-button small" data-action="quittungOriginalOk" data-qt-id="${q.id}">Оригинал</button>` : ''}</span>
-      </div>`).join('') : '<div class="v-stateempty">Нет выданных</div>'}
+        <span class="v-num" style="white-space:nowrap">${euro(q.betrag)}${!q.original_am ? `&nbsp;<button class="v-button small" data-action="quittungOriginalOk" data-qt-id="${q.id}">${t('original')}</button>` : ''}</span>
+      </div>`).join('') : '<div class="v-stateempty">—</div>'}
     </div>`;
   }
 
@@ -492,7 +558,7 @@ function renderEingang() {
     <p>Заявки, квитанции и чеки от сотрудников.</p>
   </div>
   <div style="display:flex;gap:8px">
-    ${isDisp ? `<button class="v-button" data-action="zaehlenNalichnye">Пересчёт</button>` : ''}
+    ${isDisp ? `<button class="v-button" data-action="zaehlenNalichnye">${t('zaehlen')}</button>` : ''}
     ${['gf','buchhaltung','disponent'].includes(S.ich?.rolle) ? btn(icon('plus')+' Аванс','neuerPlan','primary') : ''}
   </div>
 </div>
@@ -543,8 +609,11 @@ function detailPanel(r) {
     <div class="v-small">${esc(r.erstellt_text||'')} · ${esc(r.person_name||r.login||'')}</div>
     ${keys([
       ['Статус', r.status||'?'],
+      ...(r.firma?[['Фирма',r.firma]]:[]),
       ...(r.objekt_name?[['Объект',r.objekt_name]]:[]),
       ...(r.fahrzeug?[['Автомобиль',r.fahrzeug]]:[]),
+      ...(r.fahrzeug_text?[['Машина',r.fahrzeug_text]]:[]),
+      ...(r.zahlart_text?[['Оплата',r.zahlart_text]]:[]),
       ...(r.zahlungsweg?[['Способ оплаты',r.zahlungsweg]]:[]),
     ])}
     ${r.nachricht_text ? `<div class="v-note">${esc(r.nachricht_text)}</div>` : ''}
@@ -555,7 +624,8 @@ function detailPanel(r) {
       ${istBuch && typ==='beleg' && r.status==='ausstehend' ? btn('Принять чек','belegPruefen','primary') : ''}
       ${(istBuch||istDisp) && typ==='plan' && r.status==='entwurf' ? btn('Подать на одобрение','planEinreichen','primary') : ''}
       ${istBuch && typ==='plan' && r.status==='eingereicht' ? btn('Одобрить','planBewilligen','primary') : ''}
-      ${istBuch && typ==='ea' && !r.erledigt ? btn('Одобрить запрос','eingangBewilligen','primary') : ''}
+      ${istBuch && typ==='ea' && !r.erledigt ? btn('Одобрить','eingangBewilligen','primary') : ''}
+      ${istBuch && typ==='ea' && !r.erledigt ? btn('Уточнить','eingangKlaeren','') : ''}
       ${istBuch && typ==='ea' && !r.erledigt ? btn('Отклонить','eingangAblehnen','') : ''}
       ${istBuch && typ==='plan' && r.status==='eingereicht' ? btn('Отклонить','ablehnen','') : ''}
       ${istBuch && typ==='beleg' && r.status==='ausstehend' ? btn('Отклонить','ablehnen','') : ''}
@@ -587,7 +657,7 @@ ${!isBuch ? `<button class="v-upload" data-action="neuerBeleg">
   <span class="v-small">Бензин, материалы или аванс</span>
 </button>` : ''}
 ${qtMeine.length ? `<div class="v-panel">
-  <div class="v-panelhead"><h2>Полученные авансы</h2></div>
+  <div class="v-panelhead"><h2>${t('mein_vorschuesse')}</h2></div>
   ${qtMeine.map(q=>`<div class="v-event">
     ${icon('banknote')}
     <span>
@@ -598,7 +668,7 @@ ${qtMeine.length ? `<div class="v-panel">
   </div>`).join('')}
 </div>` : ''}
 ${qtOrigFehlt.length ? `<div class="v-panel">
-  <div class="v-panelhead"><h2>Нужен оригинал</h2><span class="v-small">${qtOrigFehlt.length} шт.</span></div>
+  <div class="v-panelhead"><h2>${t('mein_original')}</h2><span class="v-small">${qtOrigFehlt.length}</span></div>
   ${qtOrigFehlt.map(q=>`<div class="v-event">
     ${icon('file-check')}
     <span style="flex:1;min-width:0">
@@ -607,13 +677,47 @@ ${qtOrigFehlt.length ? `<div class="v-panel">
     </span>
     <span class="v-num" style="white-space:nowrap">
       <button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">Печать</button>
-      <button class="v-button small primary" data-action="quittungOriginalOk" data-qt-id="${q.id}">Оригинал получен</button>
+      <button class="v-button small primary" data-action="quittungOriginalOk" data-qt-id="${q.id}">${t('original_ok')}</button>
     </span>
   </div>`).join('')}
 </div>` : ''}
 <div class="v-panel">
-  <div class="v-panelhead"><h2>Мои документы</h2></div>
+  <div class="v-panelhead"><h2>${t('mein_docs')}</h2></div>
   ${meine.length ? meine.map(r=>itemZeile(r)).join('') : '<div class="v-stateempty">Документов нет</div>'}
+</div>`;
+}
+
+function renderQuittungen() {
+  const qt = S.lage?.quittungen || [];
+  const r = S.ich?.rolle;
+  const isBuch = r === 'buchhaltung' || r === 'gf';
+  const isDisp = r === 'disponent';
+  const statusLabel = { vorbereitet:'Vorbereitet', ausgegeben:'Ausgegeben', storniert:'Storniert' };
+  return `
+<div class="v-head">
+  <div>
+    <div class="v-label">Quittungsarchiv</div>
+    <h1>${t('nav_quittungen')}</h1>
+    <p>Alle Quittungen – hier ablesen, prüfen und bei Bedarf drucken.</p>
+  </div>
+</div>
+<div class="v-panel">
+  <div class="v-panelhead"><h2>${t('nav_quittungen')} (${qt.length})</h2></div>
+  ${qt.length ? qt.map(q=>`
+  <div class="v-row" style="cursor:default">
+    <span class="v-file">${icon('receipt')}</span>
+    <span class="v-rowmain" style="flex:1;min-width:0">
+      <span class="v-rowline">
+        <span class="v-rowtitle">${esc(q.nr||'—')} · ${esc(q.empfaenger||'—')}</span>
+        <span class="v-num">${euro(q.betrag)}</span>
+      </span>
+      <span class="v-small" style="display:block">${esc(statusLabel[q.status]||q.status)} · ${q.ausgegeben_am ? new Date(q.ausgegeben_am).toLocaleDateString('de-DE') : '—'}</span>
+    </span>
+    <span style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+      ${statusTag(q.status)}
+      ${(isBuch || isDisp) && q.status !== 'storniert' ? `<button class="v-button small" data-action="quittungDrucken" data-qt-id="${q.id}">${t('drucken')}</button>` : ''}
+    </span>
+  </div>`).join('') : '<div class="v-stateempty">Keine Quittungen vorhanden</div>'}
 </div>`;
 }
 
@@ -628,7 +732,7 @@ function renderRueckfragen() {
   </div>
 </div>
 <div class="v-panel">
-  <div class="v-panelhead"><h2>Открытые вопросы</h2><span class="v-tag warn">${list.filter(r=>r.status==='offen').length} открытых</span></div>
+  <div class="v-panelhead"><h2>${t('rueck_title')}</h2><span class="v-tag warn">${list.filter(r=>r.status==='offen').length} ${t('rueck_offen')}</span></div>
   ${list.length ? list.map(r=>`
   <button class="v-row" data-record="${esc(r.id)}" data-typ="rueckfrage">
     <span class="v-file">${icon('message-circle')}</span>
@@ -655,9 +759,10 @@ function renderKasse() {
     <p>Показаны только подтверждённые движения.</p>
   </div>
   <div style="display:flex;gap:8px">
-    ${istGf ? btn(icon('building-2')+' Снятие','neueAbhebung','') : ''}
-    ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Передача','neueUebergabe','primary') : ''}
-    ${istGf ? btn(icon('scale')+' Сверка','kasseSverka','') : ''}
+    ${istGf ? btn(icon('building-2')+' Abhebung','neueAbhebung','') : ''}
+    ${(istGf || S.ich?.rolle === 'disponent' || S.ich?.rolle === 'buchhaltung') ? btn(icon('arrow-down-circle')+' '+t('einzahlung_btn'),'neueEinzahlung','') : ''}
+    ${S.ich?.rolle !== 'mitarbeiter' ? btn(icon('plus')+' Übergabe','neueUebergabe','primary') : ''}
+    ${istGf ? btn(icon('scale')+' Kassenprüfung','kasseSverka','') : ''}
   </div>
 </div>
 <div class="v-metrics">
@@ -674,7 +779,7 @@ function renderKasse() {
   </button>`).join('')}
 </div>
 <div class="v-panel">
-  <div class="v-panelhead"><h2>Журнал движений</h2></div>
+  <div class="v-panelhead"><h2>${t('journal')}</h2></div>
   <div class="v-ledger">
     ${(l.bewegungen||[]).slice().reverse().map(b=>{
       const dok = bewDokInfo(b);
@@ -686,7 +791,7 @@ function renderKasse() {
         ${icon('arrow-right-left')}
         <span class="v-rowmain" style="flex:1;min-width:0">
           <span class="v-rowline">
-            <span class="v-rowtitle">${esc(bewArt(b.art))}</span>
+            <span class="v-rowtitle">${esc(bewArt(b.art,b))}</span>
             <span class="v-num">${euro(b.betrag)}</span>
           </span>
           <span class="v-small" style="display:block">${bewDatum(b)} · ${esc(b.von_name||'—')} → ${esc(b.an_name||'—')}</span>
@@ -713,7 +818,7 @@ function renderModal(mod) {
         ⚠️ ${esc(S.abhDupWarn.msg)}
       </div>
       <div style="display:flex;gap:8px">
-        <button class="v-button full" data-action="abhDupCancel">Отмена</button>
+        <button class="v-button full" data-action="abhDupCancel">${t('cancel')}</button>
         <button class="v-button primary full" data-action="abhDupForce">Всё равно сохранить</button>
       </div>`;
     } else {
@@ -722,7 +827,7 @@ function renderModal(mod) {
         <label>Дата снятия<input name="datum" type="date" value="${wDatum()}" required></label>
         <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
         <label>Примечание<input name="notiz" placeholder="Снятие в банке (необязательно)" maxlength="120"></label>
-        <button type="submit" class="v-button primary full">Записать снятие</button>
+        <button type="submit" class="v-button primary full">${t('save_abh')}</button>
       </form>`;
     }
   } else if (mod==='kasseSverka') {
@@ -749,14 +854,30 @@ function renderModal(mod) {
       <span class="v-num">${euro(abh.reduce((s,b)=>s+Number(b.betrag_cent||0),0))}</span>
     </div>`;
   } else if (mod==='neueUebergabe') {
-    title = 'Передача наличных';
+    title = 'Übergabe Bargeld';
     body = `<form id="uebergabe-form" class="v-form">
-      <label>Получатель<select name="an_konto">
+      <label>Empfänger<select name="an_konto">
         ${(S.lage?.halter||[]).map(h=>`<option value="${esc(h.id)}">${esc(h.kurzname||h.name||h.login)}</option>`).join('')}
-        <option value="hauptkasse">Основная касса</option>
+        <option value="hauptkasse">Hauptkasse</option>
       </select></label>
-      <label>Сумма, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
-      <button type="submit" class="v-button primary full">Создать передачу</button>
+      <label>Betrag, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
+      <button type="submit" class="v-button primary full">Übergabe erstellen</button>
+    </form>`;
+  } else if (mod==='neueEinzahlung') {
+    title = t('einzahlung_title');
+    body = `<form id="einzahlung-form" class="v-form">
+      <div class="v-note">Bargeld kommt in die Kasse: Kreditrückzahlung, Vorschussrückgabe oder Kundenzahlung.</div>
+      <label>Datum<input name="datum" type="date" value="${wDatum()}" required></label>
+      <label>Betrag, €<input name="betrag" inputmode="decimal" placeholder="0,00" required></label>
+      <label>Grund<select name="grund">
+        <option value="kredit">${t('einzahlung_grund_kredit')}</option>
+        <option value="vorschuss">${t('einzahlung_grund_vorschuss')}</option>
+        <option value="kunde">${t('einzahlung_grund_kunde')}</option>
+        <option value="sonstiges">${t('einzahlung_grund_sonst')}</option>
+      </select></label>
+      <label>Person / Firma<input name="person" placeholder="Name des Einzahlers" maxlength="120"></label>
+      <label>Notiz<input name="notiz" placeholder="Zusatzinfo (optional)" maxlength="100"></label>
+      <button type="submit" class="v-button primary full">Einzahlung erfassen</button>
     </form>`;
   } else if (mod==='neuerBeleg') {
     title = 'Добавить чек';
@@ -818,6 +939,13 @@ function renderModal(mod) {
     body = `<form id="ablehnen-form" class="v-form">
       <label>Причина<textarea name="grund" rows="3" required></textarea></label>
       <button type="submit" class="v-button primary full" style="background:var(--v-red);color:var(--v-on);border-color:var(--v-red)">Отклонить</button>
+    </form>`;
+  } else if (mod==='eingangKlaeren') {
+    title = 'Запросить уточнение';
+    body = `<form id="ea-klaeren-form" class="v-form">
+      <div class="v-note">Работник увидит этот текст в телефоне.</div>
+      <label>Что нужно уточнить<textarea name="grund" rows="3" required></textarea></label>
+      <button type="submit" class="v-button primary full">Запросить уточнение</button>
     </form>`;
   } else if (mod==='genehmigen') {
     title = 'Одобрить заявку';
@@ -948,7 +1076,7 @@ function renderModal(mod) {
                 ${halterOpts}
               </select>
             </label>
-            <button type="submit" class="v-button primary full">${icon('arrow-right-circle')} Передать деньги</button>
+            <button type="submit" class="v-button primary full">${icon('arrow-right-circle')} ${t('transfer_btn')}</button>
           </form>` : '';
         const blockNote = transferBlocked ? `
           <div class="v-note" style="margin-top:8px;color:var(--v-warn,#e65100);background:var(--v-warn-bg,#fff8e1);padding:8px 10px;border-radius:6px">
@@ -961,6 +1089,15 @@ function renderModal(mod) {
             ${verteilListe}${restNote}${blockNote}${transferForm}
           </div>`;
       }
+      const autoImportSection = b.abhebung_bestaetigen_darf ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd);background:var(--v-warn-bg,#fff8e1);border-radius:8px;padding:12px">
+          <div class="v-small" style="font-weight:600;margin-bottom:8px;color:var(--v-warn,#e65100)">${icon('alert-circle')} Автоимпорт — требует подтверждения</div>
+          <div class="v-note" style="margin-bottom:10px;font-size:12px">Это снятие обнаружено автоматически в FinMap. Проверьте сумму и дату по банковской выписке.</div>
+          <div style="display:flex;gap:8px">
+            <button class="v-button primary" style="flex:1;justify-content:center" data-action="abhebungBestaetigen" data-id="${b.id}">${icon('check-circle')} Подтвердить</button>
+            <button class="v-button" style="flex:1;justify-content:center;color:var(--v-err,#c62828)" data-action="abhebungAblehnen" data-id="${b.id}">${icon('x-circle')} Отклонить</button>
+          </div>
+        </div>` : '';
       body = `<div class="v-ledger">
         ${keys([
           ['Тип', esc(bewArt(b.art))],
@@ -975,38 +1112,76 @@ function renderModal(mod) {
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
         <div class="v-small" style="font-weight:600;margin-bottom:6px">Документ</div>
         ${dokSection}
-      </div>${transferSection}`;
+      </div>${autoImportSection}${transferSection}${
+        (b.art==='uebergabe' && b.status==='gemeldet' && isGf) ? `
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--v-brd)">
+        <button class="v-button" style="width:100%;justify-content:center;color:var(--v-err,#c62828)" data-action="bewegungStornieren" data-id="${b.id}">${icon('x-circle')} Отменить передачу</button>
+      </div>` : ''}`;
     } else {
       title = 'Движение';
       body = '<div class="v-stateempty">Данные не найдены</div>';
     }
   } else if (mod==='kasseAusgeben') {
     if (S.signaturStep) {
-      title = 'Подпись · ' + esc(S.signaturStep.nr);
+      title = 'Документ · ' + esc(S.signaturStep.nr);
       body = `
-        <div class="v-note" style="margin-bottom:12px">${icon('file-text')} Квитанция <strong>${esc(S.signaturStep.nr)}</strong> — ${esc(S.signaturStep.empfaenger||'')} — <strong>${euro(S.signaturStep.betrag||0)}</strong></div>
-        <div class="v-small" style="margin-bottom:6px;color:var(--v-muted)">Попросите расписаться пальцем или мышью:</div>
-        <canvas id="sig-canvas" width="700" height="160"
-          style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Очистить</button>
-          <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Сохранить подпись и открыть PDF</button>
+        <div class="v-note" style="margin-bottom:12px">${icon('file-text')} <strong>${esc(S.signaturStep.nr)}</strong> · ${esc(S.signaturStep.empfaenger||'')} · <strong>${euro(S.signaturStep.betrag||0)}</strong></div>
+        <div style="background:var(--v-warn-bg,#fff8e1);border:1px solid var(--v-warn,#e65100);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px;color:var(--v-warn,#e65100)">
+          ${icon('alert-triangle')} <strong>Beide Unterschriften erforderlich.</strong> Erst Empfänger, dann Kassierer unterschreiben.
         </div>
-        <button type="button" data-action="sigSkip" class="v-button" style="width:100%;margin-top:6px;justify-content:center">${icon('printer')} Открыть PDF без подписи</button>
-        <div id="chek-area" class="v-upload" style="margin:14px 0 0;padding:14px 12px;position:relative">
-          ${icon('paperclip')}<strong id="chek-status">Прикрепить чек / фото</strong>
-          <span class="v-small">Фото чека, PDF (необязательно)</span>
+        <div class="v-small" style="margin-bottom:4px;font-weight:600">1. Unterschrift Empfänger</div>
+        <canvas id="sig-canvas" width="700" height="120"
+          style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
+        <div style="display:flex;gap:8px;margin-top:6px;margin-bottom:14px">
+          <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Löschen</button>
+          <span style="flex:1;font-size:12px;color:var(--v-muted);align-self:center">Empfänger unterschreibt hier</span>
+        </div>
+        <div class="v-small" style="margin-bottom:4px;font-weight:600">2. Unterschrift Kassierer (Ausgezahlt von)</div>
+        <canvas id="sig-canvas-ausgabe" width="700" height="120"
+          style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button type="button" id="sig-clear-ausgabe" class="v-button" style="flex:0 0 auto">${icon('eraser')} Löschen</button>
+          <span style="flex:1;font-size:12px;color:var(--v-muted);align-self:center">Kassierer unterschreibt hier</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Beide unterschrieben – Geld auszahlen</button>
+        </div>
+        <div style="margin:14px 0 6px;font-size:13px;color:var(--v-muted);text-align:center">— oder nur Foto —</div>
+        <div class="v-small" style="margin-bottom:6px;font-weight:600">Foto der Quittung</div>
+        <div id="chek-area" class="v-upload" style="padding:14px 12px;position:relative">
+          ${icon('paperclip')}<strong id="chek-status">Quittung / Foto anhängen</strong>
+          <span class="v-small">Foto oder PDF</span>
           <input type="file" id="chek-input" accept="image/*,application/pdf" capture="environment" style="position:absolute;opacity:0;inset:0;cursor:pointer">
-        </div>`;
+        </div>
+        <button type="button" id="chek-ausgeben" class="v-button primary full" style="display:none;margin-top:8px">${icon('send')} Auszahlen per Quittungsfoto</button>
+        <button type="button" id="sig-abbrechen" class="v-button" style="width:100%;margin-top:14px;justify-content:center;color:var(--v-muted);font-size:13px">${icon('x-circle')} Auszahlung abbrechen</button>`;
     } else {
     title = 'Распределить деньги';
     const hauptkasse = S.lage?.kasse?.hauptkasse || 0;
     const frei = S.lage?.kasse?.frei ?? hauptkasse;
+    const kasseAT = (S.lage?.auftragnehmer||[]).map(a =>
+      `<option value="at:${a.id}|${esc(a.name)}">${esc(a.name)}${a.art==='person'?' (физ.)':''}</option>`
+    ).join('');
+    const kasseNames = new Set((S.lage?.auftragnehmer||[]).map(a => a.name.toLowerCase()));
+    const vavNuOpts = (S.lage?.vavapp_nu||[])
+      .filter(nu => !kasseNames.has(nu.name.toLowerCase()))
+      .map(nu => `<option value="${esc(nu.id)}|${esc(nu.name)}">${esc(nu.name)} (из учёта часов)</option>`)
+      .join('');
+    const auftragnehmerOpts = [
+      kasseAT ? `<optgroup label="Подрядчики (касса)">${kasseAT}</optgroup>` : '',
+      vavNuOpts ? `<optgroup label="Подрядчики (учёт часов)">${vavNuOpts}</optgroup>` : '',
+    ].join('');
+    const personenOpts = (S.lage?.personen||[]).map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
     body = `
       <div class="v-note" style="margin-bottom:12px">${icon('wallet')} В кассе: <strong>${euro(hauptkasse)}</strong> · Свободно: <strong>${euro(frei)}</strong></div>
+      <div class="v-upload" id="ocr-upload-area" style="margin-bottom:12px;padding:10px 12px;cursor:pointer;position:relative">
+        ${icon('camera')}<strong id="ocr-status">Сфотографировать квитанцию</strong>
+        <span class="v-small" style="margin-top:2px">Сумма и получатель заполнятся автоматически</span>
+        <input type="file" id="ocr-input" accept="image/*" capture="environment" style="position:absolute;opacity:0;inset:0;cursor:pointer">
+      </div>
       <form id="kasse-ausgeben-form" class="v-form">
         <label>Назначение
-          <select name="kategorie" required>
+          <select name="kategorie" id="ag-kategorie" required>
             <optgroup label="— Аванс —">
               <option value="vorschuss|">Аванс (общий)</option>
               <option value="vorschuss|Бензин / Kraftstoff">Аванс · Бензин</option>
@@ -1022,11 +1197,44 @@ function renderModal(mod) {
             </optgroup>
           </select>
         </label>
-        <label>Кому
-          <input name="empfaenger_name" placeholder="Имя получателя" required autofocus>
+        <div id="ag-label-text" style="display:grid;gap:6px">
+          <span style="font-size:12px;color:var(--v-sub)">Кому</span>
+          <select id="ag-empfaenger-sel">
+            <option value="">— Выберите получателя —</option>
+            ${personenOpts}
+            <option value="__manual__">✏ Ввести вручную…</option>
+          </select>
+          <input id="ag-empfaenger-manual" placeholder="Имя получателя" style="display:none">
+          <input type="hidden" name="empfaenger_name" id="ag-empfaenger-text">
+        </div>
+        <div id="ag-label-select" style="display:none">
+          <label>Подрядчик
+            <select id="ag-auftragnehmer-sel">
+              ${auftragnehmerOpts}
+              <option value="__new__">＋ Добавить нового…</option>
+            </select>
+          </label>
+          <div id="ag-new-form" style="display:none;flex-direction:column;gap:8px;background:var(--v-bg2,#f5f5f5);border-radius:8px;padding:10px;margin-top:6px">
+            <label style="margin:0">Название фирмы / имя
+              <input id="ag-new-name" placeholder="Firma GmbH" maxlength="200">
+            </label>
+            <div style="display:flex;gap:8px">
+              <label style="margin:0;flex:1">Тип
+                <select id="ag-new-art">
+                  <option value="firma">Фирма</option>
+                  <option value="person">Физ. лицо</option>
+                </select>
+              </label>
+            </div>
+            <button type="button" id="ag-new-save" class="v-button primary">${icon('user-plus')} Сохранить подрядчика</button>
+          </div>
+          <input type="hidden" name="empfaenger_name" id="ag-empfaenger-hidden" disabled>
+        </div>
+        <label>Rechnungs-Nr. (необязательно)
+          <input name="rechnungs_nr" id="ag-rechnungs-nr" placeholder="2024-001" maxlength="50">
         </label>
         <label>Сумма (€)
-          <input name="betrag" inputmode="decimal" placeholder="0,00" required>
+          <input name="betrag" id="ag-betrag" inputmode="decimal" placeholder="0,00" required>
         </label>
         <label>Примечание
           <input name="notiz" placeholder="Необязательно (автозаполнится по назначению)">
@@ -1048,13 +1256,15 @@ function renderModal(mod) {
   }
   return `<section class="v-modal">
     <div class="v-modalheader"><h3>${esc(title)}</h3>
-      <button class="v-button" data-action="modalClose" aria-label="Закрыть">${icon('x')}</button>
+      <button class="v-button" data-action="modalClose" aria-label="${t('modal_close')}">${icon('x')}</button>
     </div>${body}
   </section>`;
 }
 
 /* ---------- Сборка страницы ---------- */
 function istMobil() { return window.innerWidth < 620; }
+
+function closeModal() { S.modal = null; S.modalData = null; }
 
 function renderApp() {
   if (!S.ich) return;
@@ -1064,17 +1274,20 @@ function renderApp() {
   const isBuch = r === 'buchhaltung' || r === 'gf';
 
   const navLinks = isMa ? [
-    ['mein','house','Мой кабинет'],
-    ['rueckfragen','message-circle','Вопросы'],
+    ['mein','house',t('nav_mein')],
+    ['quittungen','receipt',t('nav_quittungen')],
+    ['rueckfragen','message-circle',t('nav_fragen')],
   ] : isDisp ? [
-    ['lage','wallet','Касса'],
-    ['eingang','inbox','Авансы'],
-    ['rueckfragen','message-circle','Вопросы'],
+    ['lage','wallet',t('nav_kasse')],
+    ['eingang','inbox',t('nav_avans')],
+    ['quittungen','receipt',t('nav_quittungen')],
+    ['rueckfragen','message-circle',t('nav_fragen')],
   ] : [
-    ['lage','layout-dashboard','Рабочий стол'],
-    ['eingang','inbox','Очередь'],
-    ['kasse','wallet','Касса'],
-    ['rueckfragen','message-square','Запросы'],
+    ['lage','layout-dashboard',t('nav_desk')],
+    ['eingang','inbox',t('nav_eingang')],
+    ['kasse','wallet',t('nav_kasse')],
+    ['quittungen','receipt',t('nav_quittungen')],
+    ['rueckfragen','message-square',t('nav_req')],
   ];
 
   let hauptinhalt = '';
@@ -1083,6 +1296,7 @@ function renderApp() {
   else if (S.seite==='kasse') hauptinhalt = renderKasse();
   else if (S.seite==='rueckfragen') hauptinhalt = renderRueckfragen();
   else if (S.seite==='mein') hauptinhalt = renderMeinBereich();
+  else if (S.seite==='quittungen') hauptinhalt = renderQuittungen();
   else hauptinhalt = renderLage();
 
   const syncInfo = S.sync.wann
@@ -1094,12 +1308,13 @@ function renderApp() {
 <div class="wrap">
 <div class="v-app">
   <header class="v-top">
-    <div class="v-logo"><span class="v-mark">₽</span>КАССА VAV</div>
+    <div class="v-logo"><span class="v-mark">₽</span>${t('header')}</div>
     <span class="v-tag">${esc(S.lage?.firma||'VAV Kaiser GmbH')}</span>
     <div class="v-topright">
       ${syncInfo}
+      <button class="v-button small" data-action="switchLang" title="Sprache / Язык" style="font-size:11px;padding:2px 8px;min-width:32px">${t('lang_btn')}</button>
       <span class="v-small">${esc(S.ich.name||S.ich.login)}</span>
-      <span class="v-avatar" data-action="logout" title="Выйти">${esc((S.ich.name||S.ich.login).slice(0,2).toUpperCase())}</span>
+      <span class="v-avatar" data-action="logout" title="${t('logout')}">${esc((S.ich.name||S.ich.login).slice(0,2).toUpperCase())}</span>
     </div>
   </header>
   <div class="v-layout">
@@ -1110,14 +1325,14 @@ function renderApp() {
         ${id==='rueckfragen'&&(S.lage?.rueckfragen_offen||0)>0?`<span class="v-count">${S.lage.rueckfragen_offen}</span>`:''}
         ${id==='eingang'&&(S.lage?.eingang_anzahl||0)>0?`<span class="v-count">${S.lage.eingang_anzahl}</span>`:''}
       </button>`).join('')}
-      <div class="v-sidebarfoot">Касса VAV<br>${new Date().toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</div>
+      <div class="v-sidebarfoot">${t('sidebar_foot')}<br>${new Date().toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</div>
     </nav>
     <main class="v-content">
       ${hauptinhalt}
       ${S.modal ? renderModal(S.modal) : ''}
       <div class="v-footer">
-        <span>Касса VAV · ${esc(S.ich.name||S.ich.login)}</span>
-        <span>Работающие данные</span>
+        <span>${t('sidebar_foot')} · ${esc(S.ich.name||S.ich.login)}</span>
+        <span>${t('beweg_work')}</span>
       </div>
     </main>
   </div>
@@ -1126,6 +1341,136 @@ function renderApp() {
 
   if (window.lucide) lucide.createIcons();
   setupSigCanvas();
+  setupAusgebenForm();
+}
+
+function setupAusgebenForm() {
+  const kat = document.getElementById('ag-kategorie');
+  if (!kat) return;
+
+  function updateEmpfRow() {
+    const isAt = kat.value === 'lohn|Оплата подрядчика';
+    const labelText = document.getElementById('ag-label-text');
+    const labelSel = document.getElementById('ag-label-select');
+    const hidPerson = document.getElementById('ag-empfaenger-text');
+    const hidAt = document.getElementById('ag-empfaenger-hidden');
+    if (!labelText || !labelSel) return;
+    if (isAt) {
+      labelText.style.display = 'none';
+      if (hidPerson) hidPerson.disabled = true;
+      if (hidAt) hidAt.disabled = false;
+      labelSel.style.display = '';
+      syncHidden();
+      const sel = document.getElementById('ag-auftragnehmer-sel');
+      const newForm = document.getElementById('ag-new-form');
+      if (sel && newForm && sel.value === '__new__') newForm.style.display = 'flex';
+    } else {
+      labelText.style.display = 'grid';
+      if (hidPerson) hidPerson.disabled = false;
+      if (hidAt) hidAt.disabled = true;
+      labelSel.style.display = 'none';
+    }
+  }
+
+  function syncHidden() {
+    const sel = document.getElementById('ag-auftragnehmer-sel');
+    const hid = document.getElementById('ag-empfaenger-hidden');
+    if (!sel || !hid) return;
+    if (sel.value === '__new__') { hid.value = ''; }
+    else { const parts = sel.value.split('|'); hid.value = parts.slice(1).join('|') || ''; }
+  }
+
+  kat.addEventListener('change', updateEmpfRow);
+  updateEmpfRow();
+
+  // Person-select listeners
+  const empfSel = document.getElementById('ag-empfaenger-sel');
+  const empfManual = document.getElementById('ag-empfaenger-manual');
+  const empfHid = document.getElementById('ag-empfaenger-text');
+  function syncEmpf() {
+    if (!empfSel) return;
+    if (empfSel.value === '__manual__') {
+      if (empfManual) empfManual.style.display = '';
+      if (empfHid) empfHid.value = empfManual?.value || '';
+    } else {
+      if (empfManual) empfManual.style.display = 'none';
+      if (empfHid) empfHid.value = empfSel.value;
+    }
+  }
+  if (empfSel) empfSel.addEventListener('change', () => { syncEmpf(); if (empfSel.value === '__manual__') empfManual?.focus(); });
+  if (empfManual) empfManual.addEventListener('input', () => { if (empfHid) empfHid.value = empfManual.value; });
+
+  const atSel = document.getElementById('ag-auftragnehmer-sel');
+  if (atSel) {
+    atSel.addEventListener('change', () => {
+      syncHidden();
+      const newForm = document.getElementById('ag-new-form');
+      if (newForm) newForm.style.display = atSel.value === '__new__' ? 'flex' : 'none';
+    });
+  }
+
+  const saveBt = document.getElementById('ag-new-save');
+  if (saveBt) {
+    saveBt.addEventListener('click', async () => {
+      const name = (document.getElementById('ag-new-name')?.value||'').trim();
+      const art = document.getElementById('ag-new-art')?.value || 'firma';
+      if (!name) { toast('Введите название'); return; }
+      try {
+        saveBt.disabled = true;
+        const r = await api('POST','auftragnehmer',{name,art});
+        if (!S.lage) S.lage = {};
+        if (!S.lage.auftragnehmer) S.lage.auftragnehmer = [];
+        S.lage.auftragnehmer.push({id:r.id,name:r.name,art,iban:null,notiz:null});
+        S.lage.auftragnehmer.sort((a,b)=>a.name.localeCompare(b.name,'de'));
+        const sel = document.getElementById('ag-auftragnehmer-sel');
+        if (sel) {
+          const opt = document.createElement('option');
+          opt.value = 'at:' + r.id + '|' + r.name;
+          opt.textContent = r.name + (art==='person'?' (физ.)':'');
+          sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+          sel.value = opt.value;
+          document.getElementById('ag-new-form').style.display = 'none';
+          syncHidden();
+        }
+        toast('Подрядчик добавлен: ' + r.name);
+      } catch(e) { toast('Ошибка: ' + e.message); } finally { saveBt.disabled = false; }
+    });
+  }
+
+  const ocrInput = document.getElementById('ocr-input');
+  if (ocrInput) {
+    ocrInput.addEventListener('change', async () => {
+      const file = ocrInput.files[0]; if (!file) return;
+      const status = document.getElementById('ocr-status');
+      if (status) status.textContent = 'Распознаю…';
+      try {
+        const buf = await file.arrayBuffer();
+        const resp = await fetch('/api/k/beleg-scan', {
+          method:'POST', headers:{'Content-Type': file.type},
+          body: buf, credentials: 'same-origin'
+        });
+        const r = await resp.json();
+        if (r.betrag != null) {
+          const betragEl = document.getElementById('ag-betrag');
+          if (betragEl) betragEl.value = String(r.betrag).replace('.',',');
+        }
+        if (r.empfaenger) {
+          if (document.getElementById('ag-label-text')?.style.display !== 'none') {
+            const sel = document.getElementById('ag-empfaenger-sel');
+            const man = document.getElementById('ag-empfaenger-manual');
+            const hid = document.getElementById('ag-empfaenger-text');
+            if (sel) sel.value = '__manual__';
+            if (man) { man.style.display = ''; man.value = r.empfaenger; }
+            if (hid) hid.value = r.empfaenger;
+          } else {
+            const hidEl = document.getElementById('ag-empfaenger-hidden');
+            if (hidEl) hidEl.value = r.empfaenger;
+          }
+        }
+        if (status) status.textContent = r.betrag ? ('Распознано: ' + euro(Math.round(r.betrag*100))) : 'Квитанция загружена';
+      } catch(e) { if (status) status.textContent = 'Ошибка распознавания'; }
+    });
+  }
 }
 
 /* ---------- Обработка форм ---------- */
@@ -1142,7 +1487,11 @@ async function formAbsenden(form) {
       await lageLaden(); toast('Снятие записано'); renderApp();
     } else if (form.id==='uebergabe-form') {
       await api('POST','uebergabe',{an_konto: d.an_konto, betrag: parseEur(d.betrag)});
-      toast('Передача создана');
+      toast('Übergabe erstellt');
+    } else if (form.id==='einzahlung-form') {
+      await api('POST','einzahlung',{betrag: parseEur(d.betrag), datum: d.datum||'', grund: d.grund||'sonstiges', person: d.person||'', notiz: d.notiz||''});
+      S.modal = null;
+      await lageLaden(); toast('Einzahlung erfasst'); renderApp(); return;
     } else if (form.id==='beleg-form') {
       await api('POST','beleg',{betrag: parseEur(d.betrag), art: d.art||'sonstig', objekt: d.objekt||null, fahrzeug: d.fahrzeug||null, zahlungsweg: d.zahlungsweg||'eigen'});
       toast('Чек отправлен на проверку');
@@ -1160,10 +1509,19 @@ async function formAbsenden(form) {
     } else if (form.id==='ablehnen-form') {
       const r = S.ausgewaehlt;
       if (r) {
-        const pfad = r.plan_ref ? `plan/${r.id}/entscheiden` : `beleg/${r.id}/pruefen`;
-        await api('POST', pfad, {aktion:'ablehnen', grund: d.grund});
-        toast('Документ отклонён');
+        if (r._typ === 'ea') {
+          await api('POST', `eingang/${r.id}/ablehnen`, {grund: d.grund});
+          toast('Запрос отклонён'); S.ausgewaehlt = null;
+        } else {
+          const pfad = r.plan_ref ? `plan/${r.id}/entscheiden` : `beleg/${r.id}/pruefen`;
+          await api('POST', pfad, {aktion:'ablehnen', grund: d.grund});
+          toast('Документ отклонён');
+        }
       }
+    } else if (form.id==='ea-klaeren-form') {
+      const r = S.ausgewaehlt;
+      if (r) { await api('POST', `eingang/${r.id}/klaeren`, {grund: d.grund}); toast('Запрос на уточнение отправлен'); }
+
     } else if (form.id==='genehmigen-form') {
       const r = S.ausgewaehlt;
       if (r) {
@@ -1173,9 +1531,13 @@ async function formAbsenden(form) {
       }
     } else if (form.id==='kasse-ausgeben-form') {
       const [zweck, defaultNotiz] = (d.kategorie || 'vorschuss|').split('|');
-      const notiz = d.notiz || defaultNotiz || undefined;
+      const rNr = (d.rechnungs_nr || '').trim();
+      const baseNotiz = d.notiz || defaultNotiz || '';
+      const notiz = (rNr ? ('R.-Nr.: ' + rNr + (baseNotiz ? ' · ' + baseNotiz : '')) : baseNotiz) || undefined;
       const betrag = parseEur(d.betrag);
-      const empfaenger_name = d.empfaenger_name;
+      const empfaenger_name = d.empfaenger_name === '__manual__'
+        ? (document.getElementById('ag-empfaenger-manual')?.value || '').trim()
+        : d.empfaenger_name;
       const r = await api('POST', 'quittung/dringend', { zweck, empfaenger_name, betrag, notiz });
       S.signaturStep = { id: r.id, nr: r.nr, empfaenger: empfaenger_name, betrag };
       await lageLaden();
@@ -1273,15 +1635,40 @@ document.getElementById('app').addEventListener('click', async e => {
     window.location.reload();
     return;
   }
-  if (act==='modalClose') { S.modal = null; S.modalData = null; S.signaturStep = null; renderApp(); return; }
-  if (act==='sigSkip') {
-    window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
-    toast('Квитанция ' + S.signaturStep.nr + ' открыта для печати');
-    S.signaturStep = null; S.modal = null;
-    await lageLaden(); renderApp(); return;
+  if (act==='modalClose') {
+    if (S.signaturStep) {
+      // Квитанция vorbereitet — деньги ещё не выданы. Спрашиваем перед отменой.
+      if (!confirm('Выдача не завершена. Отменить квитанцию ' + S.signaturStep.nr + '?')) return;
+      try { await api('POST', 'quittung/' + S.signaturStep.id + '/abbrechen', {}); } catch(e) { /* игнорируем */ }
+    }
+    S.modal = null; S.modalData = null; S.signaturStep = null; await lageLaden(); renderApp(); return;
   }
 
   const scrollToModal = () => document.querySelector('.v-modal')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  if (act==='abhebungBestaetigen') {
+    try {
+      await api('POST', `abhebung/${b.dataset.id}/bestaetigen`, {});
+      await lageLaden(); closeModal(); toast('Снятие подтверждено'); renderApp();
+    } catch(e) { toast(e.message, 'err'); }
+    return;
+  }
+  if (act==='abhebungAblehnen') {
+    try {
+      await api('POST', `abhebung/${b.dataset.id}/ablehnen`, {});
+      await lageLaden(); closeModal(); toast('Снятие отклонено'); renderApp();
+    } catch(e) { toast(e.message, 'err'); }
+    return;
+  }
+
+  if (act==='bewegungStornieren') {
+    if (!confirm('Отменить эту передачу наличных?')) return;
+    try {
+      await api('POST', `bewegung/${b.dataset.id}/stornieren`, {});
+      await lageLaden(); closeModal(); toast('Передача отменена'); renderApp();
+    } catch(e) { toast(e.message, 'err'); }
+    return;
+  }
+
   if (act==='metrikNalichnye' || act==='kasseAusgeben') {
     const isGf = S.ich?.rolle === 'gf';
     const kasseHasGeld = (S.lage?.kasse?.hauptkasse||0) > 0;
@@ -1295,6 +1682,12 @@ document.getElementById('app').addEventListener('click', async e => {
     S.modal = 'metrikHalter';
     renderApp();
     scrollToModal();
+    return;
+  }
+  if (act==='switchLang') {
+    S.lang = S.lang === 'ru' ? 'de' : 'ru';
+    try { localStorage.setItem('v_lang', S.lang); } catch(e) {}
+    renderApp();
     return;
   }
   if (act==='zaehlenNalichnye') { S.modal = 'zaehlen'; renderApp(); scrollToModal(); return; }
@@ -1360,11 +1753,15 @@ document.getElementById('app').addEventListener('click', async e => {
     return;
   }
   if (act==='eingangAblehnen') {
-    const r = S.ausgewaehlt;
-    if (r) {
-      try { await api('POST',`eingang/${r.id}/ablehnen`,{}); await lageLaden(); toast('Запрос отклонён'); S.ausgewaehlt = null; renderApp(); }
-      catch(e) { toast(e.message,'err'); }
-    }
+    S.modal = 'ablehnen';
+    renderApp();
+    scrollToModal();
+    return;
+  }
+  if (act==='eingangKlaeren') {
+    S.modal = 'eingangKlaeren';
+    renderApp();
+    scrollToModal();
     return;
   }
   if (act==='fotoOeffnen') {
@@ -1495,38 +1892,50 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/kasse/sw.js', {scope: '/kasse/'}).catch(e => console.warn('SW:', e.message));
 }
 function setupSigCanvas() {
-  const canvas = document.getElementById('sig-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  let drawing = false;
-
-  function pos(e) {
-    const r = canvas.getBoundingClientRect();
-    const sx = canvas.width / r.width;
-    const sy = canvas.height / r.height;
-    const src = e.touches ? e.touches[0] : e;
-    return [(src.clientX - r.left) * sx, (src.clientY - r.top) * sy];
+  function initCanvas(id) {
+    const c = document.getElementById(id);
+    if (!c) return null;
+    const ctx = c.getContext('2d');
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let drawing = false;
+    function pos(e) {
+      const r = c.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return [(src.clientX - r.left) * c.width / r.width, (src.clientY - r.top) * c.height / r.height];
+    }
+    c.addEventListener('mousedown',  e => { drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); });
+    c.addEventListener('mousemove',  e => { if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); });
+    c.addEventListener('mouseup',    () => drawing = false);
+    c.addEventListener('mouseleave', () => drawing = false);
+    c.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); }, {passive:false});
+    c.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); }, {passive:false});
+    c.addEventListener('touchend',   () => drawing = false);
+    return c;
   }
-  canvas.addEventListener('mousedown',  e => { drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); });
-  canvas.addEventListener('mousemove',  e => { if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); });
-  canvas.addEventListener('mouseup',    () => drawing = false);
-  canvas.addEventListener('mouseleave', () => drawing = false);
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); }, {passive:false});
-  canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); }, {passive:false});
-  canvas.addEventListener('touchend',   () => drawing = false);
+  const canvas = initCanvas('sig-canvas');
+  const canvasAusgabe = initCanvas('sig-canvas-ausgabe');
+  if (!canvas) return;
 
-  document.getElementById('sig-clear')?.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
+  function isBlank(c) {
+    const blank = document.createElement('canvas'); blank.width = c.width; blank.height = c.height;
+    return c.toDataURL() === blank.toDataURL();
+  }
+
+  document.getElementById('sig-clear')?.addEventListener('click', () => canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height));
+  document.getElementById('sig-clear-ausgabe')?.addEventListener('click', () => canvasAusgabe?.getContext('2d').clearRect(0,0,canvasAusgabe.width,canvasAusgabe.height));
+
   document.getElementById('sig-save')?.addEventListener('click', async () => {
+    if (isBlank(canvas)) { toast('Unterschrift Empfänger fehlt', 'err'); return; }
+    if (canvasAusgabe && isBlank(canvasAusgabe)) { toast('Unterschrift Kassierer fehlt', 'err'); return; }
     const sig = canvas.toDataURL('image/png');
+    const sigAusgabe = canvasAusgabe ? canvasAusgabe.toDataURL('image/png') : null;
+    const btn = document.getElementById('sig-save'); if (btn) btn.disabled = true;
     try {
-      await api('POST', 'quittung/' + S.signaturStep.id + '/unterschrift', { unterschrift: sig });
+      await api('POST', 'quittung/' + S.signaturStep.id + '/unterschrift', { unterschrift: sig, ausgabe_unterschrift: sigAusgabe });
+      await api('POST', 'quittung/' + S.signaturStep.id + '/ausgeben', {});
       window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
-      toast('Подпись сохранена · Квитанция ' + S.signaturStep.nr);
-    } catch(err) { toast(err.message, 'err'); return; }
+      toast('Unterschriften gespeichert · Geld ausgezahlt · ' + S.signaturStep.nr);
+    } catch(err) { toast(err.message, 'err'); if (btn) btn.disabled = false; return; }
     S.signaturStep = null; S.modal = null;
     await lageLaden(); renderApp();
   });
@@ -1543,9 +1952,11 @@ function setupSigCanvas() {
       try {
         const sha = await uploadDatei(file);
         await api('POST', 'quittung/' + S.signaturStep.id + '/foto', { sha });
-        if (chekArea) { chekArea.style.background = '#e8f5e9'; chekArea.style.borderColor = '#35674e'; chekArea.style.opacity = '1'; }
+        if (chekArea) { chekArea.style.background = 'var(--v-ok-bg,#e8f5e9)'; chekArea.style.borderColor = '#35674e'; chekArea.style.opacity = '1'; }
         chekStatus.textContent = '✓ ' + file.name;
-        toast('Чек прикреплён к квитанции ' + S.signaturStep.nr);
+        const ausgBtn = document.getElementById('chek-ausgeben');
+        if (ausgBtn) ausgBtn.style.display = '';
+        toast('Квитанция прикреплена · ' + S.signaturStep.nr);
       } catch(err) {
         chekStatus.textContent = 'Ошибка: ' + err.message;
         if (chekArea) chekArea.style.opacity = '1';
@@ -1553,6 +1964,25 @@ function setupSigCanvas() {
       }
     });
   }
+
+  document.getElementById('chek-ausgeben')?.addEventListener('click', async () => {
+    const btn = document.getElementById('chek-ausgeben'); if (btn) btn.disabled = true;
+    try {
+      await api('POST', 'quittung/' + S.signaturStep.id + '/ausgeben', {});
+      window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
+      toast('Деньги выданы по квитанции · ' + S.signaturStep.nr);
+    } catch(err) { toast(err.message, 'err'); if (btn) btn.disabled = false; return; }
+    S.signaturStep = null; S.modal = null;
+    await lageLaden(); renderApp();
+  });
+
+  document.getElementById('sig-abbrechen')?.addEventListener('click', async () => {
+    if (!confirm('Отменить выдачу ' + S.signaturStep.nr + '?')) return;
+    try { await api('POST', 'quittung/' + S.signaturStep.id + '/abbrechen', {}); toast('Выдача отменена'); }
+    catch(err) { toast(err.message, 'err'); return; }
+    S.signaturStep = null; S.modal = null;
+    await lageLaden(); renderApp();
+  });
 }
 
 let pwaPrompt = null;
