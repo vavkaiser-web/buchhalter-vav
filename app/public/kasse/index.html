@@ -1127,24 +1127,34 @@ function renderModal(mod) {
       body = `
         <div class="v-note" style="margin-bottom:12px">${icon('file-text')} <strong>${esc(S.signaturStep.nr)}</strong> · ${esc(S.signaturStep.empfaenger||'')} · <strong>${euro(S.signaturStep.betrag||0)}</strong></div>
         <div style="background:var(--v-warn-bg,#fff8e1);border:1px solid var(--v-warn,#e65100);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px;color:var(--v-warn,#e65100)">
-          ${icon('alert-triangle')} <strong>Без документа деньги не выдаются.</strong> Нужна подпись или фото квитанции.
+          ${icon('alert-triangle')} <strong>Beide Unterschriften erforderlich.</strong> Erst Empfänger, dann Kassierer unterschreiben.
         </div>
-        <div class="v-small" style="margin-bottom:6px;font-weight:600">Вариант 1 · Подпись получателя</div>
-        <canvas id="sig-canvas" width="700" height="140"
+        <div class="v-small" style="margin-bottom:4px;font-weight:600">1. Unterschrift Empfänger</div>
+        <canvas id="sig-canvas" width="700" height="120"
           style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Очистить</button>
-          <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Подписать и выдать деньги</button>
+        <div style="display:flex;gap:8px;margin-top:6px;margin-bottom:14px">
+          <button type="button" id="sig-clear" class="v-button" style="flex:0 0 auto">${icon('eraser')} Löschen</button>
+          <span style="flex:1;font-size:12px;color:var(--v-muted);align-self:center">Empfänger unterschreibt hier</span>
         </div>
-        <div style="margin:14px 0 6px;font-size:13px;color:var(--v-muted);text-align:center">— или —</div>
-        <div class="v-small" style="margin-bottom:6px;font-weight:600">Вариант 2 · Фото квитанции</div>
+        <div class="v-small" style="margin-bottom:4px;font-weight:600">2. Unterschrift Kassierer (Ausgezahlt von)</div>
+        <canvas id="sig-canvas-ausgabe" width="700" height="120"
+          style="width:100%;border:2px solid var(--v-brd);border-radius:8px;touch-action:none;cursor:crosshair;background:#fff;display:block"></canvas>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button type="button" id="sig-clear-ausgabe" class="v-button" style="flex:0 0 auto">${icon('eraser')} Löschen</button>
+          <span style="flex:1;font-size:12px;color:var(--v-muted);align-self:center">Kassierer unterschreibt hier</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" id="sig-save" class="v-button primary" style="flex:1">${icon('check-circle')} Beide unterschrieben – Geld auszahlen</button>
+        </div>
+        <div style="margin:14px 0 6px;font-size:13px;color:var(--v-muted);text-align:center">— oder nur Foto —</div>
+        <div class="v-small" style="margin-bottom:6px;font-weight:600">Foto der Quittung</div>
         <div id="chek-area" class="v-upload" style="padding:14px 12px;position:relative">
-          ${icon('paperclip')}<strong id="chek-status">Прикрепить квитанцию / фото</strong>
-          <span class="v-small">Фото чека или PDF</span>
+          ${icon('paperclip')}<strong id="chek-status">Quittung / Foto anhängen</strong>
+          <span class="v-small">Foto oder PDF</span>
           <input type="file" id="chek-input" accept="image/*,application/pdf" capture="environment" style="position:absolute;opacity:0;inset:0;cursor:pointer">
         </div>
-        <button type="button" id="chek-ausgeben" class="v-button primary full" style="display:none;margin-top:8px">${icon('send')} Выдать деньги по квитанции</button>
-        <button type="button" id="sig-abbrechen" class="v-button" style="width:100%;margin-top:14px;justify-content:center;color:var(--v-muted);font-size:13px">${icon('x-circle')} Отменить выдачу</button>`;
+        <button type="button" id="chek-ausgeben" class="v-button primary full" style="display:none;margin-top:8px">${icon('send')} Auszahlen per Quittungsfoto</button>
+        <button type="button" id="sig-abbrechen" class="v-button" style="width:100%;margin-top:14px;justify-content:center;color:var(--v-muted);font-size:13px">${icon('x-circle')} Auszahlung abbrechen</button>`;
     } else {
     title = 'Распределить деньги';
     const hauptkasse = S.lage?.kasse?.hauptkasse || 0;
@@ -1882,42 +1892,49 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/kasse/sw.js', {scope: '/kasse/'}).catch(e => console.warn('SW:', e.message));
 }
 function setupSigCanvas() {
-  const canvas = document.getElementById('sig-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  let drawing = false;
-
-  function pos(e) {
-    const r = canvas.getBoundingClientRect();
-    const sx = canvas.width / r.width;
-    const sy = canvas.height / r.height;
-    const src = e.touches ? e.touches[0] : e;
-    return [(src.clientX - r.left) * sx, (src.clientY - r.top) * sy];
+  function initCanvas(id) {
+    const c = document.getElementById(id);
+    if (!c) return null;
+    const ctx = c.getContext('2d');
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let drawing = false;
+    function pos(e) {
+      const r = c.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return [(src.clientX - r.left) * c.width / r.width, (src.clientY - r.top) * c.height / r.height];
+    }
+    c.addEventListener('mousedown',  e => { drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); });
+    c.addEventListener('mousemove',  e => { if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); });
+    c.addEventListener('mouseup',    () => drawing = false);
+    c.addEventListener('mouseleave', () => drawing = false);
+    c.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); }, {passive:false});
+    c.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); }, {passive:false});
+    c.addEventListener('touchend',   () => drawing = false);
+    return c;
   }
-  canvas.addEventListener('mousedown',  e => { drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); });
-  canvas.addEventListener('mousemove',  e => { if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); });
-  canvas.addEventListener('mouseup',    () => drawing = false);
-  canvas.addEventListener('mouseleave', () => drawing = false);
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; ctx.beginPath(); const [x,y]=pos(e); ctx.moveTo(x,y); }, {passive:false});
-  canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); }, {passive:false});
-  canvas.addEventListener('touchend',   () => drawing = false);
+  const canvas = initCanvas('sig-canvas');
+  const canvasAusgabe = initCanvas('sig-canvas-ausgabe');
+  if (!canvas) return;
 
-  document.getElementById('sig-clear')?.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
+  function isBlank(c) {
+    const blank = document.createElement('canvas'); blank.width = c.width; blank.height = c.height;
+    return c.toDataURL() === blank.toDataURL();
+  }
+
+  document.getElementById('sig-clear')?.addEventListener('click', () => canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height));
+  document.getElementById('sig-clear-ausgabe')?.addEventListener('click', () => canvasAusgabe?.getContext('2d').clearRect(0,0,canvasAusgabe.width,canvasAusgabe.height));
+
   document.getElementById('sig-save')?.addEventListener('click', async () => {
+    if (isBlank(canvas)) { toast('Unterschrift Empfänger fehlt', 'err'); return; }
+    if (canvasAusgabe && isBlank(canvasAusgabe)) { toast('Unterschrift Kassierer fehlt', 'err'); return; }
     const sig = canvas.toDataURL('image/png');
-    // Проверяем что что-то нарисовано
-    const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
-    if (canvas.toDataURL() === blank.toDataURL()) { toast('Нарисуйте подпись', 'err'); return; }
+    const sigAusgabe = canvasAusgabe ? canvasAusgabe.toDataURL('image/png') : null;
     const btn = document.getElementById('sig-save'); if (btn) btn.disabled = true;
     try {
-      await api('POST', 'quittung/' + S.signaturStep.id + '/unterschrift', { unterschrift: sig });
+      await api('POST', 'quittung/' + S.signaturStep.id + '/unterschrift', { unterschrift: sig, ausgabe_unterschrift: sigAusgabe });
       await api('POST', 'quittung/' + S.signaturStep.id + '/ausgeben', {});
       window.open('/api/k/quittung/' + S.signaturStep.id + '/druck', '_blank');
-      toast('Подпись сохранена · Деньги выданы · ' + S.signaturStep.nr);
+      toast('Unterschriften gespeichert · Geld ausgezahlt · ' + S.signaturStep.nr);
     } catch(err) { toast(err.message, 'err'); if (btn) btn.disabled = false; return; }
     S.signaturStep = null; S.modal = null;
     await lageLaden(); renderApp();

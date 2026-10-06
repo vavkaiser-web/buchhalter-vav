@@ -34,7 +34,7 @@ ${q.nu_name ? `<tr><th>Nachunternehmer</th><td>${esc(q.nu_name)}</td></tr>` : ''
 </table>
 ${q.zweck === 'nu' ? '<p class="hinweis">Entwurf: Der Betrag wird gegen die Forderung des Nachunternehmers für Arbeiten lt. schriftlicher Vereinbarung aufgerechnet; der Rechnungsbetrag wird nicht gemindert. Rechtlich nicht geprüft.</p>' : ''}
 <p class="text">Den Betrag von ${euro(q.betrag)} in bar erhalten.</p>
-<div class="unterschriften"><div>${q.unterschrift ? `<img src="${q.unterschrift}" class="sig-img">` : '<span></span>'}Unterschrift Empfänger</div><div><span></span>Ausgezahlt von</div></div>
+<div class="unterschriften"><div>${q.unterschrift ? `<img src="${q.unterschrift}" class="sig-img">` : '<span></span>'}Unterschrift Empfänger</div><div>${q.ausgabe_unterschrift ? `<img src="${q.ausgabe_unterschrift}" class="sig-img">` : '<span></span>'}Unterschrift Kassierer</div></div>
 <footer>Original ins Büro. Foto der unterschriebenen Quittung in die App hochladen.</footer>
 </section>`;
 }

@@ -512,10 +512,13 @@ async function quittungUnterschrift(n, id, b) {
   darf(istGf(n) || istDisp(n) || buero(n), 'Подпись принимает директор, ответственный или бухгалтерия');
   const sig = String(b.unterschrift || '');
   pruefe(sig.startsWith('data:image/png;base64,') && sig.length < 200000, 'Неверный формат подписи');
+  const sigAusgabe = b.ausgabe_unterschrift ? String(b.ausgabe_unterschrift) : null;
+  if (sigAusgabe) pruefe(sigAusgabe.startsWith('data:image/png;base64,') && sigAusgabe.length < 200000, 'Неверный формат подписи выдающего');
   return tx(async q => {
     const qt = (await q(`SELECT id FROM ${S}buch_quittung WHERE id = $1`, [idOf(id)]))[0];
     pruefe(qt, 'Квитанция не найдена', 404);
-    await q(`UPDATE ${S}buch_quittung SET unterschrift = $2 WHERE id = $1`, [qt.id, sig]);
+    await q(`UPDATE ${S}buch_quittung SET unterschrift = $2, ausgabe_unterschrift = COALESCE($3, ausgabe_unterschrift) WHERE id = $1`,
+      [qt.id, sig, sigAusgabe]);
     return { ok: true };
   });
 }
@@ -1249,7 +1252,8 @@ async function lage(n, benutzerListe, jetzt) {
       .map(x => ({ id: Number(x.id), nr: x.nr, plan_id: x.plan_id && Number(x.plan_id), plan_nr: x.plan_nr, plan_status: x.plan_status,
         empfaenger: x.empfaenger_name, empfaenger_ref: x.empfaenger_ref, nu_name: x.nu_name, zweck: x.zweck, betrag: Number(x.betrag_cent),
         verrechnet: Number(x.verrechnet), status: x.status, dringend: x.dringend, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von,
-        foto: x.foto_sha, original_am: x.original_am, nu_bestaetigt_am: x.nu_bestaetigt_am, nu_bestaetigt_notiz: x.nu_bestaetigt_notiz }));
+        foto: x.foto_sha, original_am: x.original_am, nu_bestaetigt_am: x.nu_bestaetigt_am, nu_bestaetigt_notiz: x.nu_bestaetigt_notiz,
+        unterschrift: x.unterschrift || null, ausgabe_unterschrift: x.ausgabe_unterschrift || null }));
 
     const plaene = buero(n) || istDisp(n) ? (await q(`SELECT * FROM ${S}buch_geldplan ORDER BY id DESC LIMIT 60`)).map(p => ({
       id: Number(p.id), nr: p.nr, titel: p.titel, status: p.status, initiator: p.initiator, angelegt: p.angelegt,
@@ -1364,7 +1368,7 @@ async function quittungenDruck(n, was) {
     return erlaubt.map(x => ({ nr: x.nr, plan_nr: x.plan_nr, plan_status: x.plan_status, genehmigt_von: x.entschieden_von, genehmigt_am: x.entschieden_am,
       empfaenger: x.empfaenger_name, nu_name: x.nu_name, zweck: x.zweck, betrag: Number(x.betrag_cent), notiz: x.notiz,
       status: x.status, dringend: x.dringend, angelegt: x.angelegt, ausgegeben_am: x.ausgegeben_am, ausgegeben_von: x.ausgegeben_von,
-      unterschrift: x.unterschrift || null }));
+      unterschrift: x.unterschrift || null, ausgabe_unterschrift: x.ausgabe_unterschrift || null }));
   });
 }
 
